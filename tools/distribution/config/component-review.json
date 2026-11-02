@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "commercial_release_approved": false,
+  "components": [
+    {"id": "distribution-layer", "mode": "private-development", "commercial_rights": "pending-owner-decision"},
+    {"id": "legacy-organizers", "mode": "private-source-review", "commercial_rights": "pending-provenance-review"},
+    {"id": "es-de", "mode": "upstream-download-only", "bundling": "not-approved", "source": "https://gitlab.com/es-de/emulationstation-de"},
+    {"id": "retrofe-runtime-and-themes", "mode": "external-input", "bundling": "blocked-until-source-license-recipe-review"},
+    {"id": "customer-media", "mode": "reviewed-customer-source-lock", "bundling": "not-approved-by-default"},
+    {"id": "eden-nx2", "mode": "experimental", "commercial_support": "excluded-gameplay-unverified"}
+  ]
+}

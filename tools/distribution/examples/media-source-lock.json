@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "components": {
+    "example-owned-cover": {
+      "kind": "media",
+      "version": "1",
+      "source_page": "https://example.invalid/author-and-license",
+      "url": "https://example.invalid/owned-cover.png",
+      "allowed_hosts": ["example.invalid"],
+      "target": "media/mastersystem/cover-front/Example Game.png",
+      "size_bytes": 1,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "license_id": "REPLACE-WITH-VERIFIED-LICENSE",
+      "license_review": "Example only: replace with verified ownership/permission and exact bytes.",
+      "approved_for_download": false,
+      "redistribute_payload": false
+    }
+  }
+}
