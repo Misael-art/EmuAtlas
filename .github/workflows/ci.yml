@@ -1,0 +1,36 @@
+# GitHub Actions: isolated fixture tests only. No personal library, GUI, GPU, BIOS, Steam or network fixtures.
+name: ci
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test tools (7z, ImageMagick)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full imagemagick
+      - name: Distribution tests
+        run: python3 -B -m unittest discover -s tools/distribution/tests -v
+      - name: Integration-recovery regressions
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: >-
+          python3 -B -m unittest -v
+          tools.roms.tests.test_module_identity
+          tools.roms.tests.test_esde_validate_contract
+          tools.roms.tests.test_switch2_launch_alias
+          tools.roms.tests.test_emutool_platform_status
+          tools.roms.tests.test_game_maintenance_exclusion
+          tools.roms.tests.test_launcher_archive_extraction
+          tools.roms.tests.test_media_stray_promotion
+          tools.roms.tests.test_emulator_library

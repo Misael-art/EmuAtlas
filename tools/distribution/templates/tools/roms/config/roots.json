@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "canonical_rom_root": "${WORKSPACE}/roms",
+  "known_roots": [
+    {
+      "id": "canonical",
+      "path": "${WORKSPACE}/roms",
+      "role": "canonical_rom_library",
+      "mutable_destination": true
+    },
+    {
+      "id": "workspace_support",
+      "path": "${WORKSPACE}",
+      "role": "mods_media_metadata_quarantine_system_support",
+      "mutable_destination": true
+    },
+    {
+      "id": "frontends",
+      "path": "${WORKSPACE}/frontend",
+      "role": "protected_frontend",
+      "mutable_destination": false
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "components": {
+    "es-de": {
+      "kind": "frontend",
+      "version": "3.5.0-r52",
+      "url": "https://gitlab.com/es-de/emulationstation-de/-/package_files/357718506/download",
+      "source_page": "https://gitlab.com/es-de/emulationstation-de",
+      "allowed_hosts": ["gitlab.com", "cdn.gitlab.com", "storage.googleapis.com"],
+      "size_bytes": 124827104,
+      "sha256": "25c99841f14bc77272332dfc6bff6b219d3e77734380afbabb72a729f44161dc",
+      "target": "frontend/ES-DE/ES-DE_x64_SteamDeck.AppImage",
+      "mode": "0755",
+      "acquisition": "upstream-download-only",
+      "redistribute_payload": false,
+      "license_review": "External upstream package; fetch directly. Commercial bundling has not been approved.",
+      "approved_for_download": true
+    }
+  },
+  "media": [],
+  "media_policy": "Add individually reviewed, licensed media to a customer source lock. Never scrape or download ROMs, BIOS, keys or firmware through this registry. No credentials in this file."
+}

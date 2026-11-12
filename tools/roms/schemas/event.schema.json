@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "roms-event-v1",
+  "title": "ROM maintenance append-only journal event",
+  "type": "object",
+  "required": ["event_id", "timestamp", "operation_id", "event", "action", "status"],
+  "properties": {
+    "event_id": {"type": "string", "format": "uuid"},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "operation_id": {"type": "string"},
+    "event": {"type": "string"},
+    "action": {"type": "string"},
+    "status": {"type": "string"},
+    "source": {"type": "string"},
+    "destination": {"type": "string"},
+    "sha256_before": {"type": "string"},
+    "sha256_after": {"type": "string"},
+    "size_before": {"type": ["integer", "string"]},
+    "size_after": {"type": ["integer", "string"]},
+    "details": {"type": "object"}
+  },
+  "additionalProperties": true
+}

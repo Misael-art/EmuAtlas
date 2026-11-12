@@ -1,0 +1,1587 @@
+{
+  "schema_version": 1,
+  "description": "Pinned native runtimes in emulator/linux and emulator/windows. One platform catalog and one shared emulator/data tree; OS-specific programs/configuration only.",
+  "manual_download_limit_bytes": 70000000,
+  "allowed_download_hosts": [
+    "7-zip.org",
+    "buildbot.libretro.com",
+    "dl.dolphin-emu.org",
+    "github.com",
+    "objects.githubusercontent.com",
+    "release-assets.githubusercontent.com",
+    "www.7-zip.org",
+    "www.python.org"
+  ],
+  "runtimes": {
+    "duckstation": {
+      "host_commands": [
+        "duckstation-qt",
+        "duckstation"
+      ],
+      "display_name": "DuckStation",
+      "systems": "PlayStation",
+      "version": "0.1-12442-gdd4a0eb77",
+      "release_page": "https://github.com/stenzek/duckstation/releases",
+      "source_url": "https://github.com/stenzek/duckstation/releases/download/v0.1-12442/DuckStation-x64.AppImage",
+      "source_size_bytes": 94519584,
+      "source_sha256": "4d5c3dcfd9937dc9e77b8fcd5f879b8ec0c69551d5ed13462592073608542fca",
+      "format": "appimage",
+      "entry": "DuckStation-x64.AppImage",
+      "profile_command": "../../emulator/linux/duckstation/DuckStation-x64.AppImage",
+      "flatpak_app_id": "org.duckstation.DuckStation"
+    },
+    "rpcs3": {
+      "host_commands": [
+        "rpcs3"
+      ],
+      "display_name": "RPCS3",
+      "systems": "PlayStation 3",
+      "version": "0.0.43-20404-e8979d31",
+      "release_page": "https://github.com/RPCS3/rpcs3-binaries-linux/releases",
+      "source_url": "https://github.com/RPCS3/rpcs3-binaries-linux/releases/download/build-e8979d31b3a22c8bc9a6eae6bdc31756eac8ee89/rpcs3-v0.0.43-20404-e8979d31_linux64.AppImage",
+      "source_size_bytes": 83248862,
+      "source_sha256": "8d548cd55c3b9fb530c580d8b49f033d9d8445fabddb25c51e782980f20c4ce1",
+      "format": "appimage",
+      "entry": "rpcs3.AppImage",
+      "probe_args": [
+        "--headless",
+        "--version"
+      ],
+      "environment": {
+        "APPIMAGELAUNCHER_DISABLE": "1",
+        "APPIMAGE_EXTRACT_AND_RUN": "1"
+      },
+      "profile_command": "../../emulator/linux/rpcs3/rpcs3.AppImage",
+      "flatpak_app_id": "net.rpcs3.RPCS3"
+    },
+    "shadps4": {
+      "host_commands": [
+        "shadps4"
+      ],
+      "display_name": "shadPS4",
+      "systems": "PlayStation 4",
+      "version": "0.20.0",
+      "release_page": "https://github.com/shadps4-emu/shadPS4/releases",
+      "source_url": "https://github.com/shadps4-emu/shadPS4/releases/download/v.0.20.0/shadps4-linux-sdl-0.20.0.zip",
+      "source_size_bytes": 33229758,
+      "source_sha256": "be25d0324cd7b74068d32cdb66fa1b7b1e7bb499b062be51c7006d27d41d4255",
+      "format": "zip_member",
+      "member": "Shadps4-sdl.AppImage",
+      "entry": "Shadps4-sdl.AppImage",
+      "entry_size_bytes": 33716728,
+      "entry_sha256": "6cf48bb6f1d9526e347091d9a6d47a3e63f31a9e953ff1761baa1f1ad78b523d",
+      "probe_args": [
+        "--help"
+      ],
+      "environment": {
+        "APPIMAGELAUNCHER_DISABLE": "1",
+        "APPIMAGE_EXTRACT_AND_RUN": "1"
+      },
+      "profile_command": "../../emulator/linux/shadps4/Shadps4-sdl.AppImage",
+      "flatpak_app_id": "net.shadps4.shadPS4"
+    },
+    "pcsx2": {
+      "host_commands": [
+        "pcsx2-qt",
+        "pcsx2"
+      ],
+      "display_name": "PCSX2",
+      "systems": "PlayStation 2",
+      "version": "2.8.2",
+      "release_page": "https://github.com/PCSX2/pcsx2/releases",
+      "source_url": "https://github.com/PCSX2/pcsx2/releases/download/v2.8.2/pcsx2-v2.8.2-linux-appimage-x64-Qt.AppImage",
+      "source_size_bytes": 60119544,
+      "source_sha256": "0c46bb6a88aa2782b10853a7b07cf3387ba99cbef2b966372cd2315b8571abea",
+      "format": "appimage",
+      "entry": "pcsx2-Qt.AppImage",
+      "flatpak_app_id": "net.pcsx2.PCSX2"
+    },
+    "ppsspp": {
+      "host_commands": [
+        "PPSSPPSDL",
+        "PPSSPPQt",
+        "ppsspp"
+      ],
+      "display_name": "PPSSPP",
+      "systems": "PlayStation Portable",
+      "version": "1.20.4",
+      "release_page": "https://github.com/hrydgard/ppsspp/releases",
+      "source_url": "https://github.com/hrydgard/ppsspp/releases/download/v1.20.4/PPSSPP-v1.20.4-anylinux-x86_64.AppImage",
+      "source_size_bytes": 50689748,
+      "source_sha256": "661c098e6b7f7610171a57b7c533ce8bba6f2312b71e76d61e850461973eba21",
+      "format": "appimage",
+      "entry": "PPSSPP.AppImage",
+      "flatpak_app_id": "org.ppsspp.PPSSPP"
+    },
+    "melonds": {
+      "host_commands": [
+        "melonDS"
+      ],
+      "display_name": "melonDS",
+      "systems": "Nintendo DS",
+      "version": "1.1",
+      "release_page": "https://github.com/melonDS-emu/melonDS/releases",
+      "source_url": "https://github.com/melonDS-emu/melonDS/releases/download/1.1/melonDS-1.1-appimage-x86_64.zip",
+      "source_size_bytes": 34289284,
+      "source_sha256": "bf377420a2e95f2cd2cdda17d5372b51c2534f858b038db9ec6d129554875124",
+      "format": "zip_member",
+      "member_suffix": ".AppImage",
+      "entry": "melonDS.AppImage",
+      "flatpak_app_id": "net.kuribo64.melonDS"
+    },
+    "flycast": {
+      "host_commands": [
+        "flycast"
+      ],
+      "display_name": "Flycast",
+      "systems": "Dreamcast, NAOMI, Atomiswave",
+      "version": "2.7",
+      "release_page": "https://github.com/flyinghead/flycast/releases",
+      "source_url": "https://github.com/flyinghead/flycast/releases/download/v2.7/flycast-x86_64-2.7.AppImage",
+      "source_size_bytes": 20396536,
+      "source_sha256": "5b9f8a636a6acb8446bc78fe96650d8cb8233ac9f8ce69665dab3f39a1cbaae1",
+      "format": "appimage",
+      "entry": "flycast.AppImage",
+      "flatpak_app_id": "org.flycast.Flycast"
+    },
+    "azahar": {
+      "host_commands": [
+        "azahar",
+        "azahar-qt"
+      ],
+      "display_name": "Azahar",
+      "systems": "Nintendo 3DS",
+      "version": "2126.2",
+      "release_page": "https://github.com/azahar-emu/azahar/releases",
+      "source_url": "https://github.com/azahar-emu/azahar/releases/download/2126.2/azahar.AppImage",
+      "source_size_bytes": 103684600,
+      "source_sha256": "af037f8b775198f636b14bcfe63fb401b02246ebfefe1025bb905ce042556960",
+      "format": "appimage",
+      "entry": "azahar.AppImage",
+      "flatpak_app_id": "org.azahar_emu.Azahar"
+    },
+    "cemu": {
+      "host_commands": [
+        "cemu",
+        "Cemu"
+      ],
+      "display_name": "Cemu",
+      "systems": "Nintendo Wii U",
+      "version": "2.6",
+      "release_page": "https://github.com/cemu-project/Cemu/releases",
+      "source_url": "https://github.com/cemu-project/Cemu/releases/download/v2.6/Cemu-2.6-x86_64.AppImage",
+      "source_size_bytes": 61423960,
+      "source_sha256": "0c20c4aeb800bb13d9bab9474ef45a6f8fcde6402cad9b32ac2a1bbd03186313",
+      "format": "appimage",
+      "entry": "Cemu.AppImage",
+      "flatpak_app_id": "info.cemu.Cemu"
+    },
+    "xemu": {
+      "host_commands": [
+        "xemu"
+      ],
+      "display_name": "xemu",
+      "systems": "Xbox",
+      "version": "0.8.139",
+      "release_page": "https://github.com/xemu-project/xemu/releases",
+      "source_url": "https://github.com/xemu-project/xemu/releases/download/v0.8.139/xemu-0.8.139-x86_64.AppImage",
+      "source_size_bytes": 17971704,
+      "source_sha256": "220282aacf09b30b35c55ba900a774fb6940c70deca1408bc70a4c9cc67c322f",
+      "format": "appimage",
+      "entry": "xemu.AppImage",
+      "flatpak_app_id": "app.xemu.xemu"
+    },
+    "core-a5200": {
+      "display_name": "Núcleo a5200 (RetroArch)",
+      "systems": "Atari 5200",
+      "kind": "libretro_core",
+      "version": "nightly Sun, 25 Oct 2026 06:19:12 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/a5200_libretro.so.zip",
+      "source_size_bytes": 114316,
+      "source_sha256": "a91cdbe1fb32676d78837cde943d8568a25a52afe9d503618da01ff6a3399f65",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-10-28. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "a5200_libretro.so",
+      "entry": "a5200_libretro.so",
+      "entry_sha256": "c4db0b8a6b8f7731d4944bda9c8125d7c074d0494c5201aa78abad1ec003675e",
+      "install_dir": "retroarch-cores",
+      "host_core": "a5200_libretro.so"
+    },
+    "core-prosystem": {
+      "display_name": "Núcleo ProSystem (RetroArch)",
+      "systems": "Atari 7800",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 24 Oct 2026 07:24:32 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/prosystem_libretro.so.zip",
+      "source_size_bytes": 54586,
+      "source_sha256": "17e718310c8665fcd95b54c4820e6585bd774e4cc88b41c6d7b3d1761765893a",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-10-28. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "prosystem_libretro.so",
+      "entry": "prosystem_libretro.so",
+      "entry_sha256": "5e11828417eaeafef64e842d6a1e2ddb8cd0b210b3daf7cba82d7a74b8efbe23",
+      "install_dir": "retroarch-cores",
+      "host_core": "prosystem_libretro.so"
+    },
+    "core-o2em": {
+      "display_name": "Núcleo O2EM (RetroArch)",
+      "systems": "Magnavox Odyssey2",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 24 Oct 2026 07:20:46 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/o2em_libretro.so.zip",
+      "source_size_bytes": 132741,
+      "source_sha256": "80f2dee23a31a67adfa8ea3034877a747d465e800e9760164796e7c421b9abf4",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-10-28. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "o2em_libretro.so",
+      "entry": "o2em_libretro.so",
+      "entry_sha256": "5f2e8cd457072ec1c9a7a8094c540b33db55f532f947952a3c1c0e5777e3b215",
+      "install_dir": "retroarch-cores",
+      "host_core": "o2em_libretro.so"
+    },
+    "core-pokemini": {
+      "display_name": "Núcleo PokeMini (RetroArch)",
+      "systems": "Pokémon Mini",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 24 Oct 2026 07:14:18 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/pokemini_libretro.so.zip",
+      "source_size_bytes": 109598,
+      "source_sha256": "4ba228dca61d191cc002b7b790f08c806c2630d5906303281b003d8b36b36fee",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-10-28. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "pokemini_libretro.so",
+      "entry": "pokemini_libretro.so",
+      "entry_sha256": "5ebf26b2f4eab0fd5fc00c7a5f72d1e31beb5528cc476597ea8ba81081ddf379",
+      "install_dir": "retroarch-cores",
+      "host_core": "pokemini_libretro.so"
+    },
+    "core-px68k": {
+      "display_name": "Núcleo PX68k (RetroArch)",
+      "systems": "Sharp X68000",
+      "kind": "libretro_core",
+      "version": "nightly Tue, 27 Oct 2026 02:11:00 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/px68k_libretro.so.zip",
+      "source_size_bytes": 247669,
+      "source_sha256": "20623a782877bd5e93df8d3103037150477bc139caef99bcfb06713de4518f1c",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-10-28. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "px68k_libretro.so",
+      "entry": "px68k_libretro.so",
+      "entry_sha256": "9b9f979e36b28a8b6456b55a56825d22879ed7ba86c67b3158f2ea6f6b3b18d9",
+      "install_dir": "retroarch-cores",
+      "host_core": "px68k_libretro.so"
+    },
+    "core-neocd": {
+      "display_name": "Núcleo NeoCD (RetroArch)",
+      "systems": "Neo Geo CD",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 24 Oct 2026 07:24:54 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/neocd_libretro.so.zip",
+      "source_size_bytes": 531787,
+      "source_sha256": "26ee82311c22eed0d9441220a16a371558d0a2e50f065c73bd37aeca7ec0cb7f",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-10-28. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "neocd_libretro.so",
+      "entry": "neocd_libretro.so",
+      "entry_sha256": "068bcb38f3551bd8b8cf1f13c2e9c2262963de0f82a9a7ae01d06eeb1c2be854",
+      "install_dir": "retroarch-cores",
+      "host_core": "neocd_libretro.so"
+    },
+    "core-kronos": {
+      "display_name": "Núcleo Kronos (RetroArch)",
+      "systems": "Sega Saturn (BIOS real ou HLE)",
+      "kind": "libretro_core",
+      "version": "nightly Tue, 27 Oct 2026 06:30:48 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/kronos_libretro.so.zip",
+      "source_size_bytes": 1764871,
+      "source_sha256": "0273c6b83fa8cfac756c7a831bea0d1e1e89b4b69f235a853874b8c9a062f7b0",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-10-28. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "kronos_libretro.so",
+      "entry": "kronos_libretro.so",
+      "entry_sha256": "ca7d0655cb4283b1749ddd2751450d2ec0fd2ea3a3686bde5c4b626cb99e06ac",
+      "install_dir": "retroarch-cores",
+      "host_core": "kronos_libretro.so"
+    },
+    "core-bluemsx": {
+      "display_name": "Núcleo blueMSX (RetroArch)",
+      "systems": "Microsoft MSX; ColecoVision; MSX1; MSX2; MSX Turbo R; Spectravideo",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 07 Nov 2026 08:34:56 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/bluemsx_libretro.so.zip",
+      "source_size_bytes": 731663,
+      "source_sha256": "f87c87391edfff945ee73fba5f869e4425bf3619e308b71f7a007c7050e996df",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "bluemsx_libretro.so",
+      "entry": "bluemsx_libretro.so",
+      "entry_sha256": "98cb8b24de653c4be49a6da36822b472e6d5ffbba5f2fb6ae2ef63cb8605133c",
+      "entry_size_bytes": 1593768,
+      "install_dir": "retroarch-cores",
+      "host_core": "bluemsx_libretro.so"
+    },
+    "core-fbneo": {
+      "display_name": "Núcleo FinalBurn Neo (RetroArch)",
+      "systems": "Arcade; Capcom Play System; Capcom Play System I; Capcom Play System II; Capcom Play System III; FinalBurn Neo; SNK Neo Geo",
+      "kind": "libretro_core",
+      "version": "nightly Sun, 08 Nov 2026 20:09:30 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/fbneo_libretro.so.zip",
+      "source_size_bytes": 21416396,
+      "source_sha256": "299e0bc479bdb1123059259a55c78efff9486f0d86dbb2930eba9012cc15ac06",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "fbneo_libretro.so",
+      "entry": "fbneo_libretro.so",
+      "entry_sha256": "588590c07919ecb14706027ede823d6657d5c30a39e5c6b3951f42b45c4794d6",
+      "entry_size_bytes": 84136048,
+      "install_dir": "retroarch-cores",
+      "host_core": "fbneo_libretro.so"
+    },
+    "core-freeintv": {
+      "display_name": "Núcleo FreeIntv (RetroArch)",
+      "systems": "Mattel Electronics Intellivision",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 07 Nov 2026 08:23:42 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/freeintv_libretro.so.zip",
+      "source_size_bytes": 500543,
+      "source_sha256": "717243c2f5ca49fbdf04ae5d61c339146ab470fcdc28ae3180a822aecf609c22",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "freeintv_libretro.so",
+      "entry": "freeintv_libretro.so",
+      "entry_sha256": "f88ebef0042890602e00c5c1eec2d52b6a20df69ce41e9894d246bd6e85add3b",
+      "entry_size_bytes": 609976,
+      "install_dir": "retroarch-cores",
+      "host_core": "freeintv_libretro.so"
+    },
+    "core-fuse": {
+      "display_name": "Núcleo Fuse (RetroArch)",
+      "systems": "Sinclair ZX Spectrum",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 07 Nov 2026 07:17:12 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/fuse_libretro.so.zip",
+      "source_size_bytes": 568875,
+      "source_sha256": "45b47065842f8d2bc4f94a428aaeff66a5f0d5f78caed98afdda4a887c62d9f2",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "fuse_libretro.so",
+      "entry": "fuse_libretro.so",
+      "entry_sha256": "249f515663d0ff8d118f464c3e61971901ae6d5ce0c2ad8cb0ca19b6649d5f52",
+      "entry_size_bytes": 1462600,
+      "install_dir": "retroarch-cores",
+      "host_core": "fuse_libretro.so"
+    },
+    "core-genesis-plus-gx": {
+      "display_name": "Núcleo Genesis Plus GX (RetroArch)",
+      "systems": "Sega Master System; Sega Game Gear; Sega CD; Sega Genesis (genesiswide); Sega Mark III (mark3); Sega Mega-CD (megacdjp); Sega Mega Drive (megadrive); Sega Mega Drive (megadrivejp); Sega CD (segacd); Sega SG-1000",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 07 Nov 2026 08:51:08 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/genesis_plus_gx_libretro.so.zip",
+      "source_size_bytes": 1307905,
+      "source_sha256": "0d8fa2e9a07906536da418d8d2d493ef1069fb0e30520292c4a7c51493f948b4",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "genesis_plus_gx_libretro.so",
+      "entry": "genesis_plus_gx_libretro.so",
+      "entry_sha256": "eda9d0f8299e8e1347e471927edaf00988d73dbed2ea15dcb19ef90b5ddc928c",
+      "entry_size_bytes": 12832952,
+      "install_dir": "retroarch-cores",
+      "host_core": "genesis_plus_gx_libretro.so"
+    },
+    "core-mednafen-ngp": {
+      "display_name": "Núcleo Mednafen NGP (RetroArch)",
+      "systems": "SNK Neo Geo Pocket; SNK Neo Geo Pocket Color",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 07 Nov 2026 09:12:52 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/mednafen_ngp_libretro.so.zip",
+      "source_size_bytes": 104482,
+      "source_sha256": "4d189ead5fd3b6b8dd26b26548a5192eb8ff45881ea2aa571e1ccf12dae2570b",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "mednafen_ngp_libretro.so",
+      "entry": "mednafen_ngp_libretro.so",
+      "entry_sha256": "76c214571948388493807f25966056058fda65450db666f10d58d2d084bab124",
+      "entry_size_bytes": 338624,
+      "install_dir": "retroarch-cores",
+      "host_core": "mednafen_ngp_libretro.so"
+    },
+    "core-mednafen-pce": {
+      "display_name": "Núcleo Mednafen PCE (RetroArch)",
+      "systems": "NEC PC Engine; NEC PC Engine-CD; NEC TurboGrafx-16; NEC TurboGrafx-CD; NEC SuperGrafx",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 07 Nov 2026 06:09:06 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/mednafen_pce_libretro.so.zip",
+      "source_size_bytes": 659234,
+      "source_sha256": "010ac3f5c214e134a58e380141f745918ffdf691947519e50496024200cbfb79",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "mednafen_pce_libretro.so",
+      "entry": "mednafen_pce_libretro.so",
+      "entry_sha256": "31e0ba261b516ae0af7ecc604e688f5c274cac48b30f923060a5906bbfd5e34f",
+      "entry_size_bytes": 5388408,
+      "install_dir": "retroarch-cores",
+      "host_core": "mednafen_pce_libretro.so"
+    },
+    "core-mednafen-vb": {
+      "display_name": "Núcleo Mednafen VB (RetroArch)",
+      "systems": "Nintendo Virtual Boy",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 07 Nov 2026 09:10:24 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/mednafen_vb_libretro.so.zip",
+      "source_size_bytes": 93608,
+      "source_sha256": "ebec28ab08c35d868cf6ef4c761e3dcdfeb184ff22d7d0f59edbf3abcfb98455",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "mednafen_vb_libretro.so",
+      "entry": "mednafen_vb_libretro.so",
+      "entry_sha256": "a0be527a66796feefbdfea6403a60a11fc2b5490d4c95d963166c085c640085a",
+      "entry_size_bytes": 289888,
+      "install_dir": "retroarch-cores",
+      "host_core": "mednafen_vb_libretro.so"
+    },
+    "core-mednafen-wswan": {
+      "display_name": "Núcleo Mednafen WonderSwan (RetroArch)",
+      "systems": "Bandai WonderSwan; Bandai WonderSwan Color",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 07 Nov 2026 09:10:30 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/mednafen_wswan_libretro.so.zip",
+      "source_size_bytes": 130140,
+      "source_sha256": "3960dc6a2e0586782d66ba880cff8a9030cd1f1fe43efdcd0700b8d988eb37b7",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "mednafen_wswan_libretro.so",
+      "entry": "mednafen_wswan_libretro.so",
+      "entry_sha256": "e181289190fee462ad6d8f2cf6b0df2ab7f094710257995c50f95d2bf2baa174",
+      "entry_size_bytes": 1165224,
+      "install_dir": "retroarch-cores",
+      "host_core": "mednafen_wswan_libretro.so"
+    },
+    "core-mesen": {
+      "display_name": "Núcleo Mesen (RetroArch)",
+      "systems": "Nintendo Family Computer; Nintendo Famicom Disk System",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 07 Nov 2026 09:02:14 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/mesen_libretro.so.zip",
+      "source_size_bytes": 1069140,
+      "source_sha256": "0ae19465d9caac5ee9f57dd331302d7f83896dcac8f0f6d043eb3fa66470ccc3",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "mesen_libretro.so",
+      "entry": "mesen_libretro.so",
+      "entry_sha256": "552f8ab6ac1fd08bd555f589eb999be73a469c79ccfa929f884adb2cf3366b43",
+      "entry_size_bytes": 3343872,
+      "install_dir": "retroarch-cores",
+      "host_core": "mesen_libretro.so"
+    },
+    "core-mgba": {
+      "display_name": "Núcleo mGBA (RetroArch)",
+      "systems": "Nintendo Game Boy; Nintendo Game Boy Advance; Nintendo Game Boy Color; Nintendo Super Game Boy",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 07 Nov 2026 07:30:00 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/mgba_libretro.so.zip",
+      "source_size_bytes": 524108,
+      "source_sha256": "5f6221e1ab43cd7001d41d754368eeec251e68b943ce33cf69d0edf470c383b9",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "mgba_libretro.so",
+      "entry": "mgba_libretro.so",
+      "entry_sha256": "c840f305825d07c9bec7a6ec18841073c4b539fd234f73623474f97c507f1cdc",
+      "entry_size_bytes": 3314664,
+      "install_dir": "retroarch-cores",
+      "host_core": "mgba_libretro.so"
+    },
+    "core-mupen64plus-next": {
+      "display_name": "Núcleo Mupen64Plus-Next (RetroArch)",
+      "systems": "Nintendo 64; Nintendo 64DD",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 07 Nov 2026 09:26:44 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/mupen64plus_next_libretro.so.zip",
+      "source_size_bytes": 2719493,
+      "source_sha256": "35b91ceb80829ea860623886a8d7940a803664a9927e322146bfbe808a9b10d1",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "mupen64plus_next_libretro.so",
+      "entry": "mupen64plus_next_libretro.so",
+      "entry_sha256": "26f2b4ec722558d77bc9e1582e62ab80c84190bb20dfadc48a148e6210c8775e",
+      "entry_size_bytes": 7554344,
+      "install_dir": "retroarch-cores",
+      "host_core": "mupen64plus_next_libretro.so"
+    },
+    "core-opera": {
+      "display_name": "Núcleo Opera (RetroArch)",
+      "systems": "3DO Interactive Multiplayer",
+      "kind": "libretro_core",
+      "version": "nightly Wed, 28 Oct 2026 07:58:58 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/opera_libretro.so.zip",
+      "source_size_bytes": 306937,
+      "source_sha256": "5f934ee685b891fa6af9fc434c21b7ac830ff62afb594178cf1d6e28f5bee98a",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "opera_libretro.so",
+      "entry": "opera_libretro.so",
+      "entry_sha256": "b3bab2abd9d0d0e30e726b662a8c730e5ca68cb8684e44dfc4e3067a36930ecd",
+      "entry_size_bytes": 640680,
+      "install_dir": "retroarch-cores",
+      "host_core": "opera_libretro.so"
+    },
+    "core-puae": {
+      "display_name": "Núcleo PUAE (RetroArch)",
+      "systems": "Commodore Amiga; Commodore Amiga (amiga); Commodore Amiga 600; Commodore Amiga CD32; Commodore CDTV",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 07 Nov 2026 06:49:52 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/puae_libretro.so.zip",
+      "source_size_bytes": 7160253,
+      "source_sha256": "16760f410808af315268111b8f7b302bb18feeed0d220340e31ee78f982fe264",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "puae_libretro.so",
+      "entry": "puae_libretro.so",
+      "entry_sha256": "b9c39a3e76e30026ad0ff828f939a13482bc8f687f903dcc9ba1d80aeed894b7",
+      "entry_size_bytes": 20933288,
+      "install_dir": "retroarch-cores",
+      "host_core": "puae_libretro.so"
+    },
+    "core-snes9x": {
+      "display_name": "Núcleo Snes9x (RetroArch)",
+      "systems": "Nintendo Super Famicom; Super Nintendo Entertainment System; Nintendo Satellaview; Nintendo SNES (Super Nintendo) (snesna); Bandai SuFami Turbo; Nintendo SNES WideScreen (Super Nintendo)",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 07 Nov 2026 06:30:50 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/snes9x_libretro.so.zip",
+      "source_size_bytes": 917066,
+      "source_sha256": "f00726917b77ed7248434745be26a7a54a6ef4730d5ac7dcc85f1c380f0a3260",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "snes9x_libretro.so",
+      "entry": "snes9x_libretro.so",
+      "entry_sha256": "9b2b6ea9d88f96c156590443ddd05ee56aaf4e495329a889c979921942717a31",
+      "entry_size_bytes": 2841720,
+      "install_dir": "retroarch-cores",
+      "host_core": "snes9x_libretro.so"
+    },
+    "core-stella": {
+      "display_name": "Núcleo Stella (RetroArch)",
+      "systems": "Atari 2600",
+      "kind": "libretro_core",
+      "version": "nightly Sun, 08 Nov 2026 05:30:06 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/stella_libretro.so.zip",
+      "source_size_bytes": 1970646,
+      "source_sha256": "790d509f5fdb45eed8582e42e02d7d69e0d6d0687ef2da05d30a9994e6d29ffb",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "stella_libretro.so",
+      "entry": "stella_libretro.so",
+      "entry_sha256": "ac76cb8cfb64382f6a2003b335cc8f1009dda331eef73c3fb47dae83ea80d963",
+      "entry_size_bytes": 7660704,
+      "install_dir": "retroarch-cores",
+      "host_core": "stella_libretro.so"
+    },
+    "core-vice-x64": {
+      "display_name": "Núcleo VICE x64 (RetroArch)",
+      "systems": "Commodore 16; Commodore 64",
+      "kind": "libretro_core",
+      "version": "nightly Sat, 07 Nov 2026 07:44:32 GMT",
+      "release_page": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/",
+      "source_url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/vice_x64_libretro.so.zip",
+      "source_size_bytes": 1357986,
+      "source_sha256": "b08670ec1ce8ee71cd216145d0681c093e42d57c256a616c16f7b99b57eb1249",
+      "hash_origin": "O buildbot não publica SHA-256 e a URL é rolante; hash fixado do download oficial em 2026-11-08. Mudança upstream bloqueia a instalação até nova fixação revisada.",
+      "format": "zip_member",
+      "member": "vice_x64_libretro.so",
+      "entry": "vice_x64_libretro.so",
+      "entry_sha256": "d887f270245e6b8a48b1e1c7edc297d64cb19696016f4b38f7b17dadcd01a7c1",
+      "entry_size_bytes": 3625504,
+      "install_dir": "retroarch-cores",
+      "host_core": "vice_x64_libretro.so"
+    },
+    "eden-nx2": {
+      "host_commands": [
+        "eden-nx2",
+        "eden"
+      ],
+      "display_name": "Eden-NX2",
+      "systems": "Nintendo Switch 2",
+      "version": "2026.10.29",
+      "release_page": "https://github.com/dawgon2/eden-nx2-linux/releases/tag/v2026.10.29",
+      "source_url": "https://github.com/dawgon2/eden-nx2-linux/releases/download/v2026.10.29/Eden-NX2-2026.10.29-x86_64.AppImage",
+      "source_size_bytes": 141142520,
+      "source_sha256": "0b789acf2fd24a2c2e4da8dba351482de6f27f5c498b6b95455c35448b837852",
+      "hash_origin": "SHA-256 publicado no asset da release GitHub v2026.10.29 (digest da API) e conferido no download de 2026-11-01. Build Linux do branch eden-nx2 commit 50fa86bb, tag upstream nx2-2026-10-29. Sem chaves, firmware ou jogos.",
+      "format": "appimage",
+      "entry": "Eden-NX2-2026.10.29-x86_64.AppImage",
+      "environment": {
+        "APPIMAGELAUNCHER_DISABLE": "1"
+      },
+      "profile_command": "../../emulator/linux/eden-nx2/eden-nx2-launch",
+      "host_note": "O AppImage pinado não executa neste APU: o binário interno exige um nível de ISA com AVX-512 e a CPU é x86-64-v3. O comando do projeto é eden-nx2-launch, que aponta para o binário local compilado com -march=x86-64-v3. O AppImage permanece no diretório do runtime como artefato upstream conferido."
+    },
+    "xenia-canary-linux": {
+      "display_name": "Xenia Canary Linux (experimental)",
+      "version": "80cecb7",
+      "systems": "Xbox 360",
+      "source_url": "https://github.com/xenia-canary/xenia-canary/releases/download/80cecb7/xenia_canary_linux.AppImage",
+      "source_size_bytes": 18901496,
+      "source_sha256": "6c2472f82a35832fa6d8bc8756ce9b609f1ba9eabce632569cc67dec6d702cd8",
+      "release_page": "https://github.com/xenia-canary/xenia-canary/releases/tag/80cecb7",
+      "format": "appimage",
+      "entry": "Xenia.AppImage",
+      "experimental": true,
+      "profile_command": "../../emulator/linux/xenia-canary-linux/Xenia.AppImage",
+      "environment": {
+        "APPIMAGELAUNCHER_DISABLE": "1"
+      }
+    },
+    "eglantine": {
+      "display_name": "Eglantine (experimental Switch 2)",
+      "version": "daily-20261107",
+      "systems": "Switch 2",
+      "source_url": "https://github.com/Djihads80/Eglantine/releases/download/daily-20261107/eglantine-linux-x86_64.AppImage",
+      "source_size_bytes": 109668856,
+      "source_sha256": "293f1f69b6d6e0c3df68e3f0e0e244510487f4e96340e23d75e197a4f0d7176b",
+      "release_page": "https://github.com/Djihads80/Eglantine/releases/tag/daily-20261107",
+      "format": "appimage",
+      "entry": "Eglantine.AppImage",
+      "experimental": true,
+      "environment": {
+        "APPIMAGELAUNCHER_DISABLE": "1"
+      }
+    },
+    "dolphin": {
+      "display_name": "Dolphin",
+      "version": "2609b",
+      "systems": "GameCube, Wii",
+      "release_page": "https://dolphin-emu.org/download/",
+      "source_url": "https://dl.dolphin-emu.org/releases/2609b/dolphin-2609b-x64.AppImage",
+      "source_size_bytes": 100022776,
+      "source_sha256": "0552108226dd2cdb912973cafc6d94bb68b1a7495756e2d3024fce69ff376c4d",
+      "format": "appimage",
+      "entry": "Dolphin.AppImage",
+      "flatpak_app_id": "org.DolphinEmu.dolphin-emu",
+      "host_commands": [
+        "dolphin-emu"
+      ],
+      "hash_origin": "Official HTTPS archive locally SHA-256 pinned 2026-11-12; not an upstream signature"
+    }
+  },
+  "assets": {
+    "xemu-hdd": {
+      "display_name": "Imagem de HD Xbox em branco (xemu)",
+      "used_by_collection": "Microsoft Xbox",
+      "version": "1.0",
+      "release_page": "https://github.com/xemu-project/xemu-hdd-image/releases",
+      "source_url": "https://github.com/xemu-project/xemu-hdd-image/releases/download/1.0/xbox_hdd.qcow2.zip",
+      "source_size_bytes": 68552,
+      "source_sha256": "d9f5a4c1224ff24cf9066067bda70cc8b9c874ea22b9c542eb2edbfc4621bb39",
+      "hash_origin": "A release não publica SHA-256; hash fixado do download oficial verificado em 2026-10-28.",
+      "member": "xbox_hdd.qcow2",
+      "member_size_bytes": 4521984,
+      "member_sha256": "eb35d069715dfc0d37cfac086a0b73a89a02e8f12519cd8eda82ad479d1a4eed",
+      "magic": "QFIû",
+      "destination": "emulator/data/xemu/xbox_hdd.qcow2"
+    }
+  },
+  "not_installable": {
+    "retroarch": "Native portable package is available; the existing host Flatpak stays preferred on this host.",
+    "mame": "MAME não publica binário Linux oficial; usa o pacote do sistema.",
+    "kytyps5": "Instalação manual registrada em environment-20261026T054847-8da6f2cb; sem asset Linux versionado com SHA-256.",
+    "ps5pcem": "Instalação manual registrada; sem asset Linux versionado com SHA-256.",
+    "mednafen_saturn": "Beetle Saturn exige BIOS japonesa (sega_101.bin) ausente para a maioria dos jogos locais; as coleções Saturn usam Kronos (BIOS real ou HLE). Instalação de teste desfeita por rollback em 2026-10-28."
+  },
+  "package_download_limit_bytes": 268435456,
+  "packages": {
+    "windows": {
+      "duckstation": {
+        "display_name": "duckstation",
+        "version": "v0.1-12442",
+        "release_page": "https://github.com/stenzek/duckstation/releases/tag/v0.1-12442",
+        "source_url": "https://github.com/stenzek/duckstation/releases/download/v0.1-12442/duckstation-windows-x64-release.zip",
+        "source_size_bytes": 73988909,
+        "source_sha256": "b55d1cf45bdb6d0326a9083cf787ca7d6386dff6c837f6d3b8713f48af2a02b7",
+        "hash_origin": "GitHub release asset digest",
+        "format": "zip_tree",
+        "entry": "duckstation-qt-x64-ReleaseLTCG.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-duckstation-duckstation-windows-x64-release.zip",
+        "gameplay_tested": false
+      },
+      "pcsx2": {
+        "display_name": "pcsx2",
+        "version": "v2.8.2",
+        "release_page": "https://github.com/PCSX2/pcsx2/releases/tag/v2.8.2",
+        "source_url": "https://github.com/PCSX2/pcsx2/releases/download/v2.8.2/pcsx2-v2.8.2-windows-x64-Qt.7z",
+        "source_size_bytes": 25670075,
+        "source_sha256": "7dfc829ca1994cc1045ac49f05e39b6cf968b72e6a374c40e05c2a2b4ac200b4",
+        "hash_origin": "GitHub release asset digest",
+        "format": "7z_tree",
+        "entry": "pcsx2-qt.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-pcsx2-pcsx2-v2.8.2-windows-x64-Qt.7z",
+        "gameplay_tested": false
+      },
+      "rpcs3": {
+        "display_name": "rpcs3",
+        "version": "0.0.43-20404-e8979d31",
+        "release_page": "https://github.com/RPCS3/rpcs3-binaries-win/releases/tag/build-e8979d31b3a22c8bc9a6eae6bdc31756eac8ee89",
+        "source_url": "https://github.com/RPCS3/rpcs3-binaries-win/releases/download/build-e8979d31b3a22c8bc9a6eae6bdc31756eac8ee89/rpcs3-v0.0.43-20404-e8979d31_win64_msvc.7z",
+        "source_size_bytes": 37182938,
+        "source_sha256": "0077b46119172778a98507f4575e139624fc130c8657088dd74141ab75e27bbe",
+        "hash_origin": "GitHub release asset digest",
+        "format": "7z_tree",
+        "entry": "rpcs3.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-rpcs3-rpcs3-v0.0.43-20404-e8979d31_win64_msvc.7z",
+        "gameplay_tested": false
+      },
+      "flycast": {
+        "display_name": "flycast",
+        "version": "v2.7",
+        "release_page": "https://github.com/flyinghead/flycast/releases/tag/v2.7",
+        "source_url": "https://github.com/flyinghead/flycast/releases/download/v2.7/flycast-win64-2.7.zip",
+        "source_size_bytes": 9885102,
+        "source_sha256": "7edf489ba6b3053703a18ce8233767eb71a2d89e4bda0421b312c2167a739161",
+        "hash_origin": "GitHub release asset digest",
+        "format": "zip_tree",
+        "entry": "flycast.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-flycast-flycast-win64-2.7.zip",
+        "gameplay_tested": false
+      },
+      "melonds": {
+        "display_name": "melonds",
+        "version": "1.1",
+        "release_page": "https://github.com/melonDS-emu/melonDS/releases/tag/1.1",
+        "source_url": "https://github.com/melonDS-emu/melonDS/releases/download/1.1/melonDS-1.1-windows-x86_64.zip",
+        "source_size_bytes": 19484283,
+        "source_sha256": "9f3f8a244103be20b5b657af5b0ed1b2a66bb20a7181476a6d294c9a53d4f8c8",
+        "hash_origin": "GitHub release asset digest",
+        "format": "zip_tree",
+        "entry": "melonDS.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-melonds-melonDS-1.1-windows-x86_64.zip",
+        "gameplay_tested": false
+      },
+      "cemu": {
+        "display_name": "cemu",
+        "version": "v2.6",
+        "release_page": "https://github.com/cemu-project/Cemu/releases/tag/v2.6",
+        "source_url": "https://github.com/cemu-project/Cemu/releases/download/v2.6/cemu-2.6-windows-x64.zip",
+        "source_size_bytes": 26374093,
+        "source_sha256": "a6bcc2bc42a362d10213819948f3152fae7d47f70067f25939b51d3ddcfb0896",
+        "hash_origin": "Official HTTPS archive downloaded and SHA-256 pinned locally on 2026-11-12; not an upstream signature",
+        "format": "zip_tree",
+        "entry": "Cemu_2.6/Cemu.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-cemu-cemu-2.6-windows-x64.zip",
+        "gameplay_tested": false
+      },
+      "xemu": {
+        "display_name": "xemu",
+        "version": "v0.8.139",
+        "release_page": "https://github.com/xemu-project/xemu/releases/tag/v0.8.139",
+        "source_url": "https://github.com/xemu-project/xemu/releases/download/v0.8.139/xemu-0.8.139-windows-x86_64.zip",
+        "source_size_bytes": 11420991,
+        "source_sha256": "fbb14dd7ea08120ca9ec99c955758786645af16a5058250553b3b7d7592e8701",
+        "hash_origin": "GitHub release asset digest",
+        "format": "zip_tree",
+        "entry": "xemu.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-xemu-xemu-0.8.139-windows-x86_64.zip",
+        "gameplay_tested": false
+      },
+      "shadps4": {
+        "display_name": "shadps4",
+        "version": "v.0.20.0",
+        "release_page": "https://github.com/shadps4-emu/shadPS4/releases/tag/v.0.20.0",
+        "source_url": "https://github.com/shadps4-emu/shadPS4/releases/download/v.0.20.0/shadps4-win64-sdl-2026-0.20.0.zip",
+        "source_size_bytes": 31574011,
+        "source_sha256": "d5cdc55c57e85e5fe44ff867b420246dc832077356d943ccc43c5d950c878b37",
+        "hash_origin": "GitHub release asset digest",
+        "format": "zip_tree",
+        "entry": "shadPS4.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-shadps4-shadps4-win64-sdl-2026-0.20.0.zip",
+        "gameplay_tested": false
+      },
+      "ppsspp": {
+        "display_name": "ppsspp",
+        "version": "v1.20.4",
+        "release_page": "https://github.com/hrydgard/ppsspp/releases/tag/v1.20.4",
+        "source_url": "https://github.com/hrydgard/ppsspp/releases/download/v1.20.4/PPSSPP-v1.20.4-Windows-x64.zip",
+        "source_size_bytes": 20390334,
+        "source_sha256": "fbc9cd2f5131b159a92424e5c458c35ce43ba603cdded64dfc98e4bd4f17ff93",
+        "hash_origin": "GitHub release asset digest",
+        "format": "zip_tree",
+        "entry": "PPSSPPWindows64.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-ppsspp-PPSSPP-v1.20.4-Windows-x64.zip",
+        "gameplay_tested": false
+      },
+      "eglantine": {
+        "display_name": "eglantine",
+        "version": "daily-20261107",
+        "release_page": "https://github.com/Eglantine-Community/Eglantine/releases/tag/daily-20261107",
+        "source_url": "https://github.com/Eglantine-Community/Eglantine/releases/download/daily-20261107/eglantine-windows-x86_64-pgo.zip",
+        "source_size_bytes": 68362613,
+        "source_sha256": "6b652ff05e16cea424e618cc5a9caa07a01efe88b065c666f8bb333f4d189760",
+        "hash_origin": "GitHub release asset digest",
+        "format": "zip_tree",
+        "entry": "eglantine.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-eglantine-eglantine-windows-x86_64-pgo.zip",
+        "gameplay_tested": false
+      },
+      "sharpemu": {
+        "display_name": "sharpemu",
+        "version": "0.0.7-pulse",
+        "release_page": "https://github.com/sharpemu/sharpemu/releases/tag/v0.0.7-pulse",
+        "source_url": "https://github.com/sharpemu/sharpemu/releases/download/v0.0.7-pulse/sharpemu-0.0.7-pulse-win-x64.zip",
+        "source_size_bytes": 65025257,
+        "source_sha256": "3ab0ac49f2401dc8aa73ec671e6c83fb7785f7aacbaedc194de15c2bc4d0733c",
+        "hash_origin": "GitHub release asset digest",
+        "format": "zip_tree",
+        "entry": "SharpEmu.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-sharpemu-sharpemu-0.0.7-pulse-win-x64.zip",
+        "gameplay_tested": false
+      },
+      "xenia-canary": {
+        "display_name": "xenia-canary",
+        "version": "80cecb7",
+        "release_page": "https://github.com/xenia-canary/xenia-canary/releases/tag/80cecb7",
+        "source_url": "https://github.com/xenia-canary/xenia-canary/releases/download/80cecb7/xenia_canary_windows.7z",
+        "source_size_bytes": 3701198,
+        "source_sha256": "33adfff6d26fe6857bab50f68c0cbb5c34fc2f1a43297d2a22fcb431974f4d4a",
+        "hash_origin": "GitHub release asset digest",
+        "format": "7z_tree",
+        "entry": "xenia_canary.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-xenia-canary-xenia_canary_windows.7z",
+        "gameplay_tested": false
+      },
+      "mame": {
+        "display_name": "mame",
+        "version": "mame0289",
+        "release_page": "https://github.com/mamedev/mame/releases/tag/mame0289",
+        "source_url": "https://github.com/mamedev/mame/releases/download/mame0289/mame0289b_x64.exe",
+        "source_size_bytes": 87626249,
+        "source_sha256": "a1aa7912168c9d1b05e611906bc21b8b9be3935822aead36d12a1da363150b7d",
+        "hash_origin": "GitHub release asset digest",
+        "format": "7z_tree",
+        "entry": "mame.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-mame-mame0289b_x64.exe",
+        "gameplay_tested": false
+      },
+      "retroarch": {
+        "display_name": "retroarch",
+        "version": "1.22.2",
+        "release_page": "https://www.retroarch.com/?page=platforms",
+        "source_url": "https://buildbot.libretro.com/stable/1.22.2/windows/x86_64/RetroArch.7z",
+        "source_size_bytes": 202509078,
+        "source_sha256": "b2139b1d0f9d4526dc6b5ce23cbb3efdc766096fa6f2c3df016818b486ac6372",
+        "hash_origin": "Official HTTPS archive downloaded and SHA-256 pinned locally on 2026-11-12; not an upstream signature",
+        "format": "7z_tree",
+        "entry": "RetroArch-Win64/retroarch.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-retroarch-RetroArch.7z",
+        "gameplay_tested": false
+      },
+      "python": {
+        "display_name": "python",
+        "version": "3.13.9-embed-amd64",
+        "release_page": "https://www.python.org/downloads/release/python-3139/",
+        "source_url": "https://www.python.org/ftp/python/3.13.9/python-3.13.9-embed-amd64.zip",
+        "source_size_bytes": 10926675,
+        "source_sha256": "91d828c2da3a029b41699e918674a0cb379c02cf20dab9c501306885f837402a",
+        "hash_origin": "Official HTTPS archive downloaded and SHA-256 pinned locally on 2026-11-12; not an upstream signature",
+        "format": "zip_tree",
+        "entry": "python.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-python-python-3.13.9-embed-amd64.zip",
+        "gameplay_tested": false
+      },
+      "dolphin": {
+        "display_name": "dolphin",
+        "version": "2609b",
+        "release_page": "https://dolphin-emu.org/download/",
+        "source_url": "https://dl.dolphin-emu.org/releases/2609b/dolphin-2609b-x64.7z",
+        "source_size_bytes": 20028240,
+        "source_sha256": "926eb7594d885b4fba8fd9807058d90618efab4b3d75d1ef297022ba14925133",
+        "hash_origin": "Official HTTPS archive downloaded and SHA-256 pinned locally on 2026-11-12; not an upstream signature",
+        "format": "7z_tree",
+        "entry": "Dolphin-x64/Dolphin.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-dolphin-dolphin-2609b-x64.7z",
+        "gameplay_tested": false
+      },
+      "azahar": {
+        "display_name": "azahar",
+        "version": "2126.2",
+        "release_page": "https://github.com/azahar-emu/azahar/releases/tag/2126.2",
+        "source_url": "https://github.com/azahar-emu/azahar/releases/download/2126.2/azahar-windows-msvc-2126.2.zip",
+        "source_size_bytes": 43941048,
+        "source_sha256": "4412eac8d13123c8840f11890fc26e5b0e4c76d16aa28a608941377b948a9db0",
+        "hash_origin": "GitHub release asset digest",
+        "format": "zip_tree",
+        "entry": "azahar-windows-msvc-2126.2/azahar.exe",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/windows-azahar-azahar-windows-msvc-2126.2.zip",
+        "gameplay_tested": false
+      },
+      "7zip": {
+        "display_name": "7-Zip portable extraction dependency",
+        "version": "26.03",
+        "source_url": "https://www.7-zip.org/a/7z2603-extra.7z",
+        "source_size_bytes": 1764178,
+        "source_sha256": "191894e6acb3647ffb69ce630479ff318523b2e2b9890aa7f05c1127c2e59b8f",
+        "format": "7z_tree",
+        "entry": "x64/7za.exe",
+        "max_unpacked_bytes": 33554432,
+        "release_page": "https://www.7-zip.org/download.html",
+        "cache_path": "work/installation/downloads/windows-7zip-7z2603-extra.7z",
+        "hash_origin": "Official HTTPS archive locally SHA-256 pinned 2026-11-12"
+      },
+      "model2": {
+        "entry": "emulator_multicpu.exe",
+        "version": "1.1a (local README)",
+        "architecture": "x86",
+        "installable": false,
+        "source": "user supplied legacy package from roms/model2",
+        "source_verified_upstream": false,
+        "license_verified": false,
+        "entry_sha256": "29e3b44614f1f18caacd89ef0835a5d39392b978072d18df1ad8d5eb913cd920"
+      }
+    },
+    "linux": {
+      "retroarch": {
+        "display_name": "retroarch",
+        "version": "1.22.2",
+        "release_page": "https://www.retroarch.com/?page=platforms",
+        "source_url": "https://buildbot.libretro.com/stable/1.22.2/linux/x86_64/RetroArch.7z",
+        "source_size_bytes": 179361448,
+        "source_sha256": "7d62da9a21397d6e1b9490785cedbeafd262781b50115076736fbe8a77ef30e9",
+        "hash_origin": "Official HTTPS archive downloaded and SHA-256 pinned locally on 2026-11-12; not an upstream signature",
+        "format": "7z_tree",
+        "entry": "RetroArch-Linux-x86_64/RetroArch-Linux-x86_64.AppImage",
+        "max_unpacked_bytes": 2147483648,
+        "cache_path": "work/installation/downloads/linux-retroarch-RetroArch.7z",
+        "gameplay_tested": false,
+        "entry_kind": "appimage"
+      }
+    }
+  },
+  "windows_cores": {
+    "core-a5200": {
+      "display_name": "a5200_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/a5200_libretro.dll.zip",
+      "source_size_bytes": 137251,
+      "source_sha256": "24fe64e5f78e75ee2753c3c39019e81157cea45f26243ba79265b70f566dd143",
+      "format": "zip_member",
+      "member": "a5200_libretro.dll",
+      "entry": "a5200_libretro.dll",
+      "entry_sha256": "763e0e38067cbc6c3816a376ae5bf41780b20b0d694a85d2da4ca0bbcd434be8",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-bluemsx": {
+      "display_name": "bluemsx_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/bluemsx_libretro.dll.zip",
+      "source_size_bytes": 797253,
+      "source_sha256": "0a5dd8c8493fbd4ed86f40fea6d86b760ac971541278a3541ba8c73553c02a0c",
+      "format": "zip_member",
+      "member": "bluemsx_libretro.dll",
+      "entry": "bluemsx_libretro.dll",
+      "entry_sha256": "6fc01196840552ec838f68116a719bea2eaa7483da4189516cc7c072a164c270",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-fbneo": {
+      "display_name": "fbneo_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/fbneo_libretro.dll.zip",
+      "source_size_bytes": 18397522,
+      "source_sha256": "bf8fbee5dca89eced21640e9124e735886c2e321c0a25776b700fa272ac1c7ed",
+      "format": "zip_member",
+      "member": "fbneo_libretro.dll",
+      "entry": "fbneo_libretro.dll",
+      "entry_sha256": "e52f515cf5ba129419fbcaba702da677824bbddeeb97aa84a137f4ea92883dfe",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-freeintv": {
+      "display_name": "freeintv_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/freeintv_libretro.dll.zip",
+      "source_size_bytes": 536277,
+      "source_sha256": "d122a108214fbeaebd804bfd5c0c072fec36791cebe278c84221f5bf9babfdfa",
+      "format": "zip_member",
+      "member": "freeintv_libretro.dll",
+      "entry": "freeintv_libretro.dll",
+      "entry_sha256": "9830a50a607a610403c09b45cffea568b0ec4b1a3f21843d59af3fe2c81dd70b",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-fuse": {
+      "display_name": "fuse_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/fuse_libretro.dll.zip",
+      "source_size_bytes": 672364,
+      "source_sha256": "547cd7895a56a413aadd93d5fa6328d2286c7713a1cd9dee8b5ef945ae705282",
+      "format": "zip_member",
+      "member": "fuse_libretro.dll",
+      "entry": "fuse_libretro.dll",
+      "entry_sha256": "a6c29b8f71fec79fcf31ad355a4a009736491b179163062334cddffec2d95362",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-genesis-plus-gx": {
+      "display_name": "genesis_plus_gx_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/genesis_plus_gx_libretro.dll.zip",
+      "source_size_bytes": 944681,
+      "source_sha256": "4328c576cc3ca04bf25b72a9a530bfe7bc13a8094a1094d7a38ee94b51792661",
+      "format": "zip_member",
+      "member": "genesis_plus_gx_libretro.dll",
+      "entry": "genesis_plus_gx_libretro.dll",
+      "entry_sha256": "eb8cf338bb7b6468777edbaf2f44dd9920a506b64e52e642cb116610eeecd28f",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-kronos": {
+      "display_name": "kronos_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/kronos_libretro.dll.zip",
+      "source_size_bytes": 1584940,
+      "source_sha256": "64c97c797570ccd0341551d0c92a8b8bca9429a629e56c319241026206c53fbf",
+      "format": "zip_member",
+      "member": "kronos_libretro.dll",
+      "entry": "kronos_libretro.dll",
+      "entry_sha256": "5cf08ede62d857bbf62d8be0dc8f154058232b2b5c0afe54f32e03c2c4fa880f",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-mednafen-ngp": {
+      "display_name": "mednafen_ngp_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/mednafen_ngp_libretro.dll.zip",
+      "source_size_bytes": 200646,
+      "source_sha256": "906e47f115df1f10a731b52e65b28ebbea95ba4484a19e129f97c1288320aa45",
+      "format": "zip_member",
+      "member": "mednafen_ngp_libretro.dll",
+      "entry": "mednafen_ngp_libretro.dll",
+      "entry_sha256": "e8b0e1e1e07a372a0d3792fa9d47ea4c0349a73232348b65b85c1a1d381f0414",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-mednafen-pce": {
+      "display_name": "mednafen_pce_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/mednafen_pce_libretro.dll.zip",
+      "source_size_bytes": 688724,
+      "source_sha256": "bb0e32e834b7fdc49cca84a3095f36626fcc9dab1d5fa5dd2a889f09cdd5bab1",
+      "format": "zip_member",
+      "member": "mednafen_pce_libretro.dll",
+      "entry": "mednafen_pce_libretro.dll",
+      "entry_sha256": "e6f91532971e4315767957be1681812a9b6149ca870817b9f73b61142232a9ff",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-mednafen-vb": {
+      "display_name": "mednafen_vb_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/mednafen_vb_libretro.dll.zip",
+      "source_size_bytes": 172825,
+      "source_sha256": "e402b0638069181207c3cc7557857a0b44b4fb7d9e2e3b898a5c1b82e0b82f64",
+      "format": "zip_member",
+      "member": "mednafen_vb_libretro.dll",
+      "entry": "mednafen_vb_libretro.dll",
+      "entry_sha256": "0f649c307eb1907895f859653c0586d4fe86bb664264e5d5450ad90a6f0564dc",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-mednafen-wswan": {
+      "display_name": "mednafen_wswan_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/mednafen_wswan_libretro.dll.zip",
+      "source_size_bytes": 121647,
+      "source_sha256": "d71ebc00f6d3579e178862803bed92f4475b9338d8198c91a2752a9ed71ebe06",
+      "format": "zip_member",
+      "member": "mednafen_wswan_libretro.dll",
+      "entry": "mednafen_wswan_libretro.dll",
+      "entry_sha256": "f13d3de5540e30fd4c2b14acfde00652b4b7fe9a09b3c74d6a39d12e017164f1",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-mesen": {
+      "display_name": "mesen_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/mesen_libretro.dll.zip",
+      "source_size_bytes": 1288506,
+      "source_sha256": "693e767941345b87e0cbfe07b2606740aefe1dd9cc0d3834c1e4249111785a4a",
+      "format": "zip_member",
+      "member": "mesen_libretro.dll",
+      "entry": "mesen_libretro.dll",
+      "entry_sha256": "9007b259cdec71a70a08152d429f5285d0c02161f2d41d078a64f31b335fa661",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-mgba": {
+      "display_name": "mgba_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/mgba_libretro.dll.zip",
+      "source_size_bytes": 569965,
+      "source_sha256": "cad0806ae70a7867839a961b4cebd8e718acbf7f9d04579d097e56c9af73923e",
+      "format": "zip_member",
+      "member": "mgba_libretro.dll",
+      "entry": "mgba_libretro.dll",
+      "entry_sha256": "73f8e438d0df3092faee57e1f6e7d2855b83c00ff3f56481937a96981e439d89",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-mupen64plus-next": {
+      "display_name": "mupen64plus_next_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/mupen64plus_next_libretro.dll.zip",
+      "source_size_bytes": 3057854,
+      "source_sha256": "b06f13abd1cbd97d00cbf321011cb6a9c1bd7b41676112703466fd3ad3ed81b2",
+      "format": "zip_member",
+      "member": "mupen64plus_next_libretro.dll",
+      "entry": "mupen64plus_next_libretro.dll",
+      "entry_sha256": "3d882689aabf72a024fe711ad4ddcd20ce1fcad52d848279256fe141433fa32f",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-neocd": {
+      "display_name": "neocd_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/neocd_libretro.dll.zip",
+      "source_size_bytes": 754846,
+      "source_sha256": "62501c1451b2bbd2bb8f38ee62000c77748ffce89363c47fd135244ac3d16a58",
+      "format": "zip_member",
+      "member": "neocd_libretro.dll",
+      "entry": "neocd_libretro.dll",
+      "entry_sha256": "55673334c88d9c65b33eeda4aadcbd9f6ca0e5b94a8bb7360b5650486cc201d7",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-o2em": {
+      "display_name": "o2em_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/o2em_libretro.dll.zip",
+      "source_size_bytes": 159357,
+      "source_sha256": "52912d784b9a0e7d2bab2ecd8dcd877cdd6fbe4c5dcea5e24f7c2ec312d4f7a2",
+      "format": "zip_member",
+      "member": "o2em_libretro.dll",
+      "entry": "o2em_libretro.dll",
+      "entry_sha256": "8598ede3dad1d4a104872eaee613b8eec8accdfe87016a8dc7aa67e2985d1184",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-opera": {
+      "display_name": "opera_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/opera_libretro.dll.zip",
+      "source_size_bytes": 345541,
+      "source_sha256": "24402d5132f1321f3bc90b051b519dc0d1941fbe44ee6151939258081a5ee39e",
+      "format": "zip_member",
+      "member": "opera_libretro.dll",
+      "entry": "opera_libretro.dll",
+      "entry_sha256": "dddd7e6f37a9479da7c4137b2252eb5a974d33f41193937ef7eaf27ab2bd4213",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-pokemini": {
+      "display_name": "pokemini_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/pokemini_libretro.dll.zip",
+      "source_size_bytes": 128874,
+      "source_sha256": "c27a4ef24746de58da8b713cef3b7f5f54a9336ab7872c8c54c1e86e54a405f0",
+      "format": "zip_member",
+      "member": "pokemini_libretro.dll",
+      "entry": "pokemini_libretro.dll",
+      "entry_sha256": "d6aacd2af5035202e4ba07a94fe804fb6dcbb219f2f3eddb4b7fc1b71b84c6a1",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-prosystem": {
+      "display_name": "prosystem_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/prosystem_libretro.dll.zip",
+      "source_size_bytes": 94184,
+      "source_sha256": "9e607933a4766640d442f63f0c1f0fce88efcda7d2a61813332d09d5d49f847d",
+      "format": "zip_member",
+      "member": "prosystem_libretro.dll",
+      "entry": "prosystem_libretro.dll",
+      "entry_sha256": "2e2bc6096dc56e8d426d1ac252b73c2405d95e770e66a45730d2c6fcb7599602",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-puae": {
+      "display_name": "puae_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/puae_libretro.dll.zip",
+      "source_size_bytes": 6509264,
+      "source_sha256": "95377647ce6ce8c32d70c67a9e920797f9e4b5b4eb3cfc99bc9d5bb0d05ce894",
+      "format": "zip_member",
+      "member": "puae_libretro.dll",
+      "entry": "puae_libretro.dll",
+      "entry_sha256": "a1e23bf8a6c6a083dc19845e1946b22c5e3c271c5448a7a4fe717ac5015780e9",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-px68k": {
+      "display_name": "px68k_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/px68k_libretro.dll.zip",
+      "source_size_bytes": 881177,
+      "source_sha256": "8adff350f538da6353f23deaadce726b3be1e715469b2e4a37409882719a6c59",
+      "format": "zip_member",
+      "member": "px68k_libretro.dll",
+      "entry": "px68k_libretro.dll",
+      "entry_sha256": "a764ab684aa075c95ab38991c2ee423af7a2bb21b1f4e4e196e8fa7da85562b5",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-snes9x": {
+      "display_name": "snes9x_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/snes9x_libretro.dll.zip",
+      "source_size_bytes": 1316250,
+      "source_sha256": "19b3544086c112301baa9981bf55c331d7842970f3cd9d3b3a5a149e1fe7bea5",
+      "format": "zip_member",
+      "member": "snes9x_libretro.dll",
+      "entry": "snes9x_libretro.dll",
+      "entry_sha256": "d0b06e85d0aa6adfd02418b3c791e4946db9198fcae58fed4927b369992ced3e",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-stella": {
+      "display_name": "stella_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/stella_libretro.dll.zip",
+      "source_size_bytes": 1901903,
+      "source_sha256": "47da6f7ad1c9262ace65938d0fc6041bb0f851fa3ccdb1f87bc98d73fe81ce11",
+      "format": "zip_member",
+      "member": "stella_libretro.dll",
+      "entry": "stella_libretro.dll",
+      "entry_sha256": "541faa6614dcba6d9c57040ca8f4f15cb8a281580ee1279c46ea1d4464b7bae1",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    },
+    "core-vice-x64": {
+      "display_name": "vice_x64_libretro.dll",
+      "kind": "windows_core",
+      "version": "official nightly pinned 2026-11-12",
+      "source_url": "https://buildbot.libretro.com/nightly/windows/x86_64/latest/vice_x64_libretro.dll.zip",
+      "source_size_bytes": 1711119,
+      "source_sha256": "d35020dbbc3b2f7079df3e9967f5c1201c6f0281069fa1087bf1ee9ce49ca830",
+      "format": "zip_member",
+      "member": "vice_x64_libretro.dll",
+      "entry": "vice_x64_libretro.dll",
+      "entry_sha256": "67aa72579eb7a6209b9d1af01a5d9720de080ed78f3c614d8a3bedd24c5bf563",
+      "install_dir": "retroarch-cores",
+      "hash_origin": "Official rolling buildbot archive, locally SHA-256 pinned; no upstream digest"
+    }
+  },
+  "windows_launch": {
+    "duckstation": {
+      "args": [
+        "-fullscreen",
+        "--",
+        "{item}"
+      ],
+      "bindings": {},
+      "environment": {},
+      "sources": [
+        "https://github.com/stenzek/duckstation/blob/v0.1-12442/src/core/settings.cpp",
+        "https://github.com/stenzek/duckstation/blob/v0.1-12442/src/core/core.cpp"
+      ],
+      "gameplay_tested_on_windows": false
+    },
+    "pcsx2": {
+      "args": [
+        "-datapath",
+        "{userdata}",
+        "-fullscreen",
+        "--",
+        "{item}"
+      ],
+      "bindings": {},
+      "environment": {},
+      "sources": [
+        "https://pcsx2.net/docs/advanced/cli/"
+      ],
+      "gameplay_tested_on_windows": false
+    },
+    "rpcs3": {
+      "args": [
+        "--no-gui",
+        "--fullscreen",
+        "{item}"
+      ],
+      "bindings": {
+        "emulator/data/RPCS3/config/rpcs3/cache": "emulator/data/RPCS3/cache/rpcs3/cache"
+      },
+      "environment": {
+        "RPCS3_CONFIG_DIR": "{userdata}/config/rpcs3"
+      },
+      "sources": [
+        "https://github.com/RPCS3/rpcs3/blob/v0.0.43/Utilities/File.cpp"
+      ],
+      "gameplay_tested_on_windows": false
+    },
+    "dolphin": {
+      "args": [
+        "-u",
+        "{userdata}/shared",
+        "-e",
+        "{item}"
+      ],
+      "bindings": {},
+      "environment": {},
+      "sources": [
+        "https://dolphin-emu.org/docs/guides/controlling-global-user-directory/"
+      ],
+      "gameplay_tested_on_windows": false
+    },
+    "xemu": {
+      "args": [
+        "-config_path",
+        "{userdata}/xemu.toml",
+        "-dvd_path",
+        "{item}",
+        "-full-screen"
+      ],
+      "bindings": {},
+      "environment": {},
+      "sources": [
+        "https://xemu.app/docs/cli/"
+      ],
+      "gameplay_tested_on_windows": false
+    },
+    "flycast": {
+      "args": [
+        "-config",
+        "config:Dreamcast.BiosPath={bios_root}/dc;{bios_root}",
+        "{item}"
+      ],
+      "bindings": {
+        "emulator/windows/flycast/data": "emulator/data/Flycast/data/flycast"
+      },
+      "environment": {},
+      "sources": [
+        "https://github.com/flyinghead/flycast/blob/v2.7/core/windows/winmain.cpp",
+        "https://github.com/flyinghead/flycast/blob/v2.7/core/cfg/option.cpp"
+      ],
+      "gameplay_tested_on_windows": false
+    },
+    "melonds": {
+      "args": [
+        "{item}"
+      ],
+      "bindings": {
+        "emulator/windows/melonds/portable": "emulator/data/MelonDS/config/melonDS"
+      },
+      "environment": {},
+      "sources": [
+        "https://github.com/melonDS-emu/melonDS/blob/1.1/src/frontend/qt_sdl/main.cpp"
+      ],
+      "gameplay_tested_on_windows": false
+    },
+    "azahar": {
+      "args": [
+        "{item}"
+      ],
+      "bindings": {
+        "emulator/windows/azahar/azahar-windows-msvc-2126.2/user": "emulator/data/Azahar/data/azahar-emu",
+        "emulator/data/Azahar/data/azahar-emu/config": "emulator/data/Azahar/config/azahar-emu"
+      },
+      "environment": {},
+      "sources": [
+        "https://github.com/azahar-emu/azahar/blob/2126.2/src/common/file_util.cpp"
+      ],
+      "gameplay_tested_on_windows": false
+    },
+    "cemu": {
+      "args": [
+        "--mlc",
+        "{userdata}/data/Cemu/mlc01",
+        "-g",
+        "{item}"
+      ],
+      "bindings": {
+        "emulator/windows/cemu/Cemu_2.6/mlc01": "emulator/data/Cemu/data/Cemu/mlc01",
+        "emulator/windows/cemu/Cemu_2.6/shaderCache": "emulator/data/Cemu/cache/Cemu/shaderCache",
+        "emulator/windows/cemu/Cemu_2.6/graphicPacks": "emulator/data/Cemu/data/Cemu/graphicPacks",
+        "emulator/windows/cemu/Cemu_2.6/controllerProfiles": "emulator/data/Cemu/config/Cemu/controllerProfiles"
+      },
+      "environment": {},
+      "sources": [
+        "https://github.com/cemu-project/Cemu/blob/v2.6/src/config/LaunchSettings.cpp"
+      ],
+      "gameplay_tested_on_windows": false
+    },
+    "ppsspp": {
+      "args": [
+        "--config={userdata}/windows/ppsspp.ini",
+        "{item}"
+      ],
+      "bindings": {},
+      "environment": {},
+      "sources": [
+        "https://www.ppsspp.org/docs/getting-started/save-data-and-storage-windows/",
+        "https://github.com/hrydgard/ppsspp/blob/v1.20.4/Windows/main.cpp"
+      ],
+      "gameplay_tested_on_windows": false,
+      "working_directory": "{userdata}"
+    },
+    "shadps4": {
+      "args": [
+        "--game",
+        "{item}",
+        "--fullscreen",
+        "true"
+      ],
+      "bindings": {
+        "emulator/windows/shadps4/user": "emulator/data/shadPS4/data/shadPS4"
+      },
+      "environment": {},
+      "sources": [
+        "https://github.com/shadps4-emu/shadPS4/tree/v.0.20.0/src/common"
+      ],
+      "gameplay_tested_on_windows": false
+    },
+    "xenia-canary": {
+      "args": [
+        "{item}",
+        "--storage_root={userdata}",
+        "--content_root={userdata}/content",
+        "--cache_root={userdata}/cache",
+        "--hid=xinput",
+        "--gpu=vulkan",
+        "--discord=false"
+      ],
+      "bindings": {},
+      "environment": {},
+      "sources": [],
+      "gameplay_tested_on_windows": false
+    },
+    "sharpemu": {
+      "args": [
+        "{item}"
+      ],
+      "bindings": {},
+      "environment": {
+        "SHARPEMU_USER_DIR": "{userdata}"
+      },
+      "sources": [
+        "https://github.com/sharpemu/sharpemu/releases/tag/v0.0.7-pulse"
+      ],
+      "gameplay_tested_on_windows": false
+    },
+    "eglantine": {
+      "args": [
+        "-f",
+        "-g",
+        "{game_dir}"
+      ],
+      "bindings": {
+        "emulator/windows/eglantine/user": "emulator/data/Eglantine/data/eglantine",
+        "emulator/data/Eglantine/data/eglantine/config": "emulator/data/Eglantine/config/eglantine"
+      },
+      "environment": {},
+      "sources": [
+        "https://github.com/Djihads80/Eglantine/releases/tag/daily-20261107"
+      ],
+      "gameplay_tested_on_windows": false
+    },
+    "model2": {
+      "args": [
+        "{item_stem}"
+      ],
+      "working_directory": "{program_dir}",
+      "environment": {},
+      "bindings": {
+        "emulator/windows/model2/CFG": "emulator/data/Model2/CFG",
+        "emulator/windows/model2/NVDATA": "emulator/data/Model2/NVDATA"
+      },
+      "sources": [
+        "emulator/windows/model2/README.TXT"
+      ],
+      "dependencies": [
+        "Windows x86 compatibility",
+        "DirectX 9 runtime"
+      ],
+      "gameplay_tested_on_windows": false
+    }
+  },
+  "shared_roots": {
+    "userdata": "emulator/data",
+    "roms": "roms",
+    "bios": "bios",
+    "media": "media",
+    "assets": "frontend/RetroFE/Assets/shared",
+    "mods": "mods",
+    "saves": "saves"
+  },
+  "windows_requirements": {
+    "architecture": "x86_64",
+    "native_acceptance": "pending_on_windows_host",
+    "fixed_data_directories": "NTFS managed junctions; exFAT must refuse these runtimes",
+    "system_dependencies": [
+      "Microsoft Visual C++ v14 x64 runtime when required by upstream",
+      "GPU driver supporting the selected backend"
+    ]
+  },
+  "windows_platform_defaults": {
+    "ps5": "sharpemu",
+    "switch2": "eglantine"
+  }
+}

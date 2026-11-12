@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "roms-operation-v1",
+  "title": "ROM maintenance operation manifest",
+  "type": "object",
+  "required": ["schema_version", "operation_id", "kind", "created_at", "status"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "operation_id": {"type": "string", "minLength": 1},
+    "kind": {"enum": ["inventory", "verify", "change", "environment_change", "compression", "media_inventory", "media_optimization", "rom_variant_inventory", "rom_variant_registry"]},
+    "title": {"type": "string"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": ["string", "null"], "format": "date-time"},
+    "status": {"type": "string"},
+    "read_only": {"type": "boolean"},
+    "items": {"type": "array", "items": {"type": "object"}},
+    "details": {"type": "object"}
+  },
+  "additionalProperties": true
+}

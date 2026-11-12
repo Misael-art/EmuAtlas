@@ -1,0 +1,4481 @@
+{
+  "schema_version": 1,
+  "description": "Portable platform registry; availability and gameplay must be diagnosed on the customer host.",
+  "rom_root": "../../roms",
+  "bios_root": "../../bios",
+  "host_profile": "Config/profiles/host-linux.json",
+  "systems": [
+    {
+      "id": "3do",
+      "display_name": "3DO",
+      "kind": "platform",
+      "rom_subdir": "3do",
+      "extensions": [
+        "7z",
+        "bin",
+        "chd",
+        "cue",
+        "iso",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "opera_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "adam",
+      "display_name": "Coleco Adam",
+      "kind": "platform",
+      "rom_subdir": "adam",
+      "extensions": [
+        "1dd",
+        "7z",
+        "bin",
+        "col",
+        "cqi",
+        "cqm",
+        "d77",
+        "d88",
+        "ddp",
+        "dfi",
+        "dsk",
+        "hfe",
+        "imd",
+        "mfi",
+        "mfm",
+        "rom",
+        "td0",
+        "wav",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "MAME"
+      ]
+    },
+    {
+      "id": "ags",
+      "display_name": "Adventure Game Studio Game Engine",
+      "kind": "platform",
+      "rom_subdir": "ags",
+      "extensions": [
+        "desktop"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "OS-SHELL"
+      ]
+    },
+    {
+      "id": "amiga",
+      "display_name": "Commodore Amiga",
+      "kind": "platform",
+      "rom_subdir": "amiga",
+      "extensions": [
+        "7z",
+        "adf",
+        "adz",
+        "ccd",
+        "chd",
+        "cue",
+        "dms",
+        "fdi",
+        "hdf",
+        "hdz",
+        "ipf",
+        "iso",
+        "lha",
+        "m3u",
+        "mds",
+        "nrg",
+        "rp9",
+        "uae",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "puae_libretro.so",
+        "puae2021_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "amiga1200",
+      "display_name": "Commodore Amiga 1200",
+      "kind": "platform",
+      "rom_subdir": "amiga1200",
+      "extensions": [
+        "7z",
+        "adf",
+        "adz",
+        "ccd",
+        "chd",
+        "cue",
+        "dms",
+        "fdi",
+        "hdf",
+        "hdz",
+        "ipf",
+        "iso",
+        "lha",
+        "m3u",
+        "mds",
+        "nrg",
+        "rp9",
+        "uae",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "puae_libretro.so",
+        "puae2021_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "amiga600",
+      "display_name": "Commodore Amiga 600",
+      "kind": "platform",
+      "rom_subdir": "amiga600",
+      "extensions": [
+        "7z",
+        "adf",
+        "adz",
+        "ccd",
+        "chd",
+        "cue",
+        "dms",
+        "fdi",
+        "hdf",
+        "hdz",
+        "ipf",
+        "iso",
+        "lha",
+        "m3u",
+        "mds",
+        "nrg",
+        "rp9",
+        "uae",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "puae_libretro.so",
+        "puae2021_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "amigacd32",
+      "display_name": "Commodore Amiga CD32",
+      "kind": "platform",
+      "rom_subdir": "amigacd32",
+      "extensions": [
+        "7z",
+        "adf",
+        "adz",
+        "ccd",
+        "chd",
+        "cue",
+        "dms",
+        "fdi",
+        "hdf",
+        "hdz",
+        "ipf",
+        "iso",
+        "lha",
+        "m3u",
+        "mds",
+        "nrg",
+        "rp9",
+        "uae",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "puae_libretro.so",
+        "puae2021_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "amstradcpc",
+      "display_name": "Amstrad CPC",
+      "kind": "platform",
+      "rom_subdir": "amstradcpc",
+      "extensions": [
+        "7z",
+        "cdt",
+        "cpr",
+        "dsk",
+        "kcr",
+        "m3u",
+        "sna",
+        "tap",
+        "tar",
+        "voc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "cap32_libretro.so",
+        "crocods_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "android",
+      "display_name": "Google Android",
+      "kind": "platform",
+      "rom_subdir": "android",
+      "extensions": [
+        "7z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "apple2",
+      "display_name": "Apple II",
+      "kind": "platform",
+      "rom_subdir": "apple2",
+      "extensions": [
+        "do",
+        "dsk",
+        "nib",
+        "po"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "LINAPPLE",
+        "MAME",
+        "MEDNAFEN"
+      ]
+    },
+    {
+      "id": "apple2gs",
+      "display_name": "Apple IIGS",
+      "kind": "platform",
+      "rom_subdir": "apple2gs",
+      "extensions": [
+        "2mg"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "MAME"
+      ]
+    },
+    {
+      "id": "arcade",
+      "display_name": "Arcade",
+      "kind": "platform",
+      "rom_subdir": "arcade",
+      "extensions": [
+        "7z",
+        "cmd",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mame_libretro.so",
+        "mame2010_libretro.so",
+        "mame2003_plus_libretro.so",
+        "mame2000_libretro.so",
+        "fbneo_libretro.so",
+        "fbalpha2012_libretro.so",
+        "flycast_libretro.so",
+        "kronos_libretro.so"
+      ],
+      "emulator_hints": [
+        "FLYCAST",
+        "MAME",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "arcadia",
+      "display_name": "Emerson Arcadia 2001",
+      "kind": "platform",
+      "rom_subdir": "arcadia",
+      "extensions": [
+        "7z",
+        "bin",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "MAME"
+      ]
+    },
+    {
+      "id": "archimedes",
+      "display_name": "Acorn Archimedes",
+      "kind": "platform",
+      "rom_subdir": "archimedes",
+      "extensions": [
+        "1dd",
+        "360",
+        "7z",
+        "adf",
+        "adl",
+        "adm",
+        "ads",
+        "apd",
+        "bbc",
+        "chd",
+        "cqi",
+        "cqm",
+        "d77",
+        "d88",
+        "dfi",
+        "dsd",
+        "dsk",
+        "hfe",
+        "ima",
+        "imd",
+        "img",
+        "ipf",
+        "jfd",
+        "mfi",
+        "mfm",
+        "msa",
+        "ssd",
+        "st",
+        "td0",
+        "ufi",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "MAME"
+      ]
+    },
+    {
+      "id": "arduboy",
+      "display_name": "Arduboy Miniature Game System",
+      "kind": "platform",
+      "rom_subdir": "arduboy",
+      "extensions": [
+        "7z",
+        "hex",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "arduous_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "astrocde",
+      "display_name": "Bally Astrocade",
+      "kind": "platform",
+      "rom_subdir": "astrocde",
+      "extensions": [
+        "7z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mame_libretro.so"
+      ],
+      "emulator_hints": [
+        "MAME",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "atari2600",
+      "display_name": "Atari 2600",
+      "kind": "platform",
+      "rom_subdir": "atari2600",
+      "extensions": [
+        "7z",
+        "a26",
+        "bin",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "stella_libretro.so",
+        "stella2014_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "atari5200",
+      "display_name": "Atari 5200",
+      "kind": "platform",
+      "rom_subdir": "atari5200",
+      "extensions": [
+        "7z",
+        "a52",
+        "atr",
+        "atx",
+        "bin",
+        "cas",
+        "cdm",
+        "xex",
+        "xfd",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "a5200_libretro.so",
+        "atari800_libretro.so"
+      ],
+      "emulator_hints": [
+        "ATARI800",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "atari7800",
+      "display_name": "Atari 7800 ProSystem",
+      "kind": "platform",
+      "rom_subdir": "atari7800",
+      "extensions": [
+        "7z",
+        "a78",
+        "bin",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "prosystem_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "atari800",
+      "display_name": "Atari 800",
+      "kind": "platform",
+      "rom_subdir": "atari800",
+      "extensions": [
+        "7z",
+        "a52",
+        "atr",
+        "atx",
+        "bin",
+        "cas",
+        "cdm",
+        "rom",
+        "xex",
+        "xfd",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "atari800_libretro.so"
+      ],
+      "emulator_hints": [
+        "ATARI800",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "atarijaguar",
+      "display_name": "Atari Jaguar",
+      "kind": "platform",
+      "rom_subdir": "atarijaguar",
+      "extensions": [
+        "7z",
+        "abs",
+        "bin",
+        "cof",
+        "j64",
+        "jag",
+        "prg",
+        "rom",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "virtualjaguar_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "atarijaguarcd",
+      "display_name": "Atari Jaguar CD",
+      "kind": "platform",
+      "rom_subdir": "atarijaguarcd",
+      "extensions": [
+        "7z",
+        "abs",
+        "bin",
+        "cof",
+        "j64",
+        "jag",
+        "prg",
+        "rom",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "virtualjaguar_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "atarilynx",
+      "display_name": "Atari Lynx",
+      "kind": "platform",
+      "rom_subdir": "atarilynx",
+      "extensions": [
+        "7z",
+        "lnx",
+        "o",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "handy_libretro.so",
+        "mednafen_lynx_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "atarist",
+      "display_name": "Atari ST",
+      "kind": "platform",
+      "rom_subdir": "atarist",
+      "extensions": [
+        "7z",
+        "dim",
+        "ipf",
+        "m3u",
+        "msa",
+        "st",
+        "stx",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "hatari_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "atarixe",
+      "display_name": "Atari XE",
+      "kind": "platform",
+      "rom_subdir": "atarixe",
+      "extensions": [
+        "7z",
+        "a52",
+        "atr",
+        "atx",
+        "bin",
+        "cas",
+        "cdm",
+        "xex",
+        "xfd",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "atari800_libretro.so"
+      ],
+      "emulator_hints": [
+        "ATARI800",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "atomiswave",
+      "display_name": "Atomiswave",
+      "kind": "platform",
+      "rom_subdir": "atomiswave",
+      "extensions": [
+        "7z",
+        "bin",
+        "cdi",
+        "cue",
+        "dat",
+        "elf",
+        "gdi",
+        "iso",
+        "lst",
+        "m3u",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "flycast_libretro.so"
+      ],
+      "emulator_hints": [
+        "FLYCAST",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "bbcmicro",
+      "display_name": "BBC Micro",
+      "kind": "platform",
+      "rom_subdir": "bbcmicro",
+      "extensions": [
+        "7z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "c16",
+      "display_name": "Commodore 16",
+      "kind": "platform",
+      "rom_subdir": "c16",
+      "extensions": [
+        "bin",
+        "cmd",
+        "crt",
+        "d64",
+        "d6z",
+        "d71",
+        "d7z",
+        "d80",
+        "d81",
+        "d82",
+        "d8z",
+        "g41",
+        "g4z",
+        "g64",
+        "g6z",
+        "m3u",
+        "nbz",
+        "nib",
+        "p00",
+        "prg",
+        "t64",
+        "tap",
+        "vsf",
+        "x64",
+        "x6z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "vice_x64sc_libretro.so",
+        "vice_x64_libretro.so",
+        "vice_xscpu64_libretro.so",
+        "vice_x128_libretro.so",
+        "frodo_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "c64",
+      "display_name": "Commodore 64",
+      "kind": "platform",
+      "rom_subdir": "c64",
+      "extensions": [
+        "7z",
+        "bin",
+        "cmd",
+        "crt",
+        "d2m",
+        "d4m",
+        "d64",
+        "d6z",
+        "d71",
+        "d7z",
+        "d80",
+        "d81",
+        "d82",
+        "d8z",
+        "g41",
+        "g4z",
+        "g64",
+        "g6z",
+        "gz",
+        "lnx",
+        "m3u",
+        "nbz",
+        "nib",
+        "p00",
+        "prg",
+        "t64",
+        "tap",
+        "vfl",
+        "vsf",
+        "x64",
+        "x6z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "vice_x64sc_libretro.so",
+        "vice_x64_libretro.so",
+        "vice_xscpu64_libretro.so",
+        "vice_x128_libretro.so",
+        "frodo_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "cavestory",
+      "display_name": "Cave Story (NXEngine)",
+      "kind": "platform",
+      "rom_subdir": "cavestory",
+      "extensions": [
+        "7z",
+        "exe",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "nxengine_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "cdimono1",
+      "display_name": "Philips CD-i",
+      "kind": "platform",
+      "rom_subdir": "cdimono1",
+      "extensions": [
+        "chd",
+        "cue",
+        "iso"
+      ],
+      "preferred_retroarch_cores": [
+        "same_cdi_libretro.so",
+        "cdi2015_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "cdtv",
+      "display_name": "Commodore CDTV",
+      "kind": "platform",
+      "rom_subdir": "cdtv",
+      "extensions": [
+        "7z",
+        "ccd",
+        "chd",
+        "cue",
+        "iso",
+        "m3u",
+        "mds",
+        "nrg",
+        "rp9",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "puae_libretro.so",
+        "puae2021_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "chailove",
+      "display_name": "ChaiLove Game Engine",
+      "kind": "platform",
+      "rom_subdir": "chailove",
+      "extensions": [
+        "7z",
+        "chai",
+        "chailove",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "chailove_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "channelf",
+      "display_name": "Fairchild Channel F",
+      "kind": "platform",
+      "rom_subdir": "channelf",
+      "extensions": [
+        "7z",
+        "bin",
+        "chf",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "freechaf_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "cloud",
+      "display_name": "Cloud Services",
+      "kind": "platform",
+      "rom_subdir": "cloud",
+      "extensions": [
+        "sh"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "coco",
+      "display_name": "Tandy Color Computer",
+      "kind": "platform",
+      "rom_subdir": "coco",
+      "extensions": [
+        "cas",
+        "ccc",
+        "dsk",
+        "rom"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "XROAR"
+      ]
+    },
+    {
+      "id": "colecovision",
+      "display_name": "ColecoVision",
+      "kind": "platform",
+      "rom_subdir": "colecovision",
+      "extensions": [
+        "7z",
+        "bin",
+        "cas",
+        "col",
+        "cv",
+        "dsk",
+        "m3u",
+        "mx1",
+        "mx2",
+        "ri",
+        "rom",
+        "sc",
+        "sg",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "bluemsx_libretro.so",
+        "gearcoleco_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "consolearcade",
+      "display_name": "Console Arcade Systems",
+      "kind": "platform",
+      "rom_subdir": "consolearcade",
+      "extensions": [
+        "7z",
+        "arcadedef",
+        "desktop",
+        "iso",
+        "ps3",
+        "sh",
+        "xbe",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mame_libretro.so",
+        "flycast_libretro.so",
+        "kronos_libretro.so"
+      ],
+      "emulator_hints": [
+        "MAME",
+        "OS-SHELL",
+        "RETROARCH",
+        "RPCS3",
+        "XEMU"
+      ]
+    },
+    {
+      "id": "cps",
+      "display_name": "Capcom Play System",
+      "kind": "platform",
+      "rom_subdir": "cps",
+      "extensions": [
+        "7z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mame_libretro.so",
+        "mame2010_libretro.so",
+        "mame2003_plus_libretro.so",
+        "mame2000_libretro.so",
+        "fbneo_libretro.so",
+        "fbalpha2012_libretro.so",
+        "fbalpha2012_cps1_libretro.so",
+        "fbalpha2012_cps2_libretro.so",
+        "fbalpha2012_cps3_libretro.so"
+      ],
+      "emulator_hints": [
+        "MAME",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "cps1",
+      "display_name": "Capcom Play System I",
+      "kind": "platform",
+      "rom_subdir": "cps1",
+      "extensions": [
+        "7z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mame_libretro.so",
+        "mame2010_libretro.so",
+        "mame2003_plus_libretro.so",
+        "mame2000_libretro.so",
+        "fbneo_libretro.so",
+        "fbalpha2012_libretro.so",
+        "fbalpha2012_cps1_libretro.so"
+      ],
+      "emulator_hints": [
+        "FINALBURN-NEO",
+        "MAME",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "cps2",
+      "display_name": "Capcom Play System II",
+      "kind": "platform",
+      "rom_subdir": "cps2",
+      "extensions": [
+        "7z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mame_libretro.so",
+        "mame2010_libretro.so",
+        "mame2003_plus_libretro.so",
+        "mame2000_libretro.so",
+        "fbneo_libretro.so",
+        "fbalpha2012_libretro.so",
+        "fbalpha2012_cps2_libretro.so"
+      ],
+      "emulator_hints": [
+        "FINALBURN-NEO",
+        "MAME",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "cps3",
+      "display_name": "Capcom Play System III",
+      "kind": "platform",
+      "rom_subdir": "cps3",
+      "extensions": [
+        "7z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mame_libretro.so",
+        "mame2010_libretro.so",
+        "mame2003_plus_libretro.so",
+        "mame2000_libretro.so",
+        "fbneo_libretro.so",
+        "fbalpha2012_libretro.so",
+        "fbalpha2012_cps3_libretro.so"
+      ],
+      "emulator_hints": [
+        "FINALBURN-NEO",
+        "MAME",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "crvision",
+      "display_name": "VTech CreatiVision",
+      "kind": "platform",
+      "rom_subdir": "crvision",
+      "extensions": [
+        "7z",
+        "bin",
+        "rom",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "MAME"
+      ]
+    },
+    {
+      "id": "daphne",
+      "display_name": "Daphne Arcade LaserDisc Emulator",
+      "kind": "platform",
+      "rom_subdir": "daphne",
+      "extensions": [
+        "daphne",
+        "singe"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "HYPSEUS-SINGE"
+      ]
+    },
+    {
+      "id": "desktop",
+      "display_name": "Desktop Applications",
+      "kind": "platform",
+      "rom_subdir": "desktop",
+      "extensions": [
+        "desktop",
+        "sh"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "OS-SHELL"
+      ]
+    },
+    {
+      "id": "doom",
+      "display_name": "Doom",
+      "kind": "platform",
+      "rom_subdir": "doom",
+      "extensions": [
+        "desktop",
+        "iwad",
+        "pk4",
+        "pwad",
+        "sh",
+        "wad"
+      ],
+      "preferred_retroarch_cores": [
+        "prboom_libretro.so",
+        "boom3_libretro.so",
+        "boom3_xp_libretro.so"
+      ],
+      "emulator_hints": [
+        "OS-SHELL",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "dos",
+      "display_name": "DOS (PC)",
+      "kind": "platform",
+      "rom_subdir": "dos",
+      "extensions": [
+        "7z",
+        "bat",
+        "com",
+        "conf",
+        "cue",
+        "dosz",
+        "exe",
+        "iso",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "dosbox_pure_libretro.so",
+        "dosbox_core_libretro.so",
+        "dosbox_svn_libretro.so"
+      ],
+      "emulator_hints": [
+        "DOSBOX-STAGING",
+        "DOSBOX-X",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "dragon32",
+      "display_name": "Dragon 32",
+      "kind": "platform",
+      "rom_subdir": "dragon32",
+      "extensions": [
+        "cas",
+        "ccc",
+        "dsk",
+        "rom"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "XROAR"
+      ]
+    },
+    {
+      "id": "dreamcast",
+      "display_name": "Sega Dreamcast",
+      "kind": "platform",
+      "rom_subdir": "dreamcast",
+      "extensions": [
+        "7z",
+        "cdi",
+        "chd",
+        "cue",
+        "dat",
+        "elf",
+        "gdi",
+        "iso",
+        "lst",
+        "m3u",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "flycast_libretro.so"
+      ],
+      "emulator_hints": [
+        "FLYCAST",
+        "REDREAM",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "easyrpg",
+      "display_name": "EasyRPG Game Engine",
+      "kind": "platform",
+      "rom_subdir": "easyrpg",
+      "extensions": [
+        "easyrpg",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "easyrpg_libretro.so"
+      ],
+      "emulator_hints": [
+        "EASYRPG",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "electron",
+      "display_name": "Acorn Electron",
+      "kind": "platform",
+      "rom_subdir": "electron",
+      "extensions": [
+        "1dd",
+        "7z",
+        "adf",
+        "adl",
+        "adm",
+        "ads",
+        "bbc",
+        "bin",
+        "cqi",
+        "cqm",
+        "csw",
+        "d77",
+        "d88",
+        "dfi",
+        "dsd",
+        "dsk",
+        "hfe",
+        "imd",
+        "img",
+        "mfi",
+        "mfm",
+        "rom",
+        "ssd",
+        "td0",
+        "uef",
+        "wav",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "MAME"
+      ]
+    },
+    {
+      "id": "epic",
+      "display_name": "Epic Games Store",
+      "kind": "platform",
+      "rom_subdir": "epic",
+      "extensions": [
+        "desktop",
+        "sh"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "OS-SHELL"
+      ]
+    },
+    {
+      "id": "famicom",
+      "display_name": "Nintendo Family Computer",
+      "kind": "platform",
+      "rom_subdir": "famicom",
+      "extensions": [
+        "7z",
+        "fds",
+        "nes",
+        "unf",
+        "unif",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mesen_libretro.so",
+        "nestopia_libretro.so",
+        "fceumm_libretro.so",
+        "quicknes_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "NESTOPIA-UE",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "fba",
+      "display_name": "FinalBurn Alpha",
+      "kind": "platform",
+      "rom_subdir": "fba",
+      "extensions": [
+        "7z",
+        "iso",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "fbalpha2012_libretro.so",
+        "fbalpha2012_neogeo_libretro.so",
+        "fbalpha2012_cps1_libretro.so",
+        "fbalpha2012_cps2_libretro.so",
+        "fbalpha2012_cps3_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "fbneo",
+      "display_name": "FinalBurn Neo",
+      "kind": "platform",
+      "rom_subdir": "fbneo",
+      "extensions": [
+        "7z",
+        "ccd",
+        "cue",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "fbneo_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "fds",
+      "display_name": "Nintendo Famicom Disk System",
+      "kind": "platform",
+      "rom_subdir": "fds",
+      "extensions": [
+        "7z",
+        "fds",
+        "nes",
+        "unf",
+        "unif",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mesen_libretro.so",
+        "nestopia_libretro.so",
+        "fceumm_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "NESTOPIA-UE",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "flash",
+      "display_name": "Adobe Flash",
+      "kind": "platform",
+      "rom_subdir": "flash",
+      "extensions": [
+        "swf"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "LIGHTSPARK",
+        "RUFFLE"
+      ]
+    },
+    {
+      "id": "fm7",
+      "display_name": "Fujitsu FM-7",
+      "kind": "platform",
+      "rom_subdir": "fm7",
+      "extensions": [
+        "1dd",
+        "7z",
+        "cqi",
+        "cqm",
+        "d77",
+        "d88",
+        "dfi",
+        "dsk",
+        "hfe",
+        "imd",
+        "mfi",
+        "mfm",
+        "t77",
+        "td0",
+        "wav",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "MAME"
+      ]
+    },
+    {
+      "id": "fmtowns",
+      "display_name": "Fujitsu FM Towns",
+      "kind": "platform",
+      "rom_subdir": "fmtowns",
+      "extensions": [
+        "cue",
+        "iso"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "TSUGARU"
+      ]
+    },
+    {
+      "id": "gamate",
+      "display_name": "Bit Corporation Gamate",
+      "kind": "platform",
+      "rom_subdir": "gamate",
+      "extensions": [
+        "7z",
+        "bin",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mame_libretro.so"
+      ],
+      "emulator_hints": [
+        "MAME",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "gameandwatch",
+      "display_name": "Nintendo Game and Watch",
+      "kind": "platform",
+      "rom_subdir": "gameandwatch",
+      "extensions": [
+        "7z",
+        "mgw",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "gw_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "gamecom",
+      "display_name": "Tiger Electronics Game.com",
+      "kind": "platform",
+      "rom_subdir": "gamecom",
+      "extensions": [
+        "7z",
+        "tgc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "MAME"
+      ]
+    },
+    {
+      "id": "gamegear",
+      "display_name": "Sega Game Gear",
+      "kind": "platform",
+      "rom_subdir": "gamegear",
+      "extensions": [
+        "68k",
+        "7z",
+        "bin",
+        "bms",
+        "chd",
+        "col",
+        "cue",
+        "gen",
+        "gg",
+        "iso",
+        "m3u",
+        "md",
+        "mdx",
+        "rom",
+        "sg",
+        "sgd",
+        "smd",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "genesis_plus_gx_libretro.so",
+        "genesis_plus_gx_wide_libretro.so",
+        "gearsystem_libretro.so",
+        "smsplus_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "gb",
+      "display_name": "Nintendo Game Boy",
+      "kind": "platform",
+      "rom_subdir": "gb",
+      "extensions": [
+        "7z",
+        "bs",
+        "cgb",
+        "dmg",
+        "gb",
+        "gbc",
+        "sfc",
+        "sgb",
+        "smc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "gambatte_libretro.so",
+        "sameboy_libretro.so",
+        "gearboy_libretro.so",
+        "tgbdual_libretro.so",
+        "mesen-s_libretro.so",
+        "bsnes_libretro.so",
+        "mgba_libretro.so",
+        "vbam_libretro.so"
+      ],
+      "emulator_hints": [
+        "MGBA",
+        "RETROARCH",
+        "VBA-M"
+      ]
+    },
+    {
+      "id": "gba",
+      "display_name": "Nintendo Game Boy Advance",
+      "kind": "platform",
+      "rom_subdir": "gba",
+      "extensions": [
+        "7z",
+        "agb",
+        "bin",
+        "cgb",
+        "dmg",
+        "gb",
+        "gba",
+        "gbc",
+        "sgb",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mgba_libretro.so",
+        "vbam_libretro.so",
+        "vba_next_libretro.so",
+        "gpsp_libretro.so"
+      ],
+      "emulator_hints": [
+        "MGBA",
+        "RETROARCH",
+        "VBA-M"
+      ]
+    },
+    {
+      "id": "gbc",
+      "display_name": "Nintendo Game Boy Color",
+      "kind": "platform",
+      "rom_subdir": "gbc",
+      "extensions": [
+        "7z",
+        "bs",
+        "cgb",
+        "dmg",
+        "gb",
+        "gbc",
+        "sfc",
+        "sgb",
+        "smc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "gambatte_libretro.so",
+        "sameboy_libretro.so",
+        "gearboy_libretro.so",
+        "tgbdual_libretro.so",
+        "mesen-s_libretro.so",
+        "bsnes_libretro.so",
+        "mgba_libretro.so",
+        "vbam_libretro.so"
+      ],
+      "emulator_hints": [
+        "MGBA",
+        "RETROARCH",
+        "VBA-M"
+      ]
+    },
+    {
+      "id": "gc",
+      "display_name": "Nintendo GameCube",
+      "kind": "platform",
+      "rom_subdir": "gc",
+      "extensions": [
+        "7z",
+        "ciso",
+        "dff",
+        "dol",
+        "elf",
+        "gcm",
+        "gcz",
+        "iso",
+        "json",
+        "m3u",
+        "rvz",
+        "tgc",
+        "wad",
+        "wbfs",
+        "wia",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "dolphin_libretro.so"
+      ],
+      "emulator_hints": [
+        "DOLPHIN",
+        "PRIMEHACK",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "generic-applications",
+      "display_name": "Generic Applications",
+      "kind": "platform",
+      "rom_subdir": "generic-applications",
+      "extensions": [
+        "sh"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "genesis",
+      "display_name": "Sega Genesis",
+      "kind": "platform",
+      "rom_subdir": "genesis",
+      "extensions": [
+        "32x",
+        "68k",
+        "7z",
+        "bin",
+        "bms",
+        "chd",
+        "cue",
+        "gen",
+        "gg",
+        "iso",
+        "m3u",
+        "md",
+        "mdx",
+        "sg",
+        "sgd",
+        "smd",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "genesis_plus_gx_libretro.so",
+        "genesis_plus_gx_wide_libretro.so",
+        "picodrive_libretro.so",
+        "blastem_libretro.so"
+      ],
+      "emulator_hints": [
+        "BLASTEM",
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "genesiswide",
+      "display_name": "Sega Genesis",
+      "kind": "platform",
+      "rom_subdir": "genesiswide",
+      "extensions": [
+        "32x",
+        "68k",
+        "7z",
+        "bin",
+        "bms",
+        "chd",
+        "cue",
+        "gen",
+        "gg",
+        "iso",
+        "m3u",
+        "md",
+        "mdx",
+        "sg",
+        "sgd",
+        "smd",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "genesis_plus_gx_libretro.so",
+        "genesis_plus_gx_wide_libretro.so",
+        "picodrive_libretro.so",
+        "blastem_libretro.so"
+      ],
+      "emulator_hints": [
+        "BLASTEM",
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "gmaster",
+      "display_name": "Hartung Game Master",
+      "kind": "platform",
+      "rom_subdir": "gmaster",
+      "extensions": [
+        "7z",
+        "bin",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mame_libretro.so"
+      ],
+      "emulator_hints": [
+        "MAME",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "gx4000",
+      "display_name": "Amstrad GX4000",
+      "kind": "platform",
+      "rom_subdir": "gx4000",
+      "extensions": [
+        "7z",
+        "cdt",
+        "cpr",
+        "dsk",
+        "kcr",
+        "m3u",
+        "sna",
+        "tap",
+        "tar",
+        "voc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "cap32_libretro.so",
+        "crocods_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "intellivision",
+      "display_name": "Mattel Electronics Intellivision",
+      "kind": "platform",
+      "rom_subdir": "intellivision",
+      "extensions": [
+        "7z",
+        "bin",
+        "int",
+        "rom",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "freeintv_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "j2me",
+      "display_name": "Java 2 Micro Edition (J2ME)",
+      "kind": "platform",
+      "rom_subdir": "j2me",
+      "extensions": [
+        "7z",
+        "jar",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "squirreljme_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "kodi",
+      "display_name": "Kodi Home Theatre Software",
+      "kind": "platform",
+      "rom_subdir": "kodi",
+      "extensions": [
+        "desktop",
+        "sh"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "OS-SHELL"
+      ]
+    },
+    {
+      "id": "laserdisc",
+      "display_name": "LaserDisc Games",
+      "kind": "platform",
+      "rom_subdir": "laserdisc",
+      "extensions": [
+        "7z",
+        "daphne",
+        "dirksimple",
+        "mmi",
+        "ogv",
+        "singe",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mame_libretro.so",
+        "dirksimple_libretro.so"
+      ],
+      "emulator_hints": [
+        "MAME",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "lcdgames",
+      "display_name": "LCD Handheld Games",
+      "kind": "platform",
+      "rom_subdir": "lcdgames",
+      "extensions": [
+        "7z",
+        "mgw",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "gw_libretro.so"
+      ],
+      "emulator_hints": [
+        "MAME",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "lowresnx",
+      "display_name": "LowRes NX Fantasy Console",
+      "kind": "platform",
+      "rom_subdir": "lowresnx",
+      "extensions": [
+        "nx"
+      ],
+      "preferred_retroarch_cores": [
+        "lowresnx_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "lutris",
+      "display_name": "Lutris Open Gaming Platform",
+      "kind": "platform",
+      "rom_subdir": "lutris",
+      "extensions": [
+        "desktop",
+        "sh"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "OS-SHELL"
+      ]
+    },
+    {
+      "id": "lutro",
+      "display_name": "Lutro Game Engine",
+      "kind": "platform",
+      "rom_subdir": "lutro",
+      "extensions": [
+        "7z",
+        "lua",
+        "lutro",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "lutro_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "macintosh",
+      "display_name": "Apple Macintosh",
+      "kind": "platform",
+      "rom_subdir": "macintosh",
+      "extensions": [
+        "game"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "BASILISKII",
+        "SHEEPSHAVER"
+      ]
+    },
+    {
+      "id": "mame",
+      "display_name": "Multiple Arcade Machine Emulator",
+      "kind": "platform",
+      "rom_subdir": "mame",
+      "extensions": [
+        "7z",
+        "cmd",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mame_libretro.so",
+        "mame2010_libretro.so",
+        "mame2003_plus_libretro.so",
+        "mame2000_libretro.so",
+        "fbneo_libretro.so",
+        "fbalpha2012_libretro.so",
+        "flycast_libretro.so",
+        "kronos_libretro.so"
+      ],
+      "emulator_hints": [
+        "FLYCAST",
+        "MAME",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "mame-advmame",
+      "display_name": "AdvanceMAME",
+      "kind": "platform",
+      "rom_subdir": "mame-advmame",
+      "extensions": [
+        "7z",
+        "chd",
+        "cmd",
+        "cue",
+        "fba",
+        "iso",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "mame-mame4all",
+      "display_name": "MAME4ALL",
+      "kind": "platform",
+      "rom_subdir": "mame-mame4all",
+      "extensions": [
+        "7z",
+        "chd",
+        "cmd",
+        "cue",
+        "fba",
+        "iso",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "mark3",
+      "display_name": "Sega Mark III",
+      "kind": "platform",
+      "rom_subdir": "mark3",
+      "extensions": [
+        "68k",
+        "7z",
+        "bin",
+        "bms",
+        "chd",
+        "col",
+        "cue",
+        "gen",
+        "gg",
+        "iso",
+        "m3u",
+        "md",
+        "mdx",
+        "rom",
+        "sg",
+        "sgd",
+        "smd",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "genesis_plus_gx_libretro.so",
+        "genesis_plus_gx_wide_libretro.so",
+        "smsplus_libretro.so",
+        "gearsystem_libretro.so",
+        "picodrive_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "mastersystem",
+      "display_name": "Sega Master System",
+      "kind": "platform",
+      "rom_subdir": "mastersystem",
+      "extensions": [
+        "68k",
+        "7z",
+        "bin",
+        "bms",
+        "chd",
+        "col",
+        "cue",
+        "gen",
+        "gg",
+        "iso",
+        "m3u",
+        "md",
+        "mdx",
+        "rom",
+        "sg",
+        "sgd",
+        "smd",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "genesis_plus_gx_libretro.so",
+        "genesis_plus_gx_wide_libretro.so",
+        "smsplus_libretro.so",
+        "gearsystem_libretro.so",
+        "picodrive_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "megacd",
+      "display_name": "Sega Mega-CD",
+      "kind": "platform",
+      "rom_subdir": "megacd",
+      "extensions": [
+        "68k",
+        "7z",
+        "bin",
+        "bms",
+        "chd",
+        "cue",
+        "gen",
+        "gg",
+        "iso",
+        "m3u",
+        "md",
+        "mdx",
+        "sg",
+        "sgd",
+        "smd",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "genesis_plus_gx_libretro.so",
+        "genesis_plus_gx_wide_libretro.so",
+        "picodrive_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "megacdjp",
+      "display_name": "Sega Mega-CD",
+      "kind": "platform",
+      "rom_subdir": "megacdjp",
+      "extensions": [
+        "68k",
+        "7z",
+        "bin",
+        "bms",
+        "chd",
+        "cue",
+        "gen",
+        "gg",
+        "iso",
+        "m3u",
+        "md",
+        "mdx",
+        "sg",
+        "sgd",
+        "smd",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "genesis_plus_gx_libretro.so",
+        "genesis_plus_gx_wide_libretro.so",
+        "picodrive_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "megadrive",
+      "display_name": "Sega Mega Drive",
+      "kind": "platform",
+      "rom_subdir": "megadrive",
+      "extensions": [
+        "32x",
+        "68k",
+        "7z",
+        "bin",
+        "bms",
+        "chd",
+        "cue",
+        "gen",
+        "gg",
+        "iso",
+        "m3u",
+        "md",
+        "mdx",
+        "sg",
+        "sgd",
+        "smd",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "genesis_plus_gx_libretro.so",
+        "genesis_plus_gx_wide_libretro.so",
+        "picodrive_libretro.so",
+        "blastem_libretro.so"
+      ],
+      "emulator_hints": [
+        "BLASTEM",
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "megadrivejp",
+      "display_name": "Sega Mega Drive",
+      "kind": "platform",
+      "rom_subdir": "megadrivejp",
+      "extensions": [
+        "32x",
+        "68k",
+        "7z",
+        "bin",
+        "bms",
+        "chd",
+        "cue",
+        "gen",
+        "gg",
+        "iso",
+        "m3u",
+        "md",
+        "mdx",
+        "sg",
+        "sgd",
+        "smd",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "genesis_plus_gx_libretro.so",
+        "genesis_plus_gx_wide_libretro.so",
+        "picodrive_libretro.so",
+        "blastem_libretro.so"
+      ],
+      "emulator_hints": [
+        "ARES",
+        "BLASTEM",
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "megaduck",
+      "display_name": "Creatronic Mega Duck",
+      "kind": "platform",
+      "rom_subdir": "megaduck",
+      "extensions": [
+        "7z",
+        "bin",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "sameduck_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "mess",
+      "display_name": "Multi Emulator Super System",
+      "kind": "platform",
+      "rom_subdir": "mess",
+      "extensions": [
+        "7z",
+        "chd",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mess2015_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "model2",
+      "display_name": "Sega Model 2",
+      "kind": "platform",
+      "rom_subdir": "model2",
+      "extensions": [
+        "7z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "model3",
+      "display_name": "Sega Model 3",
+      "kind": "platform",
+      "rom_subdir": "model3",
+      "extensions": [
+        "7z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "moonlight",
+      "display_name": "Moonlight Game Streaming",
+      "kind": "platform",
+      "rom_subdir": "moonlight",
+      "extensions": [
+        "7z",
+        "moonlight",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "moto",
+      "display_name": "Thomson MO/TO Series",
+      "kind": "platform",
+      "rom_subdir": "moto",
+      "extensions": [
+        "7z",
+        "fd",
+        "k7",
+        "m5",
+        "m7",
+        "rom",
+        "sap",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "theodore_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "msx",
+      "display_name": "MSX",
+      "kind": "platform",
+      "rom_subdir": "msx",
+      "extensions": [
+        "7z",
+        "cas",
+        "col",
+        "dsk",
+        "m3u",
+        "mx1",
+        "mx2",
+        "ri",
+        "rom",
+        "sc",
+        "sg",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "bluemsx_libretro.so",
+        "fmsx_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "msx1",
+      "display_name": "MSX1",
+      "kind": "platform",
+      "rom_subdir": "msx1",
+      "extensions": [
+        "7z",
+        "cas",
+        "col",
+        "dsk",
+        "m3u",
+        "mx1",
+        "mx2",
+        "ri",
+        "rom",
+        "sc",
+        "sg",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "bluemsx_libretro.so",
+        "fmsx_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "msx2",
+      "display_name": "MSX2",
+      "kind": "platform",
+      "rom_subdir": "msx2",
+      "extensions": [
+        "7z",
+        "cas",
+        "col",
+        "dsk",
+        "m3u",
+        "mx1",
+        "mx2",
+        "ri",
+        "rom",
+        "sc",
+        "sg",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "bluemsx_libretro.so",
+        "fmsx_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "msxturbor",
+      "display_name": "MSX Turbo R",
+      "kind": "platform",
+      "rom_subdir": "msxturbor",
+      "extensions": [
+        "7z",
+        "cas",
+        "col",
+        "dsk",
+        "m3u",
+        "mx1",
+        "mx2",
+        "ri",
+        "rom",
+        "sc",
+        "sg",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "bluemsx_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "mugen",
+      "display_name": "M.U.G.E.N Game Engine",
+      "kind": "platform",
+      "rom_subdir": "mugen",
+      "extensions": [
+        "7z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "multivision",
+      "display_name": "Othello Multivision",
+      "kind": "platform",
+      "rom_subdir": "multivision",
+      "extensions": [
+        "7z",
+        "bin",
+        "gg",
+        "rom",
+        "sg",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "gearsystem_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "n3ds",
+      "display_name": "Nintendo 3DS",
+      "kind": "platform",
+      "rom_subdir": "n3ds",
+      "extensions": [
+        "3dsx",
+        "7z",
+        "app",
+        "axf",
+        "cci",
+        "cxi",
+        "elf",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "citra_libretro.so",
+        "citra2018_libretro.so"
+      ],
+      "emulator_hints": [
+        "CITRA",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "n64",
+      "display_name": "Nintendo 64",
+      "kind": "platform",
+      "rom_subdir": "n64",
+      "extensions": [
+        "7z",
+        "bin",
+        "n64",
+        "ndd",
+        "u1",
+        "v64",
+        "z64",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mupen64plus_next_libretro.so",
+        "parallel_n64_libretro.so"
+      ],
+      "emulator_hints": [
+        "MUPEN64PLUS",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "n64dd",
+      "display_name": "Nintendo 64DD",
+      "kind": "platform",
+      "rom_subdir": "n64dd",
+      "extensions": [
+        "7z",
+        "bin",
+        "n64",
+        "ndd",
+        "u1",
+        "v64",
+        "z64",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "parallel_n64_libretro.so",
+        "mupen64plus_next_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "naomi",
+      "display_name": "Sega NAOMI",
+      "kind": "platform",
+      "rom_subdir": "naomi",
+      "extensions": [
+        "7z",
+        "bin",
+        "cdi",
+        "cue",
+        "dat",
+        "elf",
+        "gdi",
+        "iso",
+        "lst",
+        "m3u",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "flycast_libretro.so"
+      ],
+      "emulator_hints": [
+        "FLYCAST",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "naomi2",
+      "display_name": "Sega NAOMI",
+      "kind": "platform",
+      "rom_subdir": "naomi2",
+      "extensions": [
+        "7z",
+        "bin",
+        "cdi",
+        "cue",
+        "dat",
+        "elf",
+        "gdi",
+        "iso",
+        "lst",
+        "m3u",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "flycast_libretro.so"
+      ],
+      "emulator_hints": [
+        "FLYCAST",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "naomigd",
+      "display_name": "Sega NAOMI GD-ROM",
+      "kind": "platform",
+      "rom_subdir": "naomigd",
+      "extensions": [
+        "7z",
+        "bin",
+        "cdi",
+        "cue",
+        "dat",
+        "elf",
+        "gdi",
+        "iso",
+        "lst",
+        "m3u",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "flycast_libretro.so"
+      ],
+      "emulator_hints": [
+        "FLYCAST",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "nds",
+      "display_name": "Nintendo DS",
+      "kind": "platform",
+      "rom_subdir": "nds",
+      "extensions": [
+        "7z",
+        "bin",
+        "nds",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "desmume_libretro.so",
+        "desmume2015_libretro.so",
+        "melonds_libretro.so"
+      ],
+      "emulator_hints": [
+        "DESMUME",
+        "MELONDS",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "neogeo",
+      "display_name": "SNK Neo Geo",
+      "kind": "platform",
+      "rom_subdir": "neogeo",
+      "extensions": [
+        "7z",
+        "chd",
+        "cue",
+        "iso",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "fbneo_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "neogeocd",
+      "display_name": "SNK Neo Geo CD",
+      "kind": "platform",
+      "rom_subdir": "neogeocd",
+      "extensions": [
+        "7z",
+        "chd",
+        "cue",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "neocd_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "neogeocdjp",
+      "display_name": "SNK Neo Geo CD",
+      "kind": "platform",
+      "rom_subdir": "neogeocdjp",
+      "extensions": [
+        "7z",
+        "chd",
+        "cue",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "neocd_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "nes",
+      "display_name": "Nintendo Entertainment System",
+      "kind": "platform",
+      "rom_subdir": "nes",
+      "extensions": [
+        "7z",
+        "fds",
+        "nes",
+        "unf",
+        "unif",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mesen_libretro.so",
+        "nestopia_libretro.so",
+        "fceumm_libretro.so",
+        "quicknes_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "NESTOPIA-UE",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "ngp",
+      "display_name": "SNK Neo Geo Pocket",
+      "kind": "platform",
+      "rom_subdir": "ngp",
+      "extensions": [
+        "7z",
+        "ngc",
+        "ngp",
+        "ngpc",
+        "npc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mednafen_ngp_libretro.so",
+        "race_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "ngpc",
+      "display_name": "SNK Neo Geo Pocket Color",
+      "kind": "platform",
+      "rom_subdir": "ngpc",
+      "extensions": [
+        "7z",
+        "ngc",
+        "ngp",
+        "ngpc",
+        "npc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mednafen_ngp_libretro.so",
+        "race_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "odyssey2",
+      "display_name": "Magnavox Odyssey2",
+      "kind": "platform",
+      "rom_subdir": "odyssey2",
+      "extensions": [
+        "7z",
+        "bin",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "o2em_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "openbor",
+      "display_name": "OpenBOR Game Engine",
+      "kind": "platform",
+      "rom_subdir": "openbor",
+      "extensions": [
+        "appimage"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "OS-SHELL"
+      ]
+    },
+    {
+      "id": "oric",
+      "display_name": "Tangerine Computer Systems Oric",
+      "kind": "platform",
+      "rom_subdir": "oric",
+      "extensions": [
+        "dsk",
+        "ort",
+        "tap",
+        "wav"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "ORICUTRON"
+      ]
+    },
+    {
+      "id": "palm",
+      "display_name": "Palm OS",
+      "kind": "platform",
+      "rom_subdir": "palm",
+      "extensions": [
+        "7z",
+        "img",
+        "pqa",
+        "prc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mu_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "pc",
+      "display_name": "IBM PC",
+      "kind": "platform",
+      "rom_subdir": "pc",
+      "extensions": [
+        "7z",
+        "bat",
+        "com",
+        "conf",
+        "cue",
+        "dosz",
+        "exe",
+        "iso",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "dosbox_pure_libretro.so",
+        "dosbox_core_libretro.so",
+        "dosbox_svn_libretro.so"
+      ],
+      "emulator_hints": [
+        "DOSBOX-STAGING",
+        "DOSBOX-X",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "pc88",
+      "display_name": "NEC PC-8800 Series",
+      "kind": "platform",
+      "rom_subdir": "pc88",
+      "extensions": [
+        "7z",
+        "d88",
+        "m3u",
+        "u88",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "quasi88_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "pc98",
+      "display_name": "NEC PC-9800 Series",
+      "kind": "platform",
+      "rom_subdir": "pc98",
+      "extensions": [
+        "2hd",
+        "7z",
+        "88d",
+        "98d",
+        "cmd",
+        "d88",
+        "d98",
+        "dup",
+        "fdd",
+        "fdi",
+        "hdd",
+        "hdi",
+        "hdm",
+        "hdn",
+        "nhd",
+        "tfd",
+        "thd",
+        "xdf",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "np2kai_libretro.so",
+        "nekop2_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "pcengine",
+      "display_name": "NEC PC Engine",
+      "kind": "platform",
+      "rom_subdir": "pcengine",
+      "extensions": [
+        "7z",
+        "ccd",
+        "chd",
+        "cue",
+        "img",
+        "iso",
+        "m3u",
+        "pce",
+        "sgx",
+        "toc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mednafen_pce_libretro.so",
+        "mednafen_pce_fast_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "pcenginecd",
+      "display_name": "NEC PC Engine CD",
+      "kind": "platform",
+      "rom_subdir": "pcenginecd",
+      "extensions": [
+        "7z",
+        "ccd",
+        "chd",
+        "cue",
+        "img",
+        "iso",
+        "m3u",
+        "pce",
+        "sgx",
+        "toc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mednafen_pce_libretro.so",
+        "mednafen_pce_fast_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "pcfx",
+      "display_name": "NEC PC-FX",
+      "kind": "platform",
+      "rom_subdir": "pcfx",
+      "extensions": [
+        "7z",
+        "ccd",
+        "chd",
+        "cue",
+        "toc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mednafen_pcfx_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "pico8",
+      "display_name": "PICO-8 Fantasy Console",
+      "kind": "platform",
+      "rom_subdir": "pico8",
+      "extensions": [
+        "p8",
+        "png"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "PICO-8"
+      ]
+    },
+    {
+      "id": "plus4",
+      "display_name": "Commodore Plus/4",
+      "kind": "platform",
+      "rom_subdir": "plus4",
+      "extensions": [
+        "7z",
+        "bin",
+        "cmd",
+        "crt",
+        "d2m",
+        "d4m",
+        "d64",
+        "d6z",
+        "d71",
+        "d7z",
+        "d80",
+        "d81",
+        "d82",
+        "d8z",
+        "g41",
+        "g4z",
+        "g64",
+        "g6z",
+        "gz",
+        "lnx",
+        "m3u",
+        "nbz",
+        "nib",
+        "p00",
+        "prg",
+        "t64",
+        "tap",
+        "vfl",
+        "vsf",
+        "x64",
+        "x6z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "vice_xplus4_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "pokemini",
+      "display_name": "Nintendo Pokémon Mini",
+      "kind": "platform",
+      "rom_subdir": "pokemini",
+      "extensions": [
+        "7z",
+        "min",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "pokemini_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "portmaster",
+      "display_name": "PortMaster",
+      "kind": "platform",
+      "rom_subdir": "portmaster",
+      "extensions": [
+        "sh"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "PORTMASTER"
+      ]
+    },
+    {
+      "id": "ports",
+      "display_name": "Ports",
+      "kind": "platform",
+      "rom_subdir": "ports",
+      "extensions": [
+        "desktop",
+        "sh"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "OS-SHELL"
+      ]
+    },
+    {
+      "id": "primehack",
+      "display_name": "PrimeHack",
+      "kind": "platform",
+      "rom_subdir": "primehack",
+      "extensions": [
+        "7z",
+        "ciso",
+        "dff",
+        "dol",
+        "elf",
+        "gcm",
+        "gcz",
+        "iso",
+        "json",
+        "m3u",
+        "rvz",
+        "tgc",
+        "wad",
+        "wbfs",
+        "wia",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "PRIMEHACK"
+      ]
+    },
+    {
+      "id": "primehacks",
+      "display_name": "Nintendo Wii / gamecube",
+      "kind": "platform",
+      "rom_subdir": "primehacks",
+      "extensions": [
+        "7z",
+        "ciso",
+        "dff",
+        "dol",
+        "elf",
+        "gcm",
+        "gcz",
+        "iso",
+        "json",
+        "m3u",
+        "rvz",
+        "tgc",
+        "wad",
+        "wbfs",
+        "wia",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "ps2",
+      "display_name": "Sony PlayStation 2",
+      "kind": "platform",
+      "rom_subdir": "ps2",
+      "extensions": [
+        "bin",
+        "chd",
+        "ciso",
+        "cso",
+        "dump",
+        "elf",
+        "gz",
+        "img",
+        "iso",
+        "isz",
+        "m3u",
+        "mdf",
+        "ngr",
+        "nrg"
+      ],
+      "preferred_retroarch_cores": [
+        "pcsx2_libretro.so"
+      ],
+      "emulator_hints": [
+        "PCSX2",
+        "PCSX2-LEGACY",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "ps3",
+      "display_name": "Sony PlayStation 3",
+      "kind": "platform",
+      "rom_subdir": "ps3",
+      "extensions": [
+        "desktop",
+        "ps3",
+        "ps3dir"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "OS-SHELL",
+        "RPCS3"
+      ]
+    },
+    {
+      "id": "ps4",
+      "display_name": "Sony PlayStation 4",
+      "kind": "platform",
+      "rom_subdir": "ps4",
+      "extensions": [
+        "desktop"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "ps5",
+      "display_name": "Sony PlayStation 5",
+      "kind": "platform",
+      "rom_subdir": "ps5",
+      "extensions": [
+        "zar"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "psp",
+      "display_name": "Sony PlayStation Portable",
+      "kind": "platform",
+      "rom_subdir": "psp",
+      "extensions": [
+        "7z",
+        "cso",
+        "elf",
+        "iso",
+        "pbp",
+        "prx",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "ppsspp_libretro.so"
+      ],
+      "emulator_hints": [
+        "PPSSPP",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "psvita",
+      "display_name": "Sony PlayStation Vita",
+      "kind": "platform",
+      "rom_subdir": "psvita",
+      "extensions": [
+        "psvita"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "VITA3K"
+      ]
+    },
+    {
+      "id": "psx",
+      "display_name": "Sony PlayStation",
+      "kind": "platform",
+      "rom_subdir": "psx",
+      "extensions": [
+        "7z",
+        "bin",
+        "cbn",
+        "ccd",
+        "chd",
+        "cue",
+        "ecm",
+        "exe",
+        "img",
+        "iso",
+        "m3u",
+        "mdf",
+        "mds",
+        "pbp",
+        "psexe",
+        "psf",
+        "toc",
+        "z",
+        "zip",
+        "znx"
+      ],
+      "preferred_retroarch_cores": [
+        "mednafen_psx_libretro.so",
+        "mednafen_psx_hw_libretro.so",
+        "pcsx_rearmed_libretro.so",
+        "swanstation_libretro.so"
+      ],
+      "emulator_hints": [
+        "DUCKSTATION",
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "pv1000",
+      "display_name": "Casio PV-1000",
+      "kind": "platform",
+      "rom_subdir": "pv1000",
+      "extensions": [
+        "7z",
+        "bin",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "MAME"
+      ]
+    },
+    {
+      "id": "quake",
+      "display_name": "Quake",
+      "kind": "platform",
+      "rom_subdir": "quake",
+      "extensions": [
+        "desktop",
+        "pak",
+        "pk3",
+        "sh"
+      ],
+      "preferred_retroarch_cores": [
+        "tyrquake_libretro.so",
+        "vitaquake2_libretro.so",
+        "vitaquake2-rogue_libretro.so",
+        "vitaquake2-xatrix_libretro.so",
+        "vitaquake2-zaero_libretro.so",
+        "vitaquake3_libretro.so"
+      ],
+      "emulator_hints": [
+        "OS-SHELL",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "remoteplay",
+      "display_name": "Remote Play Clients",
+      "kind": "platform",
+      "rom_subdir": "remoteplay",
+      "extensions": [
+        "sh"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "samcoupe",
+      "display_name": "SAM Coupé",
+      "kind": "platform",
+      "rom_subdir": "samcoupe",
+      "extensions": [
+        "7z",
+        "dsk",
+        "mgt",
+        "sad",
+        "sbt",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "SIMCOUPE"
+      ]
+    },
+    {
+      "id": "satellaview",
+      "display_name": "Nintendo Satellaview",
+      "kind": "platform",
+      "rom_subdir": "satellaview",
+      "extensions": [
+        "7z",
+        "bml",
+        "bs",
+        "fig",
+        "sfc",
+        "smc",
+        "st",
+        "swc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "snes9x_libretro.so",
+        "snes9x2010_libretro.so",
+        "bsnes_libretro.so",
+        "bsnes_hd_beta_libretro.so",
+        "bsnes_mercury_accuracy_libretro.so",
+        "mesen-s_libretro.so"
+      ],
+      "emulator_hints": [
+        "BSNES",
+        "RETROARCH",
+        "SNES9X"
+      ]
+    },
+    {
+      "id": "saturn",
+      "display_name": "Sega Saturn",
+      "kind": "platform",
+      "rom_subdir": "saturn",
+      "extensions": [
+        "7z",
+        "bin",
+        "ccd",
+        "chd",
+        "cue",
+        "iso",
+        "m3u",
+        "mds",
+        "toc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mednafen_saturn_libretro.so",
+        "kronos_libretro.so",
+        "yabasanshiro_libretro.so",
+        "yabause_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "saturnjp",
+      "display_name": "Sega Saturn",
+      "kind": "platform",
+      "rom_subdir": "saturnjp",
+      "extensions": [
+        "7z",
+        "bin",
+        "ccd",
+        "chd",
+        "cue",
+        "iso",
+        "m3u",
+        "mds",
+        "toc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mednafen_saturn_libretro.so",
+        "kronos_libretro.so",
+        "yabasanshiro_libretro.so",
+        "yabause_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "scummvm",
+      "display_name": "ScummVM Game Engine",
+      "kind": "platform",
+      "rom_subdir": "scummvm",
+      "extensions": [
+        "scummvm",
+        "svm"
+      ],
+      "preferred_retroarch_cores": [
+        "scummvm_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH",
+        "SCUMMVM"
+      ]
+    },
+    {
+      "id": "scv",
+      "display_name": "Epoch Super Cassette Vision",
+      "kind": "platform",
+      "rom_subdir": "scv",
+      "extensions": [
+        "0",
+        "7z",
+        "bin",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mame_libretro.so"
+      ],
+      "emulator_hints": [
+        "MAME",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "sega32x",
+      "display_name": "Sega Mega Drive 32X",
+      "kind": "platform",
+      "rom_subdir": "sega32x",
+      "extensions": [
+        "32x",
+        "68k",
+        "7z",
+        "bin",
+        "cue",
+        "gen",
+        "iso",
+        "md",
+        "smd",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "picodrive_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "sega32xjp",
+      "display_name": "Sega Super 32X",
+      "kind": "platform",
+      "rom_subdir": "sega32xjp",
+      "extensions": [
+        "32x",
+        "68k",
+        "7z",
+        "bin",
+        "cue",
+        "gen",
+        "iso",
+        "md",
+        "smd",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "picodrive_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "sega32xna",
+      "display_name": "Sega Genesis 32X",
+      "kind": "platform",
+      "rom_subdir": "sega32xna",
+      "extensions": [
+        "32x",
+        "68k",
+        "7z",
+        "bin",
+        "cue",
+        "gen",
+        "iso",
+        "md",
+        "smd",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "picodrive_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "segacd",
+      "display_name": "Sega CD",
+      "kind": "platform",
+      "rom_subdir": "segacd",
+      "extensions": [
+        "68k",
+        "7z",
+        "bin",
+        "bms",
+        "chd",
+        "cue",
+        "gen",
+        "gg",
+        "iso",
+        "m3u",
+        "md",
+        "mdx",
+        "sg",
+        "sgd",
+        "smd",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "genesis_plus_gx_libretro.so",
+        "genesis_plus_gx_wide_libretro.so",
+        "picodrive_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "sfc",
+      "display_name": "Nintendo SFC (Super Famicom)",
+      "kind": "platform",
+      "rom_subdir": "sfc",
+      "extensions": [
+        "7z",
+        "bin",
+        "bml",
+        "bs",
+        "bsx",
+        "dx2",
+        "fig",
+        "gd3",
+        "gd7",
+        "mgd",
+        "sfc",
+        "smc",
+        "st",
+        "swc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "snes9x_libretro.so",
+        "snes9x2010_libretro.so",
+        "bsnes_libretro.so",
+        "bsnes_hd_beta_libretro.so",
+        "bsnes_mercury_accuracy_libretro.so",
+        "mednafen_supafaust_libretro.so",
+        "mesen-s_libretro.so"
+      ],
+      "emulator_hints": [
+        "BSNES",
+        "RETROARCH",
+        "SNES9X"
+      ]
+    },
+    {
+      "id": "sg-1000",
+      "display_name": "Sega SG-1000",
+      "kind": "platform",
+      "rom_subdir": "sg-1000",
+      "extensions": [
+        "68k",
+        "7z",
+        "bin",
+        "bms",
+        "chd",
+        "cue",
+        "gen",
+        "gg",
+        "iso",
+        "m3u",
+        "md",
+        "mdx",
+        "ri",
+        "rom",
+        "sg",
+        "sgd",
+        "smd",
+        "sms",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "genesis_plus_gx_libretro.so",
+        "genesis_plus_gx_wide_libretro.so",
+        "gearsystem_libretro.so",
+        "bluemsx_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "sgb",
+      "display_name": "Nintendo Super Game Boy",
+      "kind": "platform",
+      "rom_subdir": "sgb",
+      "extensions": [
+        "7z",
+        "gb",
+        "gbc",
+        "sgb",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mesen-s_libretro.so",
+        "mgba_libretro.so"
+      ],
+      "emulator_hints": [
+        "MGBA",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "snes",
+      "display_name": "Nintendo SNES (Super Nintendo)",
+      "kind": "platform",
+      "rom_subdir": "snes",
+      "extensions": [
+        "7z",
+        "bin",
+        "bml",
+        "bs",
+        "bsx",
+        "dx2",
+        "fig",
+        "gd3",
+        "gd7",
+        "mgd",
+        "sfc",
+        "smc",
+        "st",
+        "swc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "snes9x_libretro.so",
+        "snes9x2010_libretro.so",
+        "bsnes_libretro.so",
+        "bsnes_hd_beta_libretro.so",
+        "bsnes_mercury_accuracy_libretro.so",
+        "mednafen_supafaust_libretro.so",
+        "mesen-s_libretro.so"
+      ],
+      "emulator_hints": [
+        "BSNES",
+        "RETROARCH",
+        "SNES9X"
+      ]
+    },
+    {
+      "id": "sneshd",
+      "display_name": "Nintendo SNES WideScreen (Super Nintendo)",
+      "kind": "platform",
+      "rom_subdir": "sneshd",
+      "extensions": [
+        "7z",
+        "bin",
+        "bml",
+        "bs",
+        "bsx",
+        "dx2",
+        "fig",
+        "gd3",
+        "gd7",
+        "mgd",
+        "sfc",
+        "smc",
+        "st",
+        "swc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "bsnes_hd_beta_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "snesna",
+      "display_name": "Nintendo SNES (Super Nintendo)",
+      "kind": "platform",
+      "rom_subdir": "snesna",
+      "extensions": [
+        "7z",
+        "bin",
+        "bml",
+        "bs",
+        "bsx",
+        "dx2",
+        "fig",
+        "gd3",
+        "gd7",
+        "mgd",
+        "sfc",
+        "smc",
+        "st",
+        "swc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "snes9x_libretro.so",
+        "snes9x2010_libretro.so",
+        "bsnes_libretro.so",
+        "bsnes_hd_beta_libretro.so",
+        "bsnes_mercury_accuracy_libretro.so",
+        "mednafen_supafaust_libretro.so",
+        "mesen-s_libretro.so"
+      ],
+      "emulator_hints": [
+        "BSNES",
+        "RETROARCH",
+        "SNES9X"
+      ]
+    },
+    {
+      "id": "solarus",
+      "display_name": "Solarus Game Engine",
+      "kind": "platform",
+      "rom_subdir": "solarus",
+      "extensions": [
+        "solarus"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "SOLARUS"
+      ]
+    },
+    {
+      "id": "spectravideo",
+      "display_name": "Spectravideo",
+      "kind": "platform",
+      "rom_subdir": "spectravideo",
+      "extensions": [
+        "7z",
+        "cas",
+        "col",
+        "dsk",
+        "m3u",
+        "mx1",
+        "mx2",
+        "ri",
+        "rom",
+        "sc",
+        "sg",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "bluemsx_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "steam",
+      "display_name": "steam (sem systeminfo.txt)",
+      "kind": "unclassified",
+      "rom_subdir": "steam",
+      "extensions": [],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "stratagus",
+      "display_name": "Stratagus Game Engine",
+      "kind": "platform",
+      "rom_subdir": "stratagus",
+      "extensions": [
+        "7z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "stv",
+      "display_name": "Sega Titan Video Game System",
+      "kind": "platform",
+      "rom_subdir": "stv",
+      "extensions": [
+        "7z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "kronos_libretro.so",
+        "mame_libretro.so"
+      ],
+      "emulator_hints": [
+        "MAME",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "sufami",
+      "display_name": "Bandai SuFami Turbo",
+      "kind": "platform",
+      "rom_subdir": "sufami",
+      "extensions": [
+        "7z",
+        "bml",
+        "bs",
+        "fig",
+        "sfc",
+        "smc",
+        "st",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "snes9x_libretro.so",
+        "snes9x2010_libretro.so",
+        "bsnes_libretro.so",
+        "bsnes_hd_beta_libretro.so",
+        "bsnes_mercury_accuracy_libretro.so"
+      ],
+      "emulator_hints": [
+        "BSNES",
+        "RETROARCH",
+        "SNES9X"
+      ]
+    },
+    {
+      "id": "supergrafx",
+      "display_name": "NEC SuperGrafx",
+      "kind": "platform",
+      "rom_subdir": "supergrafx",
+      "extensions": [
+        "7z",
+        "ccd",
+        "chd",
+        "cue",
+        "pce",
+        "sgx",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mednafen_supergrafx_libretro.so",
+        "mednafen_pce_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "supervision",
+      "display_name": "Watara Supervision",
+      "kind": "platform",
+      "rom_subdir": "supervision",
+      "extensions": [
+        "7z",
+        "bin",
+        "sv",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "potator_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "supracan",
+      "display_name": "Funtech Super A'Can",
+      "kind": "platform",
+      "rom_subdir": "supracan",
+      "extensions": [
+        "7z",
+        "bin",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mame_libretro.so"
+      ],
+      "emulator_hints": [
+        "MAME",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "switch",
+      "display_name": "Nintendo Switch",
+      "kind": "platform",
+      "rom_subdir": "switch",
+      "extensions": [
+        "7z",
+        "nca",
+        "nro",
+        "nso",
+        "nsp",
+        "xci",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "RYUJINX",
+        "YUZU"
+      ]
+    },
+    {
+      "id": "switch2",
+      "display_name": "Nintendo Switch 2",
+      "kind": "platform",
+      "rom_subdir": "switch2",
+      "extensions": [
+        "exefs"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "EDEN-NX2"
+      ]
+    },
+    {
+      "id": "symbian",
+      "display_name": "Symbian",
+      "kind": "platform",
+      "rom_subdir": "symbian",
+      "extensions": [
+        "7z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "tanodragon",
+      "display_name": "Tano Dragon",
+      "kind": "platform",
+      "rom_subdir": "tanodragon",
+      "extensions": [
+        "cas",
+        "ccc",
+        "dsk",
+        "rom"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "XROAR"
+      ]
+    },
+    {
+      "id": "tg-cd",
+      "display_name": "NEC TurboGrafx-CD",
+      "kind": "platform",
+      "rom_subdir": "tg-cd",
+      "extensions": [
+        "7z",
+        "ccd",
+        "chd",
+        "cue",
+        "img",
+        "iso",
+        "m3u",
+        "pce",
+        "sgx",
+        "toc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mednafen_pce_libretro.so",
+        "mednafen_pce_fast_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "tg16",
+      "display_name": "NEC TurboGrafx-16",
+      "kind": "platform",
+      "rom_subdir": "tg16",
+      "extensions": [
+        "7z",
+        "ccd",
+        "chd",
+        "cue",
+        "img",
+        "iso",
+        "m3u",
+        "pce",
+        "sgx",
+        "toc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mednafen_pce_libretro.so",
+        "mednafen_pce_fast_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "ti99",
+      "display_name": "Texas Instruments TI-99",
+      "kind": "platform",
+      "rom_subdir": "ti99",
+      "extensions": [
+        "7z",
+        "rpk",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "MAME"
+      ]
+    },
+    {
+      "id": "tic80",
+      "display_name": "TIC-80 Game Engine",
+      "kind": "platform",
+      "rom_subdir": "tic80",
+      "extensions": [
+        "tic"
+      ],
+      "preferred_retroarch_cores": [
+        "tic80_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "to8",
+      "display_name": "Thomson TO8",
+      "kind": "platform",
+      "rom_subdir": "to8",
+      "extensions": [
+        "7z",
+        "fd",
+        "k7",
+        "m5",
+        "m7",
+        "rom",
+        "sap",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "theodore_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "triforce",
+      "display_name": "Namco-Sega-Nintendo Triforce",
+      "kind": "platform",
+      "rom_subdir": "triforce",
+      "extensions": [
+        "7z",
+        "ciso",
+        "dff",
+        "dol",
+        "elf",
+        "gcm",
+        "gcz",
+        "iso",
+        "json",
+        "m3u",
+        "rvz",
+        "tgc",
+        "wad",
+        "wbfs",
+        "wia",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "DOLPHIN"
+      ]
+    },
+    {
+      "id": "trs-80",
+      "display_name": "Tandy TRS-80",
+      "kind": "platform",
+      "rom_subdir": "trs-80",
+      "extensions": [
+        "cmd",
+        "dsk"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "SDL2TRS"
+      ]
+    },
+    {
+      "id": "uzebox",
+      "display_name": "Uzebox",
+      "kind": "platform",
+      "rom_subdir": "uzebox",
+      "extensions": [
+        "7z",
+        "uze",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "uzem_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "vectrex",
+      "display_name": "Vectrex",
+      "kind": "platform",
+      "rom_subdir": "vectrex",
+      "extensions": [
+        "7z",
+        "bin",
+        "gam",
+        "vc",
+        "vec",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "vecx_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "vic20",
+      "display_name": "Commodore VIC-20",
+      "kind": "platform",
+      "rom_subdir": "vic20",
+      "extensions": [
+        "7z",
+        "bin",
+        "cmd",
+        "crt",
+        "d2m",
+        "d4m",
+        "d64",
+        "d6z",
+        "d71",
+        "d7z",
+        "d80",
+        "d81",
+        "d82",
+        "d8z",
+        "g41",
+        "g4z",
+        "g64",
+        "g6z",
+        "gz",
+        "lnx",
+        "m3u",
+        "nbz",
+        "nib",
+        "p00",
+        "prg",
+        "t64",
+        "tap",
+        "vfl",
+        "vsf",
+        "x64",
+        "x6z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "vice_xvic_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "videopac",
+      "display_name": "Philips Videopac G7000",
+      "kind": "platform",
+      "rom_subdir": "videopac",
+      "extensions": [
+        "7z",
+        "bin",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "o2em_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "vircon32",
+      "display_name": "Vircon32 Virtual Console",
+      "kind": "platform",
+      "rom_subdir": "vircon32",
+      "extensions": [
+        "7z",
+        "v32",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "vircon32_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "virtualboy",
+      "display_name": "Nintendo Virtual Boy",
+      "kind": "platform",
+      "rom_subdir": "virtualboy",
+      "extensions": [
+        "7z",
+        "bin",
+        "vb",
+        "vboy",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mednafen_vb_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "vsmile",
+      "display_name": "VTech V.Smile",
+      "kind": "platform",
+      "rom_subdir": "vsmile",
+      "extensions": [
+        "7z",
+        "bin",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "MAME"
+      ]
+    },
+    {
+      "id": "wasm4",
+      "display_name": "WASM-4 Fantasy Console",
+      "kind": "platform",
+      "rom_subdir": "wasm4",
+      "extensions": [
+        "wasm"
+      ],
+      "preferred_retroarch_cores": [
+        "wasm4_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "wii",
+      "display_name": "Nintendo Wii",
+      "kind": "platform",
+      "rom_subdir": "wii",
+      "extensions": [
+        "7z",
+        "ciso",
+        "dff",
+        "dol",
+        "elf",
+        "gcm",
+        "gcz",
+        "iso",
+        "json",
+        "m3u",
+        "rvz",
+        "tgc",
+        "wad",
+        "wbfs",
+        "wia",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "dolphin_libretro.so"
+      ],
+      "emulator_hints": [
+        "DOLPHIN",
+        "PRIMEHACK",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "wiiu",
+      "display_name": "Nintendo Wii U",
+      "kind": "platform",
+      "rom_subdir": "wiiu",
+      "extensions": [
+        "elf",
+        "iso",
+        "rpx",
+        "wad",
+        "wua",
+        "wud",
+        "wux"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "windows3x",
+      "display_name": "Microsoft Windows 3.x",
+      "kind": "platform",
+      "rom_subdir": "windows3x",
+      "extensions": [
+        "7z",
+        "appimage",
+        "bat",
+        "desktop",
+        "dosz",
+        "sh",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "dosbox_pure_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "windows9x",
+      "display_name": "Microsoft Windows 9x",
+      "kind": "platform",
+      "rom_subdir": "windows9x",
+      "extensions": [
+        "7z",
+        "appimage",
+        "bat",
+        "desktop",
+        "dosz",
+        "sh",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "dosbox_pure_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "wonderswan",
+      "display_name": "Bandai WonderSwan",
+      "kind": "platform",
+      "rom_subdir": "wonderswan",
+      "extensions": [
+        "7z",
+        "pc2",
+        "ws",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mednafen_wswan_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "wonderswancolor",
+      "display_name": "Bandai WonderSwan Color",
+      "kind": "platform",
+      "rom_subdir": "wonderswancolor",
+      "extensions": [
+        "7z",
+        "pc2",
+        "ws",
+        "wsc",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "mednafen_wswan_libretro.so"
+      ],
+      "emulator_hints": [
+        "MEDNAFEN",
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "x1",
+      "display_name": "Sharp X1",
+      "kind": "platform",
+      "rom_subdir": "x1",
+      "extensions": [
+        "2d",
+        "2hd",
+        "7z",
+        "88d",
+        "cmd",
+        "d88",
+        "dup",
+        "dx1",
+        "hdm",
+        "tap",
+        "tfd",
+        "xdf",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "x1_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "x68000",
+      "display_name": "Sharp X68000",
+      "kind": "platform",
+      "rom_subdir": "x68000",
+      "extensions": [
+        "2hd",
+        "7z",
+        "88d",
+        "cmd",
+        "d88",
+        "dim",
+        "dup",
+        "hdf",
+        "hdm",
+        "img",
+        "m3u",
+        "xdf",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "px68k_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "xbox",
+      "display_name": "Microsoft Xbox",
+      "kind": "platform",
+      "rom_subdir": "xbox",
+      "extensions": [
+        "iso"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": [
+        "XEMU"
+      ]
+    },
+    {
+      "id": "xbox360",
+      "display_name": "Microsoft Xbox 360",
+      "kind": "platform",
+      "rom_subdir": "xbox360",
+      "extensions": [
+        "iso",
+        "xex"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "zmachine",
+      "display_name": "Infocom Z-machine",
+      "kind": "platform",
+      "rom_subdir": "zmachine",
+      "extensions": [
+        "7z",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [],
+      "emulator_hints": []
+    },
+    {
+      "id": "zx81",
+      "display_name": "Sinclair ZX81",
+      "kind": "platform",
+      "rom_subdir": "zx81",
+      "extensions": [
+        "7z",
+        "p",
+        "tzx",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "81_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    },
+    {
+      "id": "zxspectrum",
+      "display_name": "Sinclair ZX Spectrum",
+      "kind": "platform",
+      "rom_subdir": "zxspectrum",
+      "extensions": [
+        "7z",
+        "dsk",
+        "gz",
+        "img",
+        "mgt",
+        "rzx",
+        "scl",
+        "sh",
+        "sna",
+        "szx",
+        "tap",
+        "trd",
+        "tzx",
+        "udi",
+        "z80",
+        "zip"
+      ],
+      "preferred_retroarch_cores": [
+        "fuse_libretro.so"
+      ],
+      "emulator_hints": [
+        "RETROARCH"
+      ]
+    }
+  ]
+}

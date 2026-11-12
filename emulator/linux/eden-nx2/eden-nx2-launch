@@ -1,0 +1,6 @@
+#!/bin/bash
+# Canonical wrapper; diagnostics never start the emulator.
+set -euo pipefail
+HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ROOT=$(CDPATH= cd -- "$HERE/../../.." && pwd)
+exec python3 "$ROOT/tools/roms/eden_runtime.py" "$@"

@@ -1,0 +1,8 @@
+image: python:3.12-slim
+pipelines:
+  default:
+    - step:
+        name: Test reproducible workspace and release selection
+        script:
+          - python3 -m unittest discover -s tools/distribution/tests
+          - python3 tools/distribution/release.py plan

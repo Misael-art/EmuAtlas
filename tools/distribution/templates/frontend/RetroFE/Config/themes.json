@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "default_theme_id": "workspace",
+  "themes": [
+    {
+      "id": "workspace",
+      "label": "Workspace",
+      "layout": "Workspace",
+      "availability": "static-validated",
+      "supported_display_profiles": [
+        "16x9-hd"
+      ],
+      "variants": {
+        "16x9-hd": "layout.xml"
+      },
+      "session_navigation": {
+        "provider": "launcher",
+        "accent": "#94afbe",
+        "surface": "#070f16",
+        "panel": "#101b24",
+        "selection": "#20323f"
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0",
+  "canonical_root": "roms",
+  "naming_policy": {
+    "exact_dat_match": "Use the platform-specific No-Intro name only when the file payload matches the full DAT hash tuple.",
+    "no_dat_match": "Keep the current identity and record the reason; absence of a DAT match does not mean corruption.",
+    "modern_package_without_dat": "Use verified package metadata such as Title ID and official title; do not label it No-Intro without a matching DAT."
+  },
+  "format_validators": {
+    ".zip": "python zipfile CRC and member inventory",
+    ".7z": "7z t",
+    ".rar": "7z t",
+    ".chd": "chdman verify",
+    ".exfat": "fsck.exfat -n",
+    ".nsp": "PFS0 table and payload-boundary validation; no NCA decryption",
+    ".cue": "resolve every FILE track relative to the CUE",
+    ".sfo": "read TITLE, TITLE_ID, CATEGORY, APP_VER, CONTENT_ID"
+  },
+  "system_relationships": {
+    "switch": "Associate base, update, and DLC using Title ID family and record missing bases. Keep all members in one title directory.",
+    "psvita": "SFO CATEGORY gd is an application, gp is a patch, and ac is add-on content. Require compatible product/title identity before grouping add-ons.",
+    "ps4": "Use CUSA title identity to group a base PKG with its patch; verify package metadata before declaring compatibility.",
+    "psx": "CUE/M3U and every referenced track form one set. Compare archives against extracted sets before treating them as duplicates.",
+    "multi_disc": "Keep all discs and sidecars together. Never move a single track without the complete descriptor relationship."
+  },
+  "classifications": {
+    "game": "Complete game image or installable game package validated for the correct platform.",
+    "update": "Update package associated by product/title identity with its base game.",
+    "dlc": "Add-on package associated by product/title identity with its base game.",
+    "mod": "Translation, hack, patch, homebrew alteration, or replacement package; review separately and do not mislabel as an unmodified game.",
+    "media": "Artwork external to a game package; inventory separately and check frontend references.",
+    "package_asset": "Image, database, executable, or metadata embedded in an installed game tree; preserve with that package.",
+    "support": "Emulator, configuration, firmware, BIOS, save, guide, or launcher; keep out of the game inventory and preserve."
+  }
+}

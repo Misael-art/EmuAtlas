@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "name": "Emulation Workspace",
+  "slug": "emulation-workspace",
+  "version": "0.2.0-alpha.7",
+  "stage": "private-engineering-preview",
+  "supported_host": "Linux x86_64, Python >= 3.10",
+  "directories": [
+    "roms",
+    "bios",
+    "media",
+    "saves",
+    "metadata",
+    "mods/pending",
+    "quarantine",
+    "work",
+    "outputs",
+    "frontend/RetroFE/Assets/shared",
+    "frontend/RetroFE/Config/profiles",
+    "frontend/RetroFE/Docs",
+    "frontend/RetroFE/Manifests",
+    "frontend/RetroFE/UserData",
+    "frontend/RetroFE/collections",
+    "frontend/ES-DE/UserData",
+    "emulator/linux",
+    "emulator/windows",
+    "emulator/data"
+  ],
+  "media_categories": [
+    "background",
+    "box",
+    "cover-front",
+    "cover-back",
+    "clearlogo",
+    "screenshot",
+    "screentitle",
+    "video",
+    "music",
+    "manual",
+    "story"
+  ],
+  "excluded_payloads": [
+    "roms",
+    "bios",
+    "keys",
+    "saves",
+    "customer_userdata",
+    "unreviewed_assets",
+    "third_party_binaries",
+    "host_history"
+  ],
+  "experimental_systems": [
+    "switch2"
+  ],
+  "commercial_release_approved": false,
+  "automated_install_entry": "install.sh",
+  "host_install_profiles": [
+    "pacman/Arch-compatible",
+    "apt-get/Debian-compatible",
+    "dnf/Fedora-compatible"
+  ],
+  "portable_emulation": {
+    "linux": "current host plus pinned portable fallback",
+    "windows": "native packages prepared; physical acceptance pending",
+    "shared_data": "emulator/data",
+    "filesystem": "NTFS required for Windows fixed-directory junctions"
+  }
+}
