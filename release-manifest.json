@@ -1,0 +1,963 @@
+{
+  "schema_version": 1,
+  "product": "emulation-workspace",
+  "version": "0.2.0-alpha.7",
+  "stage": "private-engineering-preview",
+  "commercial_release_approved": false,
+  "files": [
+    {
+      "target": ".github/workflows/ci.yml",
+      "sha256": "eb9dd1b4d7c41c529f9d9c5385a0888287c2ab2864b2c2e9f608dba24b318bd1",
+      "size_bytes": 2350,
+      "mode": "0644"
+    },
+    {
+      "target": ".gitignore",
+      "sha256": "e39a8a8e274d191b2263bf9dfc8fdc3e96a3dd5d9a84bde585f5bbb2a94957fd",
+      "size_bytes": 706,
+      "mode": "0644"
+    },
+    {
+      "target": "AGENTS.md",
+      "sha256": "c9f3824cca13943bb086922585d577c8f5da84028b0f1046f3f13b62fc9d9843",
+      "size_bytes": 1128,
+      "mode": "0644"
+    },
+    {
+      "target": "README.md",
+      "sha256": "56a9f1edabbb3dd88dcb86794dabfaf27ff0c1375c70739dcb4006a9c38ad151",
+      "size_bytes": 11092,
+      "mode": "0644"
+    },
+    {
+      "target": "bitbucket-pipelines.yml",
+      "sha256": "e9745d6ff1f42025ab15b84bdeccd598e7e49466a0a8a91034330936e6a1775c",
+      "size_bytes": 262,
+      "mode": "0644"
+    },
+    {
+      "target": "docs/business/README.md",
+      "sha256": "051f8afa2b3504187000022bd361053e75204de54dd413f3bb12229f951e2bd5",
+      "size_bytes": 3918,
+      "mode": "0644"
+    },
+    {
+      "target": "docs/business/architecture.md",
+      "sha256": "6008c5d678c13c843d5562bf2df3a6f0eb9e9b3992ba495e459c80723b189c39",
+      "size_bytes": 6645,
+      "mode": "0644"
+    },
+    {
+      "target": "docs/business/assets/branding/emuatlas-hero.svg",
+      "sha256": "3cbdaa731580fdb5c62b31327645cac455f55a9a039d5f899506f8702e50e63a",
+      "size_bytes": 4335,
+      "mode": "0644"
+    },
+    {
+      "target": "docs/business/automated-install.md",
+      "sha256": "d9aeba6ab0f0d57e3b466bcea5c10a8c566b192f3f4281157b3aec563c2d6371",
+      "size_bytes": 8590,
+      "mode": "0644"
+    },
+    {
+      "target": "docs/business/distribution-policy.md",
+      "sha256": "5209e7bb27661d02d3f9c719959ca3ddc1cc2e28b9562dc4071718b8b6d6f577",
+      "size_bytes": 2367,
+      "mode": "0644"
+    },
+    {
+      "target": "docs/business/operations.md",
+      "sha256": "b9ddd5799ffcb779484a8f55d60c09b852a96e82018210381f70d5a67e9cc810",
+      "size_bytes": 4663,
+      "mode": "0644"
+    },
+    {
+      "target": "docs/business/quality-and-roadmap.md",
+      "sha256": "5050698ea4a862fd12a707e43ba2602b944dc66bcad9cb07cb5efbf831963b9e",
+      "size_bytes": 2948,
+      "mode": "0644"
+    },
+    {
+      "target": "docs/business/releasing.md",
+      "sha256": "162875efc91975b846d975f497bb8a11cd92dd7f594cf931bc0c6c4d3c8d48fd",
+      "size_bytes": 3259,
+      "mode": "0644"
+    },
+    {
+      "target": "emulator/README.md",
+      "sha256": "9adb84cf6a98cd633398c693f8228969f98ed1a18a46b26199f0fddfb649de31",
+      "size_bytes": 6800,
+      "mode": "0644"
+    },
+    {
+      "target": "emulator/launch.cmd",
+      "sha256": "b0fd24f50693ddfc7c47906b0194dbc7a3e91a0df598b3f8648815b5f2dd52e4",
+      "size_bytes": 126,
+      "mode": "0644"
+    },
+    {
+      "target": "emulator/launch.sh",
+      "sha256": "47d3f7dd2d09d6009858f9404474b9b60df4c3d6f43f0726078d40a87e03db1e",
+      "size_bytes": 129,
+      "mode": "0755"
+    },
+    {
+      "target": "emulator/linux/eden-nx2/eden-nx2-launch",
+      "mode": "0755",
+      "sha256": "7bcb7a13177506333d8a99f3dff569acfbee00bd06b759c58a2a3c965f029831",
+      "size_bytes": 238
+    },
+    {
+      "target": "frontend/ES-DE/configure-rom-directory.py",
+      "sha256": "6f94e08eb56715ddcb9ade4d84dd69152fd86b28a7b8f78f1b8fbba14574ae93",
+      "size_bytes": 31783,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/ES-DE/launch.sh",
+      "sha256": "653ee6278de2a5ab6b9e55ca031b73929e9c0a9f9f264137ac9ab54026b4bea9",
+      "size_bytes": 10393,
+      "mode": "0755"
+    },
+    {
+      "target": "frontend/ES-DE/structure-frontend.py",
+      "sha256": "54ea195d9acda2641e7bae49bd67c2542a787c80f741ca2a12c89e596de06f07",
+      "size_bytes": 18177,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/QuiverLauncher/launch.sh",
+      "sha256": "5c61d7e5920144d8acfa765fee325b207f7778c67d06a39d8a70e5e9df172105",
+      "size_bytes": 1078,
+      "mode": "0755"
+    },
+    {
+      "target": "frontend/QuiverLauncher/structure-frontend.py",
+      "sha256": "7da154d274e41c7ad4d6e052b70083227a98a8ede7b5f7480b8efaf27636ab11",
+      "size_bytes": 42329,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/audits/backup-preimage-audit.py",
+      "sha256": "f95810501a7749dff093be3ca991b11477e82f0f847ea404641ca2c15003a3e1",
+      "size_bytes": 7757,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/audits/capture-theme-states.py",
+      "sha256": "8def48f54fed13f6916c24dfe341a0c410f97f54ab6838b79d8fc964788d587f",
+      "size_bytes": 10859,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/audits/check-all.py",
+      "sha256": "54d70444b4f6d008bbc4613f6dec1abab92fe5269b4fcf31e7065f1a404cb9c1",
+      "size_bytes": 5081,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/audits/layout-references.py",
+      "sha256": "3b3bdaefedf550d501d930a65b464b6a11909648c1a21de64c6756baed4bde3c",
+      "size_bytes": 24210,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/audits/platform-coverage.py",
+      "sha256": "b07ed61042cf2862346ad91f985820f76e173b0fd468b0ce556c0fe546293ffb",
+      "size_bytes": 27639,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/audits/search-assets.py",
+      "sha256": "85256c828a38de71a487fe2bce5ce67b85d1dd0258da051af8fe5d7f50956625",
+      "size_bytes": 19071,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/audits/validate-aeon-nox-navigation.py",
+      "sha256": "327e00373290620384a53ffbdd013c930f32a1f4dc37ee212fdf593a899fdabe",
+      "size_bytes": 23803,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/audits/validate-aeon-nox-presentation.py",
+      "sha256": "ff67231b7338d41875a162afd5fc8b84c35241fa29944f2ef42e593a6a8917a5",
+      "size_bytes": 10219,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/audits/validate-esde-metadata-runtime.py",
+      "sha256": "ec7abbc5b08df4f0cf7b07f299def6b25b4a70440224c3f4fd141139396a7f0b",
+      "size_bytes": 9305,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/audits/validate-esde-shared-theme.py",
+      "sha256": "9252a3b89fb4ef32a6a2af8aa6e356fe9d754473733460bbad05ce950aabdb52",
+      "size_bytes": 11544,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/audits/validate-session-safety.py",
+      "sha256": "27f4d4b0c6d686aabec58c14bfbd134a8b70ec703c995156301577326d591b3d",
+      "size_bytes": 9502,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/audits/validate-theme-session-runtime.py",
+      "sha256": "5f5c15d239f2cd84270c9d94967a8fb9d9c2ae707cdd9641c5d6fb6bb9ef1029",
+      "size_bytes": 10203,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/emulators/host-emulator-launcher.py",
+      "mode": "0755",
+      "sha256": "99348bb729ce8dffc41a69d1ed1fccc510456288240d5c3811eed266c791e41b",
+      "size_bytes": 62430
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/emulators/mame-profile-launcher.py",
+      "mode": "0755",
+      "sha256": "16029942824d401b59369b926721a49770de7f99b0d62a9c8c655b7f88f08ed5",
+      "size_bytes": 4319
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/emulators/retrofe_audio.py",
+      "sha256": "9770027c8859d627c38f4721eaecb6af3b973a82e6c9e5fd79d99b17d8abeee1",
+      "size_bytes": 2473,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/desktop_environment.py",
+      "sha256": "0411a72d02cac14ad77ecc5e55d477ebe8b28ba81382e0238b6ce35a01c04c32",
+      "size_bytes": 6460,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/display-profile.py",
+      "sha256": "52440509d20d3111c9840dc09deaa2cfaa1e5c9b63582e399f377a6cb009d34e",
+      "size_bytes": 5878,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/input-debug-overlay.py",
+      "sha256": "22770ad732ec1a64a5dc4213edc584cdf7ff1a55066d620e4a6d4fc2167774a0",
+      "size_bytes": 36570,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/input-session.py",
+      "sha256": "83ab7d4564963ae5f06228c5be1d9da7cd4d34526ed60768513bb4a64089dbb1",
+      "size_bytes": 25776,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/launch-retrofe.sh",
+      "sha256": "191ca5497e34e83e6321d0c8105c3f091f82018b253d2eaec6f3ec5c561d3daa",
+      "size_bytes": 56194,
+      "mode": "0755"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/media-tasks.py",
+      "sha256": "dface2c0dcaebd4cd11eccd15f66b80002bdf3582df730166aeb916532c4b71a",
+      "size_bytes": 8730,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/navigation-panel.py",
+      "sha256": "29cae5477ae17c46355b8d830174c105e4b72751ef77354d442564f8202e3f44",
+      "size_bytes": 25890,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/run-retrofe.sh",
+      "sha256": "0c7629926ac8bdf1a7a163f8a3f9817d56d0dc9c71800938279d4360180cf950",
+      "size_bytes": 121,
+      "mode": "0755"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/steam-input.py",
+      "sha256": "b48e26f16b509e4b60e724365bc495951c5710a2816a9c20be27bffe79053d8c",
+      "size_bytes": 56811,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/steam_desktop_session.py",
+      "sha256": "d30dac054c68d9c1006b7aacf45c40289f597eb42e4bd5c60a0b2e9a0a4c8167",
+      "size_bytes": 25404,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/theme-profile.py",
+      "sha256": "f7127f7077436189734554ec8d680e654aacdb137cb8f57481dc893c6a144231",
+      "size_bytes": 16520,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/theme-transition.py",
+      "sha256": "15fecd80bca56db7fbe51cbfecaec9c392bfcdb8a0572d932d53ae2e54478a44",
+      "size_bytes": 25521,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/window_placement.py",
+      "sha256": "3b76d560c305b13e93e37a58cc03499887d4fadbe5895ed04a47cb82a60d83d5",
+      "size_bytes": 29313,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/materializers/materialize-aeon-nox-layouts.py",
+      "sha256": "a75b7c0061c3e91f01b47ce42ccdc8164abf7a7353753975ebde74a5c50c0a43",
+      "size_bytes": 46103,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/materializers/materialize-aeon-nox-navigation.py",
+      "sha256": "f9a3cb4811c18eae0aabb6f9abb2e1f8e902f7e649ce6506f1f6f33a652f656d",
+      "size_bytes": 58308,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/materializers/materialize-esde-metadata.py",
+      "sha256": "7a71af53b6cfe980faafd36de0107ec77a5048719eddf62617aad82fe1906aa5",
+      "size_bytes": 13979,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/materializers/materialize-host-profile.py",
+      "sha256": "4601610c71206644e7bd982bbf3351ab555c8574d0893db61582123e7a678e85",
+      "size_bytes": 18806,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/materializers/materialize-platform-catalog.py",
+      "sha256": "6ce7d4d696b8c57fc726bc65ccc32149e7e2d66d786d7ac8e0618beeb8ecf7c8",
+      "size_bytes": 8022,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/materializers/materialize-profile.py",
+      "sha256": "3ec7fe63bd140a437c67ff5f77067627c63b7ca7c2ace04ad3646f3c7e2e9b28",
+      "size_bytes": 11995,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/materializers/organize-asset-library.py",
+      "sha256": "4452759eed53783b5be510395d1a512b7722829f04308bf0f189d0fed42e3082",
+      "size_bytes": 184428,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/materializers/reorganize-shared-assets.py",
+      "sha256": "3397a638af383353c67847b27a841305f56fb1543c702d0dc4d628296ef0f2bd",
+      "size_bytes": 137143,
+      "mode": "0644"
+    },
+    {
+      "target": "install.sh",
+      "mode": "0755",
+      "sha256": "15588c7f000437e336f1cbde52de8c7134fe701e583adfd572fb197ac81b73c4",
+      "size_bytes": 1250
+    },
+    {
+      "target": "preview.sh",
+      "sha256": "01b8789683fa03b379f56c50da8c77a7d7572e1d57b76df8f83993d35bc074f7",
+      "size_bytes": 267,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/distribution/config/component-review.json",
+      "sha256": "41fbb277545990ceeaee059c58e57f01ed16208d4818fa6d6710d99c3a33eb39",
+      "size_bytes": 795,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/config/components.json",
+      "sha256": "83cee1fdb3585d99dd7bd4eee5c1e105cb13f4e7f78d291de8ecf94776b4e81c",
+      "size_bytes": 1018,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/config/installation.json",
+      "sha256": "3e155602891c708c0b0927b39e9d6b88234bec3679bf7ca9c8722473fbafeecc",
+      "size_bytes": 18822,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/config/product.json",
+      "sha256": "3dbe7687b6d587b7ab9560b46433b86ae3fe6f688d3d444614b5f08d3b2f2869",
+      "size_bytes": 1580,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/config/release-files.json",
+      "sha256": "a28e73b2dc06a638bd2adb611d7a4816cde38ab79cec6c7395ad525ad0ea0b71",
+      "size_bytes": 21637,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/config/state-schemas.json",
+      "sha256": "c5e84fa9ec07863ebbd8eefc82af8a6a32c7e703ffe7ea75f0685c203bed1e55",
+      "size_bytes": 949,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/examples/media-source-lock.json",
+      "sha256": "512a309ef429fffe7eebac10d515b48dfddb799f8b83866f5febbd5fe4e3c195",
+      "size_bytes": 698,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/install_config.py",
+      "sha256": "953048898a864cc9faa31e774456034173de124a080c91b33154df8d54d74022",
+      "size_bytes": 9603,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/release.py",
+      "sha256": "55ecf3df0036f7bd0962a22af1f304d7b9a6fda1fa3cc185cfb77350c14feb87",
+      "size_bytes": 8015,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/repository/.gitignore",
+      "sha256": "e39a8a8e274d191b2263bf9dfc8fdc3e96a3dd5d9a84bde585f5bbb2a94957fd",
+      "size_bytes": 706,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/repository/AGENTS.md",
+      "sha256": "c9f3824cca13943bb086922585d577c8f5da84028b0f1046f3f13b62fc9d9843",
+      "size_bytes": 1128,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/repository/bitbucket-pipelines.yml",
+      "sha256": "e9745d6ff1f42025ab15b84bdeccd598e7e49466a0a8a91034330936e6a1775c",
+      "size_bytes": 262,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/repository/github/ci.yml",
+      "sha256": "eb9dd1b4d7c41c529f9d9c5385a0888287c2ab2864b2c2e9f608dba24b318bd1",
+      "size_bytes": 2350,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/setup.py",
+      "sha256": "9974e837622f527ed82d6cdbbd5ed4072bd0798f9c66bc17aad86fcc1aec464f",
+      "size_bytes": 38463,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/templates/frontend/RetroFE/Config/media-map.json",
+      "sha256": "a877915bc3edc4a2f8394b457d2c96a89fc20f5deb8bcfc25f150a61ec9059a1",
+      "size_bytes": 4135,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/templates/frontend/RetroFE/Config/platform-catalog.json",
+      "sha256": "8db5cbda3b46eef092fcdc5e5766613a2b2342de8440c638e7a6d0db58d2858a",
+      "size_bytes": 87835,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/templates/frontend/RetroFE/Config/profiles/host-linux.json",
+      "sha256": "2e58c7c42dae11157c5836f784c84e8201658c1babd422365a42f72f1a4306b7",
+      "size_bytes": 62797,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/templates/frontend/RetroFE/Config/systems.json",
+      "sha256": "f45ec7f0698f05da88912ed4f098662ecf55c57d2c37580a9c108408adce9db5",
+      "size_bytes": 11199,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/templates/frontend/RetroFE/Config/themes.json",
+      "sha256": "da6b70699f2e37e036c15f1b95de22aa0af3aa9c77b3900a19ce5d848a9ae059",
+      "size_bytes": 530,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/templates/tools/roms/config/platform-rules.json",
+      "sha256": "65196dd25fba2bb5ab4c628ace2a4c9f5bef537952455e8db70a7d39c4b1bed9",
+      "size_bytes": 2410,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/templates/tools/roms/config/policy.json",
+      "sha256": "ee33e50562a0ad4184ba9fa004e30f0d0c7962ed7e40ca424b1643c48a957c95",
+      "size_bytes": 974,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/templates/tools/roms/config/portable-runtimes.json",
+      "sha256": "659b4631b2462cc74cf0c5be76dc0ee35dab2d9b41f6435dfe172a2ca756039d",
+      "size_bytes": 77271,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/templates/tools/roms/config/roots.json",
+      "sha256": "6da0d5d66bda9fce2301ea9cfa2b14eb31fa404155a0a50039356779438be78c",
+      "size_bytes": 565,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/tests/test_setup.py",
+      "sha256": "7bd1138db55a1e596c0d2f3cefd44535e8dda158a09751c625dfebe442cee23f",
+      "size_bytes": 14675,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/tests/test_workspace.py",
+      "sha256": "dd38cda2617e98c3ea4f5535448784241474b52aca018f4936a52b84293fd95f",
+      "size_bytes": 7707,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/distribution/workspace.py",
+      "sha256": "ffb9d52ab74cc128d177a310959ed6cf8b30de272cb291b4774e966be95f9863",
+      "size_bytes": 12926,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/catalog_projection.py",
+      "sha256": "83c2ec017c3a0734ddf118f25454ee19ddc6d6d94e92054265b82a58516a91a6",
+      "size_bytes": 16065,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/collection_hierarchy.py",
+      "sha256": "c0dcad57bff249051999cfe72f2eccec8ef51ca32a2b6da51f1d3ae7b6162a2d",
+      "size_bytes": 26580,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/config/compression-profiles.json",
+      "sha256": "25e3529dc64ed07dac3aeaf4fb50d12dc12c7b3951a9c6de6ab45eb6c0fe1ee0",
+      "size_bytes": 27058,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/config/variant-policy.json",
+      "sha256": "480a174bca24624b4434045d6764ac3d5f8be5b025c1967c02f0ca0675ce8f7e",
+      "size_bytes": 3939,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/controller_session.py",
+      "sha256": "93882b17b63f78841e351fc98e751bc618a2fd66af690503402f89b5f77033ac",
+      "size_bytes": 39060,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/eden_runtime.py",
+      "sha256": "69796c19f6dacaceda319ed5fcd9b035e4c952909047868ff9e47f2cd1f42142",
+      "size_bytes": 6698,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/emulator_controls.py",
+      "sha256": "9477841d9fbfbb7a93e997bf12e8d3f184f77e45ab0e6cdd7e0a1fab84fb9cea",
+      "size_bytes": 51230,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/emutool.py",
+      "sha256": "c4e4daab15b93602ffba9f1be920bf4834f2c4c8570c59b35b66d9f0b55a555b",
+      "size_bytes": 109883,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/esde_media.py",
+      "sha256": "39b1f3b366de9322a2f4ba5897774d33689a79cb3c96b0a3aacef80caa46a534",
+      "size_bytes": 66494,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/esde_theme.py",
+      "sha256": "da9ef2220c3ca01563a431d422c55accc195dc01fdeceb7d752568c6dabba3cb",
+      "size_bytes": 14520,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/examples/plan-template.json",
+      "sha256": "a0ca0c485d5af1508e08ac7249e1430e23ecc1b4a4a5a863f84d79dda7539bef",
+      "size_bytes": 725,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/fetch_no_intro_dats.py",
+      "sha256": "4c28c5ed46748672c5a58bb7a805d89d394a0182f4d339c8be3720ac8312c05e",
+      "size_bytes": 9152,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/frontend_projection.py",
+      "sha256": "0668cc143af6164fa7024f2838fdf616f9b37718c88b569301738bfdad45e621",
+      "size_bytes": 6917,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/launchers/azahar.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/bigpemu.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/cemu.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/dolphin-emu.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/duckstation.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/eden.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/flycast.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/melonds.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/model-2-emulator.sh",
+      "sha256": "b84e164acad8c2771a4c5ecbc1724e70a45f39f95b68b96583386e6e4592f9b2",
+      "size_bytes": 217,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/pcsx2-qt.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/ppsspp.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/primehack.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/retroarch.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/rpcs3.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/ryujinx.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/scummvm.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/shadps4.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/supermodel.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/vita3k.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/xemu-emu.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/launchers/xenia.sh",
+      "sha256": "5596ad19889bf7afa0ed2ad93a715b84cf8f9c29a8cbed875cebf5a58ed8a70a",
+      "size_bytes": 355,
+      "mode": "0755"
+    },
+    {
+      "target": "tools/roms/materialize-collection-media-paths.py",
+      "sha256": "868bd26919dd0d0359bd584f0f4cb955710b63545a6286fabaddf1dc66f0c41e",
+      "size_bytes": 82453,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/media_covers.py",
+      "sha256": "ffaff9411956686c25bda0596618cc395ac0e1621aa7560031575430d19f4094",
+      "size_bytes": 41422,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/media_optimizer.py",
+      "sha256": "645d1e18575bc5a638770c56ebc4e98c93ad1bd77e29a5c6f65a7b84a51c23d9",
+      "size_bytes": 86856,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/media_session.py",
+      "sha256": "5c14ff2ec54ad986034bf28a433a319cba799945801f019b1c022b516299b3bb",
+      "size_bytes": 54686,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/media_stray.py",
+      "sha256": "895fd04334c5d0a1baba37296ff521e79c925bcc38090cce27c8979c67aba624",
+      "size_bytes": 36627,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/metadata_ingest.py",
+      "sha256": "d16e4c31a34fbfd07ffa4729cd5debbb016318c4dc0141ae1567e32d08d3aa32",
+      "size_bytes": 29200,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/native_bindings.py",
+      "sha256": "e687ab5069472db9c1c6028edc2fee90e69b1ae9aa0c9fac0fd5f79820c955a5",
+      "size_bytes": 12778,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/portable_emulator.py",
+      "sha256": "d9a6a0ce1dcb225e37ce19823efd3c2200782421ce482ab2dcffec4518e28fea",
+      "size_bytes": 22916,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/preview-client.js",
+      "sha256": "5107aa1946c9df3312559c7233425ceac6f90869fd46e7aad52ce4c1f1d63ab6",
+      "size_bytes": 14491,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/preview-ui.html",
+      "sha256": "e9cbf71d7f09c6658fe92b38016559b249d8ee07abafaaff20359ae6a1be0f0c",
+      "size_bytes": 58758,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/preview.py",
+      "sha256": "68dd837a5f2b010f878564c2330adc4e5ba0b46e0e2309744797d58409fd1167",
+      "size_bytes": 75295,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/preview_games.py",
+      "sha256": "7fbdee05066fd11b7fd5bfeb89a8e7de83f3860543d6f26bc9a682a55a27c323",
+      "size_bytes": 11559,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/romtool.py",
+      "sha256": "49ceecd97875077bebbdb6d9785b4ac4141da8d2b76101440c4034d24b638f0f",
+      "size_bytes": 470885,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/runtime_install.py",
+      "sha256": "ca78ed1b358d63c6517a8957b78caec49ff89953b34f687c3d9c9e3935730b85",
+      "size_bytes": 70624,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/runtime_setup.py",
+      "sha256": "42e371d61e6775ae394d286afa1375604c941935792fa72376d34608ab8f6e04",
+      "size_bytes": 4725,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/save_capture.py",
+      "sha256": "e687cfc78e9831fa52975bbf2f3049405c9bc0c46581102c98c3106fc6a7b2ee",
+      "size_bytes": 36199,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/schemas/event.schema.json",
+      "sha256": "91a45eba9266d3bb5d52e25667de90510d0ee9396d095b8da929944068282e4a",
+      "size_bytes": 853,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/schemas/operation.schema.json",
+      "sha256": "c6f3cb90203defe9fa23c8a142582e6017de70eb007ed4d8b7fb86e97f7e6bc8",
+      "size_bytes": 914,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/schemas/plan.schema.json",
+      "sha256": "1a9d7d7618746ffb7b32fcebac8f5bda0ceeeb5d020e6db88410a3e6ee32e535",
+      "size_bytes": 1544,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/schemas/rom-variant-record.schema.json",
+      "sha256": "92ec86233c6f692cdaa07076ead6c549e660029e6164fe2acdda615840a7155d",
+      "size_bytes": 2193,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/skraper/launch.sh",
+      "mode": "0755",
+      "sha256": "b13c06f58e1fc479f5b30ef4bf34a99001cf4cbc09599a86590e85f29bc333ae",
+      "size_bytes": 1854
+    },
+    {
+      "target": "tools/roms/steam_centralizer.py",
+      "sha256": "a6048ee1ec524ce4306a6a22f92c76c82a55441efdaa19db57224e09fd2cd470",
+      "size_bytes": 76066,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/steam_shortcuts.py",
+      "sha256": "bf65474cf86203c07e8d240b3d476bdb218b1a4c093835f45361ae8255600953",
+      "size_bytes": 29745,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/storage_dedupe.py",
+      "sha256": "69af586852f41a7a866952f724a0efb4921139981378ead544653dd3ebca4c24",
+      "size_bytes": 14439,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/launcher_fixture.py",
+      "sha256": "481b3739905b90a011903e84f65c4f235e00461f2b7fe0150bdbf99abbc4d5fe",
+      "size_bytes": 2070,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_controller_session.py",
+      "sha256": "99ba13657e4d93a1d45974906899cde0254f972949eba198d39cc36a5d45595b",
+      "size_bytes": 10285,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_emulator_controls.py",
+      "sha256": "657a3c604c3642c07203c4b5542dbab82df63b076cac305f728d414e5c06c558",
+      "size_bytes": 14321,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_emulator_library.py",
+      "sha256": "bcadb2615f6918cc121bcb6fcdef8f8423535117bcb0945ab7f34af546e6b538",
+      "size_bytes": 13454,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_emutool_platform_status.py",
+      "sha256": "b5fe9c1a57add4559e26210df7facd4270a06516f5b9c4b292c38c0f37b65da3",
+      "size_bytes": 2486,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_esde_theme.py",
+      "sha256": "d12f2ee14f1746a1bf08fd4577d6d069b11d3b957965ce36a2adebbd1efa5749",
+      "size_bytes": 4094,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_esde_validate_contract.py",
+      "sha256": "f2408ebc3bcff23ceebe6a269c7bd7ae724f8a860e68a04a3bcb82b177bb6ea4",
+      "size_bytes": 5483,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_game_maintenance_exclusion.py",
+      "sha256": "8cfd56a0ede074d0941150207667a92b1c6bda61c9c54b4f84e4e5c7fd4fda40",
+      "size_bytes": 2619,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_launcher_archive_extraction.py",
+      "sha256": "d770323a9b3854f0566217d24b62c12b69a9f1734cb2162346e15426b376a482",
+      "size_bytes": 2858,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_media_stray_promotion.py",
+      "sha256": "93e3a6315c69efc584157d0941de085e28b20969825b91a89adf06106fcf4fb6",
+      "size_bytes": 13005,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_module_identity.py",
+      "sha256": "7a8b1833562aaf6ea507a077a3d33be9495c3ce7f368a859868a2c0ac766341a",
+      "size_bytes": 1559,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_runtime_alternatives.py",
+      "sha256": "c995d47d838f64235e1ddb9226b2b59df231d9ca97f7a135b80d165cd8f0f3e4",
+      "size_bytes": 11135,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_switch2_launch_alias.py",
+      "sha256": "365b09606dc4c4c79b029159d1c2a503c66ae37e3ecf5afaf3857d89cf2a6b42",
+      "size_bytes": 3572,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/variant_metadata.py",
+      "sha256": "d857f0a010dbc8ca78a4ce041ff469f2639cc1ade895cc74ce875dfd96c94ee6",
+      "size_bytes": 85562,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/variant_organization.py",
+      "sha256": "571120ad614c15e6ab62903ac9c413e0d1418d5ef6dff2913898462a9ba3573e",
+      "size_bytes": 83720,
+      "mode": "0644"
+    }
+  ]
+}

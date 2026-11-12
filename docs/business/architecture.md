@@ -8,9 +8,13 @@ O repositório contém código, receitas e documentação. Uma instalação acre
 | tools/roms/ | Organizadores e ferramentas existentes | Código e configurações revisadas |
 | frontend/RetroFE/Tools/ | Materializadores, launchers e auditores | Código revisado |
 | frontend/RetroFE/Config/ | Perfil e catálogo materializados dos templates | Templates; configuração final é local |
-| frontend/RetroFE/Assets/shared/ | Arte comum única por tipo, categoria e estilo | Somente futura seleção com licença explícita |
-| frontend/RetroFE/UserData/ | Dados graváveis de runtime | Não |
+| frontend/RetroFE/Assets/shared/ | Assets canônicos compartilhados por toda a estrutura, por tipo, categoria e estilo | Somente futura seleção com licença explícita |
+| frontend/RetroFE/Assets/source-artwork/ | Fontes editáveis compartilhadas com os fluxos de criação | Somente futura seleção com licença explícita |
+| frontend/RetroFE/UserData/ | Estado próprio do frontend | Não |
+| emulator/linux/, emulator/windows/ | Binários e dependências nativas por SO | Somente launchers revisados; binários fora da release |
+| emulator/data/ | Dados únicos de emuladores e recursos portáveis | Não |
 | frontend/ES-DE/ | Launcher e executável adquirido na origem | Código; não o executável |
+| frontend/RocketLauncher/ | Launcher alternativo de jogos, com módulos, plugins e configuração locais | Pacote local do usuário; fora do instalador/release |
 | roms/<system_id>/ | Conteúdo fornecido pelo cliente | Não |
 | media/<system_id>/<categoria>/ | Mídia externa única por jogo/plataforma | Não por padrão |
 | bios/, saves/ | Dados do cliente e dependências restritas | Não |
@@ -20,6 +24,10 @@ O repositório contém código, receitas e documentação. Uma instalação acre
 
 ## Configuração e portabilidade
 
+Os emuladores e núcleos são adquiridos pelas receitas existentes em `tools/roms/config/portable-runtimes.json` e instalados em `emulator/<SO>/`. O launcher comum deriva os comandos do perfil único e mantém `emulator/data/<runtime>/` compartilhado. Saves, cartões, states, cache, mods, cheats, packs gráficos e recursos independentes de SO não ganham cópias por host. Pastas fixas Windows usam junctions NTFS gerenciadas, revalidadas ao trocar de letra/raiz; arquivos pessoais existentes bloqueiam a operação. exFAT não atende esses vínculos. Origem, limites, preparação e rollback em [emulator/README.md](../../emulator/README.md). A aceitação Windows nativa e os executáveis Windows dos frontends continuam pendentes.
+
+As duas bibliotecas em `frontend/RetroFE/Assets/` atendem temas, emuladores, frontends e ferramentas de criação por links simbólicos relativos gerenciados ou apontamentos nas configurações. A localização física permanece canônica e não implica uso exclusivo pelo RetroFE. Cada consumidor usa o mesmo payload e comprova formato/base de resolução dos caminhos; absolutos necessários são derivados da raiz atual. Catálogo/índice continuam únicos. A decisão de 11/11/2026 substitui a proposta de migração para uma raiz `assets/` separada; mídia de jogos continua em `media/<system_id>/<categoria>/`.
+
 `workspace.py` encontra a instalação pelo próprio arquivo. Os templates do catálogo/perfil usam caminhos relativos. `policy.json` e `roots.json` usam `${WORKSPACE}`, interpretado pelo `romtool` a cada leitura; mudar o nome ou a localização da pasta não mantém a raiz antiga autorizada. Configurações históricas absolutas continuam válidas na instalação original.
 
 O bootstrap prepara somente uma pasta vazia ou previamente inicializada por ele. Não adota uma biblioteca existente sem marcador e não reescreve configurações alteradas pelo cliente. Para alterar a seleção de plataformas depois, revisar as configurações em vez de tratar uma divergência como autorização para apagar.
@@ -27,6 +35,8 @@ O bootstrap prepara somente uma pasta vazia ou previamente inicializada por ele.
 Os comandos que baixam usam um lock, origem HTTPS restrita, versão/tamanho/hash pinados, temporário no volume de destino e publicação sem sobrescrita. Um arquivo existente divergente bloqueia a operação. Nenhuma ferramenta de setup executa automaticamente os programas baixados.
 
 A portabilidade da estrutura não torna Qt, Vulkan, Steam, drivers ou firmware independentes do host. Detectar essas dependências é parte do diagnóstico e da homologação. Não alterar perfis de controle durante o bootstrap.
+
+O RocketLauncher está cadastrado como alternativa ao launcher host dos frontends. A instalação local contém PE32 Windows e plugin RetroFE; os caminhos Windows antigos e a compatibilidade com o host Linux ainda exigem validação. ES-DE, Pegasus e Quiver não recebem suporte presumido pela presença do pacote. O cadastro protege suas referências sem trocar os perfis ativos, acrescentar componente ao instalador ou criar outra biblioteca. Quando o pacote local estiver instalado, seu README registra os detalhes e a proveniência; esse conteúdo não integra a exportação pública.
 
 ## Reuso e dívida técnica
 

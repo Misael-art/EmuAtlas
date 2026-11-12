@@ -44,3 +44,26 @@ O teste automatizado cobre grafo, falha/retomada, preservação, timeouts, extra
 Não baixar jogos, BIOS, firmware ou chaves por este fluxo. Não simular login Steam, credenciais de scraping, seleção de BIOS ou aceite de termos. Esses insumos/decisões são reportados no onboarding. O instalador não abre jogos e não modifica o perfil de controles desktop para testar uma instalação. O primeiro gameplay e a restauração física dos controles continuam uma aceitação própria.
 
 Referências de implementação: [Flatpak](https://docs.flatpak.org/en/latest/using-flatpak.html), [RetroFE upstream](https://github.com/phulshof/RetroFE), [ZArchive](https://github.com/Exzap/ZArchive/tree/v0.1.2), [Xenia Canary](https://github.com/xenia-canary/xenia-canary/releases), [Skraper](https://www.skraper.net/).
+
+## Instalação e escolha dos runtimes experimentais
+
+Um comando prepara Xbox 360 e alternativas PS5/Switch 2, preservando biblioteca e preferências pessoais:
+
+```bash
+python3 -B tools/roms/emutool.py install platform --system-id xbox360 ps5 switch2
+python3 -B tools/roms/emutool.py install platform --system-id xbox360 ps5 switch2 --apply
+```
+
+O fluxo usa o instalador existente, pacotes oficiais por tamanho/SHA-256, recibos, perfis e o plano de frontend/controles com rollback. Não cria Wine prefix, worktree, cópia de ROM ou serviço permanente. Instalações íntegras são reutilizadas. Dados de Xenia, SharpEmu e Eglantine ficam em UserData próprios dentro do projeto.
+
+Xbox 360: Xenia Canary Linux + SDL/Vulkan. PS5: KytyPS5, PS5PCEM e SharpEmu; ZAR é consumido diretamente por Kyty/SharpEmu, enquanto PCEM exige pasta e no Linux aceita teclado. Switch 2: Eden-NX2 e Eglantine; todos leem os mesmos dumps. Eglantine usa XWayland por processo e GUID SDL sem CRC do nome, conforme seu backend.
+
+ES-DE apresenta as opções no seletor de emulador alternativo. Para a preferência compartilhada com RetroFE:
+
+```bash
+python3 -B tools/roms/emutool.py runtime prefer --system-id switch2 --runtime eglantine --apply
+python3 -B tools/roms/emutool.py runtime prefer --system-id ps5 --runtime sharpemu --apply
+python3 -B tools/roms/emutool.py runtime set --system-id switch2 --item 'roms/switch2/Fast Fusion.exefs' --runtime eglantine
+```
+
+`prefer` sem `--apply` é plano. Escolhas por Title ID prevalecem sobre preferência; `runtime clear` remove somente a exceção do título. `host-emulator-launcher.py --runtime <id>` é uma escolha da chamada e não altera o registro. A seleção valida formatos: PCEM não recebe ZAR, e programas não declarados são recusados. `--appimage-version` é evidência apenas do empacotador. Os runtimes permanecem experimentais, com aceite físico de controles/gameplay separado. Registro: `outputs/roms-consolidacao-2026-10-24/operations/experimental-runtimes-20261107T183524/report.md`.

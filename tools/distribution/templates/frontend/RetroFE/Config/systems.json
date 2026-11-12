@@ -1,0 +1,501 @@
+{
+  "schema_version": 1,
+  "source_of_truth": "Config/platform-catalog.json and Config/profiles/host-linux.json",
+  "systems": [
+    {
+      "collection": "Sega Master System",
+      "rom_subdir": "mastersystem",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega Game Gear",
+      "rom_subdir": "gamegear",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega 32X",
+      "rom_subdir": "sega32xna",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega CD",
+      "rom_subdir": "megacd",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega Dreamcast",
+      "rom_subdir": "dreamcast",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega Genesis",
+      "rom_subdir": "genesis",
+      "subcollections": []
+    },
+    {
+      "collection": "3DO Interactive Multiplayer",
+      "rom_subdir": "3do",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega Saturn",
+      "rom_subdir": "saturn",
+      "subcollections": []
+    },
+    {
+      "collection": "Commodore Amiga",
+      "rom_subdir": "amiga1200",
+      "subcollections": []
+    },
+    {
+      "collection": "Microsoft MSX",
+      "rom_subdir": "msx",
+      "subcollections": []
+    },
+    {
+      "collection": "Microsoft Xbox",
+      "rom_subdir": "xbox",
+      "subcollections": []
+    },
+    {
+      "collection": "Microsoft Xbox 360",
+      "rom_subdir": "xbox360",
+      "subcollections": []
+    },
+    {
+      "collection": "NEC PC Engine",
+      "rom_subdir": "pcengine",
+      "subcollections": []
+    },
+    {
+      "collection": "NEC PC Engine-CD",
+      "rom_subdir": "pcenginecd",
+      "subcollections": []
+    },
+    {
+      "collection": "NEC TurboGrafx-16",
+      "rom_subdir": "tg16",
+      "subcollections": []
+    },
+    {
+      "collection": "NEC TurboGrafx-CD",
+      "rom_subdir": "tg-cd",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo 3DS",
+      "rom_subdir": "n3ds",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo 64",
+      "rom_subdir": "n64",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo DS",
+      "rom_subdir": "nds",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Entertainment System",
+      "rom_subdir": "nes",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Game Boy",
+      "rom_subdir": "gb",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Game Boy Advance",
+      "rom_subdir": "gba",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo GameCube",
+      "rom_subdir": "gc",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Super Famicom",
+      "rom_subdir": "sfc",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Switch",
+      "rom_subdir": "switch",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Switch 2",
+      "rom_subdir": "switch2",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Wii",
+      "rom_subdir": "wii",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo WiiWare",
+      "rom_subdir": "wiiware",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Wii U",
+      "rom_subdir": "wiiu",
+      "subcollections": []
+    },
+    {
+      "collection": "Super Nintendo Entertainment System",
+      "rom_subdir": "snes",
+      "subcollections": []
+    },
+    {
+      "collection": "PC Games",
+      "rom_subdir": "pc",
+      "subcollections": []
+    },
+    {
+      "collection": "Adventure Game Studio Game Engine",
+      "rom_subdir": "ags",
+      "subcollections": []
+    },
+    {
+      "collection": "Sony Playstation",
+      "rom_subdir": "psx",
+      "subcollections": []
+    },
+    {
+      "collection": "Sony PlayStation 5",
+      "rom_subdir": "ps5",
+      "subcollections": []
+    },
+    {
+      "collection": "Sony Playstation 2",
+      "rom_subdir": "ps2",
+      "subcollections": []
+    },
+    {
+      "collection": "Sony PlayStation 3",
+      "rom_subdir": "ps3",
+      "subcollections": []
+    },
+    {
+      "collection": "Sony PlayStation 4",
+      "rom_subdir": "ps4",
+      "subcollections": []
+    },
+    {
+      "collection": "Sony PlayStation Portable",
+      "rom_subdir": "psp",
+      "subcollections": []
+    },
+    {
+      "collection": "PortMaster",
+      "rom_subdir": "portmaster",
+      "subcollections": []
+    },
+    {
+      "collection": "MAME",
+      "rom_subdir": "mame",
+      "subcollections": []
+    },
+    {
+      "collection": "Atari 2600",
+      "rom_subdir": "atari2600",
+      "subcollections": []
+    },
+    {
+      "collection": "Commodore Amiga (amiga)",
+      "rom_subdir": "amiga",
+      "subcollections": []
+    },
+    {
+      "collection": "Commodore Amiga 600",
+      "rom_subdir": "amiga600",
+      "subcollections": []
+    },
+    {
+      "collection": "Commodore Amiga CD32",
+      "rom_subdir": "amigacd32",
+      "subcollections": []
+    },
+    {
+      "collection": "Arcade",
+      "rom_subdir": "arcade",
+      "subcollections": []
+    },
+    {
+      "collection": "Commodore 16",
+      "rom_subdir": "c16",
+      "subcollections": []
+    },
+    {
+      "collection": "Commodore 64",
+      "rom_subdir": "c64",
+      "subcollections": []
+    },
+    {
+      "collection": "Commodore CDTV",
+      "rom_subdir": "cdtv",
+      "subcollections": []
+    },
+    {
+      "collection": "ColecoVision",
+      "rom_subdir": "colecovision",
+      "subcollections": []
+    },
+    {
+      "collection": "Capcom Play System",
+      "rom_subdir": "cps",
+      "subcollections": []
+    },
+    {
+      "collection": "Capcom Play System I",
+      "rom_subdir": "cps1",
+      "subcollections": []
+    },
+    {
+      "collection": "Capcom Play System II",
+      "rom_subdir": "cps2",
+      "subcollections": []
+    },
+    {
+      "collection": "Capcom Play System III",
+      "rom_subdir": "cps3",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Family Computer",
+      "rom_subdir": "famicom",
+      "subcollections": []
+    },
+    {
+      "collection": "FinalBurn Neo",
+      "rom_subdir": "fbneo",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Famicom Disk System",
+      "rom_subdir": "fds",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Game Boy Color",
+      "rom_subdir": "gbc",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega Genesis (genesiswide)",
+      "rom_subdir": "genesiswide",
+      "subcollections": []
+    },
+    {
+      "collection": "Mattel Electronics Intellivision",
+      "rom_subdir": "intellivision",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega Mark III (mark3)",
+      "rom_subdir": "mark3",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega Mega-CD (megacdjp)",
+      "rom_subdir": "megacdjp",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega Mega Drive (megadrive)",
+      "rom_subdir": "megadrive",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega Mega Drive (megadrivejp)",
+      "rom_subdir": "megadrivejp",
+      "subcollections": []
+    },
+    {
+      "collection": "MSX1",
+      "rom_subdir": "msx1",
+      "subcollections": []
+    },
+    {
+      "collection": "MSX2",
+      "rom_subdir": "msx2",
+      "subcollections": []
+    },
+    {
+      "collection": "MSX Turbo R",
+      "rom_subdir": "msxturbor",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo 64DD",
+      "rom_subdir": "n64dd",
+      "subcollections": []
+    },
+    {
+      "collection": "SNK Neo Geo",
+      "rom_subdir": "neogeo",
+      "subcollections": []
+    },
+    {
+      "collection": "SNK Neo Geo Pocket",
+      "rom_subdir": "ngp",
+      "subcollections": []
+    },
+    {
+      "collection": "SNK Neo Geo Pocket Color",
+      "rom_subdir": "ngpc",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Satellaview",
+      "rom_subdir": "satellaview",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega CD (segacd)",
+      "rom_subdir": "segacd",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega SG-1000",
+      "rom_subdir": "sg-1000",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Super Game Boy",
+      "rom_subdir": "sgb",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo SNES (Super Nintendo) (snesna)",
+      "rom_subdir": "snesna",
+      "subcollections": []
+    },
+    {
+      "collection": "Spectravideo",
+      "rom_subdir": "spectravideo",
+      "subcollections": []
+    },
+    {
+      "collection": "Bandai SuFami Turbo",
+      "rom_subdir": "sufami",
+      "subcollections": []
+    },
+    {
+      "collection": "NEC SuperGrafx",
+      "rom_subdir": "supergrafx",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Virtual Boy",
+      "rom_subdir": "virtualboy",
+      "subcollections": []
+    },
+    {
+      "collection": "Bandai WonderSwan",
+      "rom_subdir": "wonderswan",
+      "subcollections": []
+    },
+    {
+      "collection": "Bandai WonderSwan Color",
+      "rom_subdir": "wonderswancolor",
+      "subcollections": []
+    },
+    {
+      "collection": "Sinclair ZX Spectrum",
+      "rom_subdir": "zxspectrum",
+      "subcollections": []
+    },
+    {
+      "collection": "Atomiswave",
+      "rom_subdir": "atomiswave",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega NAOMI (naomi)",
+      "rom_subdir": "naomi",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega NAOMI 2",
+      "rom_subdir": "naomi2",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega NAOMI GD-ROM",
+      "rom_subdir": "naomigd",
+      "subcollections": []
+    },
+    {
+      "collection": "Creatronic Mega Duck",
+      "rom_subdir": "megaduck",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo SNES WideScreen (Super Nintendo)",
+      "rom_subdir": "sneshd",
+      "subcollections": []
+    },
+    {
+      "collection": "Acorn Archimedes",
+      "rom_subdir": "archimedes",
+      "subcollections": []
+    },
+    {
+      "collection": "Atari 5200",
+      "rom_subdir": "atari5200",
+      "subcollections": []
+    },
+    {
+      "collection": "Atari 7800 ProSystem",
+      "rom_subdir": "atari7800",
+      "subcollections": []
+    },
+    {
+      "collection": "Acorn Electron",
+      "rom_subdir": "electron",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega Model 2",
+      "rom_subdir": "model2",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega Model 3",
+      "rom_subdir": "model3",
+      "subcollections": []
+    },
+    {
+      "collection": "SNK Neo Geo CD (neogeocdjp)",
+      "rom_subdir": "neogeocdjp",
+      "subcollections": []
+    },
+    {
+      "collection": "Magnavox Odyssey2",
+      "rom_subdir": "odyssey2",
+      "subcollections": []
+    },
+    {
+      "collection": "Nintendo Pokémon Mini",
+      "rom_subdir": "pokemini",
+      "subcollections": []
+    },
+    {
+      "collection": "Sega Saturn (saturnjp)",
+      "rom_subdir": "saturnjp",
+      "subcollections": []
+    },
+    {
+      "collection": "Sharp X68000",
+      "rom_subdir": "x68000",
+      "subcollections": []
+    }
+  ]
+}

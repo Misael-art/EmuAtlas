@@ -1,0 +1,1102 @@
+{
+  "schema_version": "1.0",
+  "purpose": "Lossless conversion to a format that the configured emulator can open directly. Profiles are an allowlist; unknown systems and formats remain unchanged.",
+  "preserve_name_markers": [
+    {
+      "id": "modified-or-translated-content",
+      "parser": "legacy-variant-name-v1",
+      "regex": "",
+      "reason": "Parser considera marcadores explícitos em grupos do nome e preserva candidatos para revisão; palavras comuns no título não devem gerar falso positivo."
+    }
+  ],
+  "profiles": [
+    {
+      "id": "dolphin-rvz",
+      "systems": [
+        "gc",
+        "wii"
+      ],
+      "source_extensions": [
+        ".iso"
+      ],
+      "target_extension": ".rvz",
+      "runtime_adapter": "flatpak",
+      "runtime_app_id": "org.DolphinEmu.dolphin-emu",
+      "runtime_format": "RVZ",
+      "runtime_evidence": [
+        "https://github.com/dolphin-emu/dolphin/blob/master/Readme.md",
+        "https://github.com/dolphin-emu/dolphin/blob/master/Source/Core/DiscIO/WIABlob.cpp (GetAllowedCompressionLevels returns ZSTD_maxCLevel for the CLI)",
+        "host-linux.json lists RVZ for GC/Wii"
+      ],
+      "compression": {
+        "codec": "zstd",
+        "level": 22,
+        "block_size_bytes": 131072
+      },
+      "tool_executable": "flatpak",
+      "minimum_free_source_multiplier": 1,
+      "tool_probe": [
+        "flatpak",
+        "info",
+        "org.DolphinEmu.dolphin-emu"
+      ],
+      "convert": [
+        "flatpak",
+        "run",
+        "--command=dolphin-tool",
+        "org.DolphinEmu.dolphin-emu",
+        "convert",
+        "--input",
+        "{source}",
+        "--output",
+        "{destination}",
+        "--format",
+        "rvz",
+        "--compression",
+        "zstd",
+        "--compression_level",
+        "22",
+        "--block_size",
+        "131072"
+      ],
+      "source_validate": [
+        "flatpak",
+        "run",
+        "--command=dolphin-tool",
+        "org.DolphinEmu.dolphin-emu",
+        "verify",
+        "--input",
+        "{path}"
+      ],
+      "validate": [
+        "flatpak",
+        "run",
+        "--command=dolphin-tool",
+        "org.DolphinEmu.dolphin-emu",
+        "verify",
+        "--input",
+        "{path}"
+      ],
+      "digest": [
+        "flatpak",
+        "run",
+        "--command=dolphin-tool",
+        "org.DolphinEmu.dolphin-emu",
+        "verify",
+        "--input",
+        "{path}",
+        "--algorithm",
+        "sha1"
+      ],
+      "header": [
+        "flatpak",
+        "run",
+        "--command=dolphin-tool",
+        "org.DolphinEmu.dolphin-emu",
+        "header",
+        "--input",
+        "{path}",
+        "--json"
+      ],
+      "header_identity_fields": [
+        "game_id",
+        "country",
+        "region",
+        "revision",
+        "internal_name"
+      ],
+      "rollback_convert": [
+        "flatpak",
+        "run",
+        "--command=dolphin-tool",
+        "org.DolphinEmu.dolphin-emu",
+        "convert",
+        "--input",
+        "{source}",
+        "--output",
+        "{destination}",
+        "--format",
+        "iso"
+      ],
+      "rollback_validate": [
+        "flatpak",
+        "run",
+        "--command=dolphin-tool",
+        "org.DolphinEmu.dolphin-emu",
+        "verify",
+        "--input",
+        "{path}"
+      ],
+      "rollback_digest": [
+        "flatpak",
+        "run",
+        "--command=dolphin-tool",
+        "org.DolphinEmu.dolphin-emu",
+        "verify",
+        "--input",
+        "{path}",
+        "--algorithm",
+        "sha1"
+      ],
+      "rollback_digest_kind": "command",
+      "roundtrip_validation": "Dolphin verifies both disc images and reports the same logical disc SHA-1. No scrub option is used."
+    },
+    {
+      "id": "pcsx2-chd-dvd",
+      "systems": [
+        "ps2"
+      ],
+      "source_extensions": [
+        ".iso"
+      ],
+      "target_extension": ".chd",
+      "runtime_adapter": "flatpak",
+      "runtime_app_id": "net.pcsx2.PCSX2",
+      "runtime_format": "CHD",
+      "runtime_evidence": [
+        "https://pcsx2.net/blog/2024/pcsx2-2-release/",
+        "host-linux.json lists CHD for PS2"
+      ],
+      "tool_probe": [
+        "flatpak",
+        "info",
+        "net.pcsx2.PCSX2"
+      ],
+      "compression": {
+        "codec": "chdman-default-dvd",
+        "mode": "DVD"
+      },
+      "minimum_free_source_multiplier": 2,
+      "tool_executable": "chdman",
+      "source_validate": [],
+      "convert": [
+        "chdman",
+        "createdvd",
+        "-i",
+        "{source}",
+        "-o",
+        "{destination}"
+      ],
+      "validate": [
+        "chdman",
+        "verify",
+        "-i",
+        "{path}"
+      ],
+      "digest_kind": "sha256_extracted_raw",
+      "digest_extract": [
+        "chdman",
+        "extractraw",
+        "-i",
+        "{path}",
+        "-o",
+        "{digest_output}"
+      ],
+      "rollback_convert": [
+        "chdman",
+        "extractraw",
+        "-i",
+        "{source}",
+        "-o",
+        "{destination}"
+      ],
+      "rollback_validate": [],
+      "rollback_digest_kind": "sha256_file",
+      "roundtrip_validation": "Extract the verified CHD to a temporary raw image and compare its SHA-256 with the source ISO."
+    },
+    {
+      "id": "ppsspp-chd-dvd",
+      "systems": [
+        "psp"
+      ],
+      "source_extensions": [
+        ".iso"
+      ],
+      "target_extension": ".chd",
+      "runtime_adapter": "flatpak",
+      "runtime_app_id": "org.ppsspp.PPSSPP",
+      "runtime_format": "CHD",
+      "expected_blocker": "blocked_runtime_format_not_enabled",
+      "blocked_reason": "O perfil host do PPSSPP aceita ISO/CSO/PBP/ZIP/7z, mas não lista CHD; não alterar a configuração do emulador nesta conversão.",
+      "runtime_evidence": [
+        "https://www.ppsspp.org/docs/getting-started/dumping-games/",
+        "host-linux.json does not list CHD for PSP; profile remains blocked"
+      ],
+      "compression": {
+        "codec": "chdman-default-dvd",
+        "mode": "DVD"
+      },
+      "minimum_free_source_multiplier": 2,
+      "tool_executable": "chdman",
+      "source_validate": [],
+      "convert": [
+        "chdman",
+        "createdvd",
+        "-i",
+        "{source}",
+        "-o",
+        "{destination}"
+      ],
+      "validate": [
+        "chdman",
+        "verify",
+        "-i",
+        "{path}"
+      ],
+      "digest_kind": "sha256_extracted_raw",
+      "digest_extract": [
+        "chdman",
+        "extractraw",
+        "-i",
+        "{path}",
+        "-o",
+        "{digest_output}"
+      ],
+      "rollback_convert": [
+        "chdman",
+        "extractraw",
+        "-i",
+        "{source}",
+        "-o",
+        "{destination}"
+      ],
+      "rollback_validate": [],
+      "rollback_digest_kind": "sha256_file",
+      "roundtrip_validation": "Extract the verified CHD to a temporary raw image and compare its SHA-256 with the source ISO. The host profile must explicitly accept CHD before planning."
+    },
+    {
+      "id": "7z-retroarch-single-file-rom",
+      "systems": [
+        "mastersystem",
+        "gamegear",
+        "genesiswide",
+        "megadrive",
+        "megadrivejp",
+        "mark3",
+        "sg-1000",
+        "pcengine",
+        "tg16",
+        "n64",
+        "gb",
+        "gba",
+        "sfc",
+        "snes",
+        "atari2600",
+        "colecovision",
+        "intellivision",
+        "gbc",
+        "ngp",
+        "ngpc",
+        "wonderswan",
+        "wonderswancolor",
+        "virtualboy",
+        "famicom",
+        "msx",
+        "msx2"
+      ],
+      "source_extensions_by_system": {
+        "mastersystem": [
+          ".sms"
+        ],
+        "gamegear": [
+          ".gg"
+        ],
+        "genesiswide": [
+          ".32x",
+          ".gen",
+          ".md",
+          ".mdx",
+          ".smd"
+        ],
+        "megadrive": [
+          ".gen",
+          ".md",
+          ".mdx",
+          ".smd"
+        ],
+        "megadrivejp": [
+          ".gen",
+          ".md",
+          ".mdx",
+          ".smd"
+        ],
+        "mark3": [
+          ".rom",
+          ".sg"
+        ],
+        "sg-1000": [
+          ".rom",
+          ".sg"
+        ],
+        "pcengine": [
+          ".pce"
+        ],
+        "tg16": [
+          ".pce"
+        ],
+        "n64": [
+          ".n64",
+          ".v64",
+          ".z64"
+        ],
+        "gb": [
+          ".gb"
+        ],
+        "gba": [
+          ".gba"
+        ],
+        "sfc": [
+          ".sfc",
+          ".smc"
+        ],
+        "snes": [
+          ".sfc",
+          ".smc"
+        ],
+        "atari2600": [
+          ".a26",
+          ".bin"
+        ],
+        "colecovision": [
+          ".col",
+          ".cv",
+          ".rom"
+        ],
+        "intellivision": [
+          ".int",
+          ".rom"
+        ],
+        "gbc": [
+          ".cgb",
+          ".dmg",
+          ".gb",
+          ".gbc",
+          ".sgb"
+        ],
+        "ngp": [
+          ".ngc",
+          ".ngp"
+        ],
+        "ngpc": [
+          ".ngc",
+          ".ngp",
+          ".ngpc"
+        ],
+        "wonderswan": [
+          ".ws"
+        ],
+        "wonderswancolor": [
+          ".ws",
+          ".wsc"
+        ],
+        "virtualboy": [
+          ".vb",
+          ".vboy"
+        ],
+        "famicom": [
+          ".nes",
+          ".unf",
+          ".unif"
+        ],
+        "msx": [
+          ".rom"
+        ],
+        "msx2": [
+          ".rom"
+        ]
+      },
+      "target_extension": ".7z",
+      "runtime_adapter": "retroarch",
+      "runtime_format": "7z archive containing one unchanged ROM file",
+      "runtime_evidence": [
+        "https://docs.libretro.com/guides/launch-content/",
+        "flatpak run --command=retroarch org.libretro.RetroArch --features reports 7zip extraction support: yes",
+        "host-linux.json lists .7z for each mapped collection"
+      ],
+      "runtime_probe": [
+        "flatpak",
+        "run",
+        "--command=retroarch",
+        "org.libretro.RetroArch",
+        "--features"
+      ],
+      "runtime_probe_must_contain": "7zip            - 7zip extraction support: yes",
+      "compression": {
+        "codec": "LZMA2",
+        "level": 9,
+        "dictionary_bytes": 67108864,
+        "solid": false
+      },
+      "tool_executable": "7z",
+      "archive_tool": "7z",
+      "working_directory": "source_parent",
+      "archive_member": "source_name",
+      "conversion_kind": "single_file_archive",
+      "single_file_only": true,
+      "rollback_mode": "archive_member",
+      "source_digest_kind": "sha256_file",
+      "digest_kind": "sha256_archive_member",
+      "rollback_digest_kind": "sha256_file",
+      "minimum_free_source_multiplier": 1,
+      "convert": [
+        "7z",
+        "a",
+        "-t7z",
+        "-mx=9",
+        "-m0=lzma2",
+        "-md=64m",
+        "-ms=off",
+        "{destination}",
+        "{source_name}"
+      ],
+      "validate": [
+        "7z",
+        "t",
+        "{path}"
+      ],
+      "source_validate": [],
+      "source_validation_result": "SHA-256 da origem capturado; a ferramenta de compactação não certifica a identidade nem a integridade lógica prévia do jogo.",
+      "dependency_check": "Perfil unitário; apenas o arquivo de origem entra no 7z. Não aceita conjuntos com sidecars.",
+      "roundtrip_validation": "Testar o arquivo 7z, extrair o único membro por stdout e comparar SHA-256 byte a byte com a origem antes de substituir."
+    },
+    {
+      "id": "7z-mame-single-file-rom",
+      "systems": [
+        "sega32xna",
+        "genesis",
+        "nes"
+      ],
+      "source_extensions_by_system": {
+        "sega32xna": [
+          ".bin",
+          ".md"
+        ],
+        "genesis": [
+          ".bin",
+          ".md"
+        ],
+        "nes": [
+          ".nes",
+          ".unf",
+          ".unif"
+        ]
+      },
+      "target_extension": ".7z",
+      "runtime_adapter": "mame",
+      "runtime_format": "7z archive containing one unchanged ROM file",
+      "runtime_evidence": [
+        "https://docs.mamedev.org/usingmame/assetsearch.html",
+        "host-linux.json lists .7z for each mapped collection"
+      ],
+      "runtime_probe": [
+        "mame",
+        "-version"
+      ],
+      "compression": {
+        "codec": "LZMA2",
+        "level": 9,
+        "dictionary_bytes": 67108864,
+        "solid": false
+      },
+      "tool_executable": "7z",
+      "archive_tool": "7z",
+      "working_directory": "source_parent",
+      "archive_member": "source_name",
+      "conversion_kind": "single_file_archive",
+      "single_file_only": true,
+      "rollback_mode": "archive_member",
+      "source_digest_kind": "sha256_file",
+      "digest_kind": "sha256_archive_member",
+      "rollback_digest_kind": "sha256_file",
+      "minimum_free_source_multiplier": 1,
+      "convert": [
+        "7z",
+        "a",
+        "-t7z",
+        "-mx=9",
+        "-m0=lzma2",
+        "-md=64m",
+        "-ms=off",
+        "{destination}",
+        "{source_name}"
+      ],
+      "validate": [
+        "7z",
+        "t",
+        "{path}"
+      ],
+      "source_validate": [],
+      "source_validation_result": "SHA-256 da origem capturado; a ferramenta de compactação não certifica a identidade nem a integridade lógica prévia do jogo.",
+      "dependency_check": "Perfil unitário; apenas o arquivo de origem entra no 7z. Não aceita conjuntos com sidecars.",
+      "roundtrip_validation": "Testar o arquivo 7z, extrair o único membro por stdout e comparar SHA-256 byte a byte com a origem antes de substituir."
+    },
+    {
+      "id": "7z-melonds-single-file-rom",
+      "systems": [
+        "nds"
+      ],
+      "source_extensions_by_system": {
+        "nds": [
+          ".nds"
+        ]
+      },
+      "target_extension": ".7z",
+      "runtime_adapter": "flatpak",
+      "runtime_app_id": "net.kuribo64.melonDS",
+      "runtime_format": "7z archive containing one unchanged ROM file",
+      "runtime_evidence": [
+        "https://melonds.kuribo64.net/index.php?p=11",
+        "host-linux.json lists .7z for NDS"
+      ],
+      "tool_probe": [
+        "flatpak",
+        "info",
+        "net.kuribo64.melonDS"
+      ],
+      "compression": {
+        "codec": "LZMA2",
+        "level": 9,
+        "dictionary_bytes": 67108864,
+        "solid": false
+      },
+      "tool_executable": "7z",
+      "archive_tool": "7z",
+      "working_directory": "source_parent",
+      "archive_member": "source_name",
+      "conversion_kind": "single_file_archive",
+      "single_file_only": true,
+      "rollback_mode": "archive_member",
+      "source_digest_kind": "sha256_file",
+      "digest_kind": "sha256_archive_member",
+      "rollback_digest_kind": "sha256_file",
+      "minimum_free_source_multiplier": 1,
+      "convert": [
+        "7z",
+        "a",
+        "-t7z",
+        "-mx=9",
+        "-m0=lzma2",
+        "-md=64m",
+        "-ms=off",
+        "{destination}",
+        "{source_name}"
+      ],
+      "validate": [
+        "7z",
+        "t",
+        "{path}"
+      ],
+      "source_validate": [],
+      "source_validation_result": "SHA-256 da origem capturado; a ferramenta de compactação não certifica a identidade nem a integridade lógica prévia do jogo.",
+      "dependency_check": "Perfil unitário; apenas o arquivo de origem entra no 7z. Não aceita conjuntos com sidecars.",
+      "roundtrip_validation": "Testar o arquivo 7z, extrair o único membro por stdout e comparar SHA-256 byte a byte com a origem antes de substituir."
+    },
+    {
+      "id": "7z-retroarch-rom-archive",
+      "systems": [
+        "mastersystem",
+        "gamegear",
+        "genesiswide",
+        "megadrive",
+        "megadrivejp",
+        "mark3",
+        "sg-1000",
+        "pcengine",
+        "tg16",
+        "n64",
+        "gb",
+        "gba",
+        "sfc",
+        "snes",
+        "atari2600",
+        "colecovision",
+        "intellivision",
+        "gbc",
+        "ngp",
+        "ngpc",
+        "wonderswan",
+        "wonderswancolor",
+        "virtualboy",
+        "famicom",
+        "msx",
+        "msx2"
+      ],
+      "target_extension": ".7z",
+      "runtime_adapter": "retroarch",
+      "runtime_format": "7z archive containing one unchanged ROM file",
+      "runtime_evidence": [
+        "https://docs.libretro.com/guides/launch-content/",
+        "flatpak run --command=retroarch org.libretro.RetroArch --features reports 7zip extraction support: yes",
+        "host-linux.json lists .7z for each mapped collection"
+      ],
+      "runtime_probe": [
+        "flatpak",
+        "run",
+        "--command=retroarch",
+        "org.libretro.RetroArch",
+        "--features"
+      ],
+      "runtime_probe_must_contain": "7zip            - 7zip extraction support: yes",
+      "compression": {
+        "codec": "LZMA2",
+        "level": 9,
+        "dictionary_bytes": 67108864,
+        "solid": false
+      },
+      "tool_executable": "7z",
+      "archive_tool": "7z",
+      "working_directory": "source_parent",
+      "archive_member": "source_name",
+      "conversion_kind": "zip_rom_repack",
+      "single_file_only": false,
+      "minimum_free_source_multiplier": 1,
+      "validate": [
+        "7z",
+        "t",
+        "{path}"
+      ],
+      "source_validate": [
+        "7z",
+        "t",
+        "{path}"
+      ],
+      "source_validation_result": "SHA-256 da origem capturado; a ferramenta de compactação não certifica a identidade nem a integridade lógica prévia do jogo.",
+      "dependency_check": "Perfil unitário; apenas o arquivo de origem entra no 7z. Não aceita conjuntos com sidecars.",
+      "roundtrip_validation": "Verify all file paths, empty directories, byte counts and SHA-256 for one ROM plus allowed documentation/artwork. Preserve the exact source ZIP for rollback; no content or filename guessing.",
+      "source_extensions_by_system": {
+        "mastersystem": [
+          ".zip"
+        ],
+        "gamegear": [
+          ".zip"
+        ],
+        "genesiswide": [
+          ".zip"
+        ],
+        "megadrive": [
+          ".zip"
+        ],
+        "megadrivejp": [
+          ".zip"
+        ],
+        "mark3": [
+          ".zip"
+        ],
+        "sg-1000": [
+          ".zip"
+        ],
+        "pcengine": [
+          ".zip"
+        ],
+        "tg16": [
+          ".zip"
+        ],
+        "n64": [
+          ".zip"
+        ],
+        "gb": [
+          ".zip"
+        ],
+        "gba": [
+          ".zip"
+        ],
+        "sfc": [
+          ".zip"
+        ],
+        "snes": [
+          ".zip"
+        ],
+        "atari2600": [
+          ".zip"
+        ],
+        "colecovision": [
+          ".zip"
+        ],
+        "intellivision": [
+          ".zip"
+        ],
+        "gbc": [
+          ".zip"
+        ],
+        "ngp": [
+          ".zip"
+        ],
+        "ngpc": [
+          ".zip"
+        ],
+        "wonderswan": [
+          ".zip"
+        ],
+        "wonderswancolor": [
+          ".zip"
+        ],
+        "virtualboy": [
+          ".zip"
+        ],
+        "famicom": [
+          ".zip"
+        ],
+        "msx": [
+          ".zip"
+        ],
+        "msx2": [
+          ".zip"
+        ]
+      },
+      "payload_extensions_by_system": {
+        "mastersystem": [
+          ".sms"
+        ],
+        "gamegear": [
+          ".gg"
+        ],
+        "genesiswide": [
+          ".32x",
+          ".gen",
+          ".md",
+          ".mdx",
+          ".smd"
+        ],
+        "megadrive": [
+          ".gen",
+          ".md",
+          ".mdx",
+          ".smd"
+        ],
+        "megadrivejp": [
+          ".gen",
+          ".md",
+          ".mdx",
+          ".smd"
+        ],
+        "mark3": [
+          ".rom",
+          ".sg"
+        ],
+        "sg-1000": [
+          ".rom",
+          ".sg"
+        ],
+        "pcengine": [
+          ".pce"
+        ],
+        "tg16": [
+          ".pce"
+        ],
+        "n64": [
+          ".n64",
+          ".v64",
+          ".z64"
+        ],
+        "gb": [
+          ".gb"
+        ],
+        "gba": [
+          ".gba"
+        ],
+        "sfc": [
+          ".sfc",
+          ".smc"
+        ],
+        "snes": [
+          ".sfc",
+          ".smc"
+        ],
+        "atari2600": [
+          ".a26",
+          ".bin"
+        ],
+        "colecovision": [
+          ".col",
+          ".cv",
+          ".rom"
+        ],
+        "intellivision": [
+          ".int",
+          ".rom"
+        ],
+        "gbc": [
+          ".cgb",
+          ".dmg",
+          ".gb",
+          ".gbc",
+          ".sgb"
+        ],
+        "ngp": [
+          ".ngc",
+          ".ngp"
+        ],
+        "ngpc": [
+          ".ngc",
+          ".ngp",
+          ".ngpc"
+        ],
+        "wonderswan": [
+          ".ws"
+        ],
+        "wonderswancolor": [
+          ".ws",
+          ".wsc"
+        ],
+        "virtualboy": [
+          ".vb",
+          ".vboy"
+        ],
+        "famicom": [
+          ".nes",
+          ".unf",
+          ".unif"
+        ],
+        "msx": [
+          ".rom"
+        ],
+        "msx2": [
+          ".rom"
+        ]
+      },
+      "source_digest_kind": "sha256_archive_tree",
+      "digest_kind": "sha256_archive_tree",
+      "rollback_mode": "preserved_original",
+      "auxiliary_extensions": [
+        ".txt",
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".md",
+        ".nfo",
+        ".html",
+        ".htm",
+        ".asm",
+        ".inc",
+        ".c",
+        ".h",
+        ".til",
+        ".pal",
+        ".url",
+        ".lnk",
+        ".s",
+        ".sh"
+      ],
+      "maximum_members": 512,
+      "maximum_expanded_bytes": 268435456,
+      "auxiliary_filenames": [
+        "README",
+        "LICENSE",
+        "COPYING",
+        ".DS_Store",
+        "Makefile",
+        "linkfile",
+        "._.DS_Store",
+        "src.zip",
+        "src.tar.bz2"
+      ]
+    },
+    {
+      "id": "7z-mame-rom-archive",
+      "systems": [
+        "sega32xna",
+        "genesis",
+        "nes"
+      ],
+      "target_extension": ".7z",
+      "runtime_adapter": "mame",
+      "runtime_format": "7z archive containing one unchanged ROM file",
+      "runtime_evidence": [
+        "https://docs.mamedev.org/usingmame/assetsearch.html",
+        "host-linux.json lists .7z for each mapped collection"
+      ],
+      "runtime_probe": [
+        "mame",
+        "-version"
+      ],
+      "compression": {
+        "codec": "LZMA2",
+        "level": 9,
+        "dictionary_bytes": 67108864,
+        "solid": false
+      },
+      "tool_executable": "7z",
+      "archive_tool": "7z",
+      "working_directory": "source_parent",
+      "archive_member": "source_name",
+      "conversion_kind": "zip_rom_repack",
+      "single_file_only": false,
+      "minimum_free_source_multiplier": 1,
+      "validate": [
+        "7z",
+        "t",
+        "{path}"
+      ],
+      "source_validate": [
+        "7z",
+        "t",
+        "{path}"
+      ],
+      "source_validation_result": "SHA-256 da origem capturado; a ferramenta de compactação não certifica a identidade nem a integridade lógica prévia do jogo.",
+      "dependency_check": "Perfil unitário; apenas o arquivo de origem entra no 7z. Não aceita conjuntos com sidecars.",
+      "roundtrip_validation": "Verify all file paths, empty directories, byte counts and SHA-256 for one ROM plus allowed documentation/artwork. Preserve the exact source ZIP for rollback; no content or filename guessing.",
+      "source_digest_kind": "sha256_archive_tree",
+      "digest_kind": "sha256_archive_tree",
+      "rollback_mode": "preserved_original",
+      "auxiliary_extensions": [
+        ".txt",
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".md",
+        ".nfo",
+        ".html",
+        ".htm",
+        ".asm",
+        ".inc",
+        ".c",
+        ".h",
+        ".til",
+        ".pal",
+        ".url",
+        ".lnk",
+        ".s",
+        ".sh"
+      ],
+      "maximum_members": 512,
+      "auxiliary_filenames": [
+        "README",
+        "LICENSE",
+        "COPYING",
+        ".DS_Store",
+        "Makefile",
+        "linkfile",
+        "._.DS_Store",
+        "src.zip",
+        "src.tar.bz2"
+      ],
+      "source_extensions_by_system": {
+        "sega32xna": [
+          ".zip"
+        ],
+        "genesis": [
+          ".zip"
+        ],
+        "nes": [
+          ".zip"
+        ]
+      },
+      "payload_extensions_by_system": {
+        "sega32xna": [
+          ".bin",
+          ".md"
+        ],
+        "genesis": [
+          ".bin",
+          ".md"
+        ],
+        "nes": [
+          ".nes",
+          ".unf",
+          ".unif"
+        ]
+      },
+      "maximum_expanded_bytes": 268435456
+    },
+    {
+      "id": "7z-melonds-rom-archive",
+      "systems": [
+        "nds"
+      ],
+      "target_extension": ".7z",
+      "runtime_adapter": "flatpak",
+      "runtime_app_id": "net.kuribo64.melonDS",
+      "runtime_format": "7z archive containing one unchanged ROM file",
+      "runtime_evidence": [
+        "https://melonds.kuribo64.net/index.php?p=11",
+        "host-linux.json lists .7z for NDS"
+      ],
+      "tool_probe": [
+        "flatpak",
+        "info",
+        "net.kuribo64.melonDS"
+      ],
+      "compression": {
+        "codec": "LZMA2",
+        "level": 9,
+        "dictionary_bytes": 67108864,
+        "solid": false
+      },
+      "tool_executable": "7z",
+      "archive_tool": "7z",
+      "working_directory": "source_parent",
+      "archive_member": "source_name",
+      "conversion_kind": "zip_rom_repack",
+      "single_file_only": false,
+      "minimum_free_source_multiplier": 1,
+      "validate": [
+        "7z",
+        "t",
+        "{path}"
+      ],
+      "source_validate": [
+        "7z",
+        "t",
+        "{path}"
+      ],
+      "source_validation_result": "SHA-256 da origem capturado; a ferramenta de compactação não certifica a identidade nem a integridade lógica prévia do jogo.",
+      "dependency_check": "Perfil unitário; apenas o arquivo de origem entra no 7z. Não aceita conjuntos com sidecars.",
+      "roundtrip_validation": "Verify all file paths, empty directories, byte counts and SHA-256 for one ROM plus allowed documentation/artwork. Preserve the exact source ZIP for rollback; no content or filename guessing.",
+      "source_digest_kind": "sha256_archive_tree",
+      "digest_kind": "sha256_archive_tree",
+      "rollback_mode": "preserved_original",
+      "auxiliary_extensions": [
+        ".txt",
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".md",
+        ".nfo",
+        ".html",
+        ".htm",
+        ".asm",
+        ".inc",
+        ".c",
+        ".h",
+        ".til",
+        ".pal",
+        ".url",
+        ".lnk",
+        ".s",
+        ".sh"
+      ],
+      "maximum_members": 512,
+      "auxiliary_filenames": [
+        "README",
+        "LICENSE",
+        "COPYING",
+        ".DS_Store",
+        "Makefile",
+        "linkfile",
+        "._.DS_Store",
+        "src.zip",
+        "src.tar.bz2"
+      ],
+      "source_extensions_by_system": {
+        "nds": [
+          ".zip"
+        ]
+      },
+      "payload_extensions_by_system": {
+        "nds": [
+          ".nds"
+        ]
+      },
+      "maximum_expanded_bytes": 536870912
+    }
+  ]
+}

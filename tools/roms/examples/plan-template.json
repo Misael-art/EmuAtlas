@@ -1,0 +1,17 @@
+{
+  "title": "Replace this with a short title explaining the change",
+  "actions": [
+    {
+      "action": "rename",
+      "source": "/ABSOLUTE/WORKSPACE/roms/PLATFORM/current-name.zip",
+      "destination": "/ABSOLUTE/WORKSPACE/roms/PLATFORM/canonical-name.zip",
+      "system_id": "PLATFORM",
+      "item_identity": "verified title name and product ID",
+      "classification": "game",
+      "reason": "Explain the identity evidence and why the name or path changes.",
+      "reference_check": "checked_none",
+      "validation_result": "Replace with the actual format and DAT result plus its evidence file.",
+      "dependency_check": "No update/DLC/sidecar dependency, or describe the verified relationship."
+    }
+  ]
+}

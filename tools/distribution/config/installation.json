@@ -1,0 +1,779 @@
+{
+  "schema_version": 1,
+  "default_profile": "full",
+  "scope": "Every declared emulation component; no unrelated host applications, ROMs, BIOS, keys or accounts. Experimental runtimes remain unverified for gameplay.",
+  "components": {
+    "workspace": {
+      "kind": "scaffold"
+    },
+    "host-packages": {
+      "kind": "packages",
+      "requires": [
+        "workspace"
+      ],
+      "packages": {
+        "pacman": [
+          "flatpak",
+          "python",
+          "python-pip",
+          "python-pillow",
+          "python-requests",
+          "python-py7zr",
+          "7zip",
+          "mame",
+          "mame-tools",
+          "ffmpeg",
+          "imagemagick",
+          "libjpeg-turbo",
+          "libwebp",
+          "qpdf",
+          "poppler",
+          "exfatprogs",
+          "git",
+          "cmake",
+          "ninja",
+          "gcc",
+          "make",
+          "pkgconf",
+          "rust",
+          "zstd",
+          "sdl2-compat",
+          "sdl2_image",
+          "sdl2_ttf",
+          "sdl2_mixer",
+          "gstreamer",
+          "gst-plugins-base",
+          "gst-plugins-base-libs",
+          "gst-plugins-good",
+          "gst-libav",
+          "tk",
+          "ttf-dejavu",
+          "xorg-xrandr",
+          "xdotool",
+          "wmctrl",
+          "xorg-xprop",
+          "xdg-utils",
+          "libnotify",
+          "wine",
+          "python-evdev",
+          "python-gobject",
+          "squashfs-tools"
+        ],
+        "apt-get": [
+          "flatpak",
+          "python3",
+          "python3-venv",
+          "python3-pip",
+          "python3-pil",
+          "python3-requests",
+          "python3-py7zr",
+          "p7zip-full",
+          "mame",
+          "mame-tools",
+          "ffmpeg",
+          "imagemagick",
+          "libjpeg-turbo-progs",
+          "webp",
+          "qpdf",
+          "poppler-utils",
+          "exfatprogs",
+          "git",
+          "cmake",
+          "ninja-build",
+          "build-essential",
+          "pkg-config",
+          "cargo",
+          "libzstd-dev",
+          "libsdl2-dev",
+          "libsdl2-image-dev",
+          "libsdl2-ttf-dev",
+          "libsdl2-mixer-dev",
+          "libgstreamer1.0-dev",
+          "libgstreamer-plugins-base1.0-dev",
+          "gstreamer1.0-plugins-good",
+          "gstreamer1.0-libav",
+          "python3-tk",
+          "fonts-dejavu-core",
+          "x11-xserver-utils",
+          "xdotool",
+          "wmctrl",
+          "x11-utils",
+          "xdg-utils",
+          "libnotify-bin",
+          "wine",
+          "zstd",
+          "python3-evdev",
+          "python3-gi",
+          "squashfs-tools"
+        ],
+        "dnf": [
+          "flatpak",
+          "python3",
+          "python3-pip",
+          "python3-pillow",
+          "python3-requests",
+          "python3-py7zr",
+          "7zip",
+          "mame",
+          "mame-tools",
+          "ffmpeg-free",
+          "ImageMagick",
+          "libjpeg-turbo-utils",
+          "libwebp-tools",
+          "qpdf",
+          "poppler-utils",
+          "exfatprogs",
+          "git",
+          "cmake",
+          "ninja-build",
+          "gcc-c++",
+          "make",
+          "pkgconf-pkg-config",
+          "cargo",
+          "libzstd-devel",
+          "SDL2-devel",
+          "SDL2_image-devel",
+          "SDL2_ttf-devel",
+          "SDL2_mixer-devel",
+          "gstreamer1-devel",
+          "gstreamer1-plugins-base-devel",
+          "gstreamer1-plugins-good",
+          "gstreamer1-plugin-libav",
+          "python3-tkinter",
+          "dejavu-sans-fonts",
+          "xrandr",
+          "xdotool",
+          "wmctrl",
+          "xprop",
+          "xdg-utils",
+          "libnotify",
+          "wine",
+          "zstd",
+          "squashfs-tools"
+        ]
+      }
+    },
+    "flatpak-com.valvesoftware.Steam": {
+      "kind": "flatpak",
+      "app_id": "com.valvesoftware.Steam",
+      "requires": [
+        "host-packages"
+      ],
+      "host_commands": [
+        "steam"
+      ]
+    },
+    "flatpak-org.libretro.RetroArch": {
+      "kind": "flatpak",
+      "app_id": "org.libretro.RetroArch",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "flatpak-org.DolphinEmu.dolphin-emu": {
+      "kind": "flatpak",
+      "app_id": "org.DolphinEmu.dolphin-emu",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "flatpak-org.flycast.Flycast": {
+      "kind": "flatpak",
+      "app_id": "org.flycast.Flycast",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "flatpak-org.azahar_emu.Azahar": {
+      "kind": "flatpak",
+      "app_id": "org.azahar_emu.Azahar",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "flatpak-net.kuribo64.melonDS": {
+      "kind": "flatpak",
+      "app_id": "net.kuribo64.melonDS",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "flatpak-net.pcsx2.PCSX2": {
+      "kind": "flatpak",
+      "app_id": "net.pcsx2.PCSX2",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "flatpak-org.ppsspp.PPSSPP": {
+      "kind": "flatpak",
+      "app_id": "org.ppsspp.PPSSPP",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "flatpak-info.cemu.Cemu": {
+      "kind": "flatpak",
+      "app_id": "info.cemu.Cemu",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "flatpak-app.xemu.xemu": {
+      "kind": "flatpak",
+      "app_id": "app.xemu.xemu",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "python-tools": {
+      "kind": "python",
+      "requires": [
+        "host-packages"
+      ],
+      "packages": [
+        "Pillow==12.3.0",
+        "amitools==0.8.1",
+        "py7zr==1.1.3",
+        "requests==2.34.2"
+      ]
+    },
+    "es-de": {
+      "kind": "frontend",
+      "component_id": "es-de",
+      "requires": [
+        "workspace"
+      ]
+    },
+    "quiver": {
+      "kind": "quiver",
+      "requires": [
+        "workspace"
+      ]
+    },
+    "runtime-duckstation": {
+      "kind": "runtime",
+      "runtime_id": "duckstation",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-rpcs3": {
+      "kind": "runtime",
+      "runtime_id": "rpcs3",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-shadps4": {
+      "kind": "runtime",
+      "runtime_id": "shadps4",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-pcsx2": {
+      "kind": "runtime",
+      "runtime_id": "pcsx2",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-ppsspp": {
+      "kind": "runtime",
+      "runtime_id": "ppsspp",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-melonds": {
+      "kind": "runtime",
+      "runtime_id": "melonds",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-flycast": {
+      "kind": "runtime",
+      "runtime_id": "flycast",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-azahar": {
+      "kind": "runtime",
+      "runtime_id": "azahar",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-cemu": {
+      "kind": "runtime",
+      "runtime_id": "cemu",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-xemu": {
+      "kind": "runtime",
+      "runtime_id": "xemu",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-a5200": {
+      "kind": "runtime",
+      "runtime_id": "core-a5200",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-prosystem": {
+      "kind": "runtime",
+      "runtime_id": "core-prosystem",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-o2em": {
+      "kind": "runtime",
+      "runtime_id": "core-o2em",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-pokemini": {
+      "kind": "runtime",
+      "runtime_id": "core-pokemini",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-px68k": {
+      "kind": "runtime",
+      "runtime_id": "core-px68k",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-neocd": {
+      "kind": "runtime",
+      "runtime_id": "core-neocd",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-kronos": {
+      "kind": "runtime",
+      "runtime_id": "core-kronos",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "retrofe": {
+      "kind": "build",
+      "requires": [
+        "host-packages"
+      ],
+      "repository": "https://github.com/phulshof/RetroFE.git",
+      "commit": "9f9230d09cbd4dae074b9465ca090567fd0623e7",
+      "sparse_paths": [
+        "RetroFE/Source",
+        "RetroFE/CMake",
+        "RetroFE/ThirdParty/sqlite3",
+        "RetroFE/ThirdParty/rapidxml-1.13"
+      ],
+      "commands": [
+        [
+          "cmake",
+          "-S",
+          "{source}/RetroFE/Source",
+          "-B",
+          "{build}",
+          "-G",
+          "Ninja",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+          "-DVERSION_MAJOR=0",
+          "-DVERSION_MINOR=10",
+          "-DVERSION_BUILD=0"
+        ],
+        [
+          "cmake",
+          "--build",
+          "{build}",
+          "--parallel",
+          "{jobs}"
+        ]
+      ],
+      "output": "{source}/RetroFE/Build/retrofe",
+      "target": "frontend/RetroFE/RetroFE",
+      "source_page": "https://github.com/phulshof/RetroFE"
+    },
+    "zarchive": {
+      "kind": "build",
+      "requires": [
+        "host-packages"
+      ],
+      "source": {
+        "url": "https://codeload.github.com/Exzap/ZArchive/tar.gz/d2c717730092c7bf8cbb033b12fd4001b7c4d932",
+        "size_bytes": 19782,
+        "sha256": "96a1be457dd289c24e33a76a1020d0a974d992f771dd3cb7a6dac9c8427e6f8e",
+        "allowed_hosts": [
+          "codeload.github.com"
+        ]
+      },
+      "commands": [
+        [
+          "cmake",
+          "-S",
+          "{source}",
+          "-B",
+          "{build}",
+          "-G",
+          "Ninja",
+          "-DCMAKE_BUILD_TYPE=Release"
+        ],
+        [
+          "cmake",
+          "--build",
+          "{build}",
+          "--parallel",
+          "{jobs}"
+        ]
+      ],
+      "output": "{build}/zarchive",
+      "target": "tools/roms/runtimes/zarchive/bin/zarchive",
+      "source_page": "https://github.com/Exzap/ZArchive/tree/v0.1.2",
+      "patches": [
+        {
+          "file": "src/zarchivewriter.cpp",
+          "before": "_ZARCHIVE::COMPRESSED_BLOCK_SIZE, 6);",
+          "after": "_ZARCHIVE::COMPRESSED_BLOCK_SIZE, ZSTD_maxCLevel());",
+          "reason": "Preserve existing maximum lossless compression policy; chunk size unchanged."
+        }
+      ]
+    },
+    "orbis-unpkg": {
+      "kind": "cargo",
+      "requires": [
+        "host-packages"
+      ],
+      "crate": "orbis-unpkg",
+      "version": "0.1.1",
+      "target": "tools/roms/bin/orbis-unpkg",
+      "source_page": "https://crates.io/crates/orbis-unpkg/0.1.1"
+    },
+    "skraper": {
+      "kind": "archive",
+      "requires": [
+        "host-packages",
+        "python-tools"
+      ],
+      "source": {
+        "url": "https://www.skraper.net/download/Skraper-1.4.1.7z",
+        "size_bytes": 25489692,
+        "sha256": "9ba9e41bee46d9916da532adfcb9307fd71872e49403fe4b7893bddbcc7e780c",
+        "allowed_hosts": [
+          "www.skraper.net",
+          "skraper.net"
+        ]
+      },
+      "format": "7z",
+      "target_dir": "tools/roms/skraper",
+      "entry": "SkraperUI.exe"
+    },
+    "eden-nx2": {
+      "kind": "build",
+      "requires": [
+        "host-packages"
+      ],
+      "source": {
+        "url": "https://github.com/dawgon2/eden-nx2-linux/releases/download/v2026.10.29/eden-nx2-50fa86bb-patched-source.tar.xz",
+        "size_bytes": 13298372,
+        "sha256": "8ec96a9b8ad36b1756bd40c4c10216c552a32657504e059d1a43c2e37c535b4a",
+        "allowed_hosts": [
+          "github.com",
+          "release-assets.githubusercontent.com",
+          "objects.githubusercontent.com"
+        ]
+      },
+      "commands": [
+        [
+          "cmake",
+          "-S",
+          "{source}",
+          "-B",
+          "{build}",
+          "-G",
+          "Ninja",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DCMAKE_CXX_FLAGS=-march=x86-64-v3 -mtune=generic",
+          "-DYUZU_TESTS=OFF",
+          "-DYUZU_CMD=ON",
+          "-DYUZU_USE_BUNDLED_QT=ON",
+          "-DYUZU_USE_BUNDLED_SDL3=ON",
+          "-DYUZU_USE_BUNDLED_FFMPEG=ON"
+        ],
+        [
+          "cmake",
+          "--build",
+          "{build}",
+          "--target",
+          "eden",
+          "eden-cli",
+          "--parallel",
+          "{jobs}"
+        ]
+      ],
+      "output": "{build}/bin/eden",
+      "target": "emulator/linux/eden-nx2/build/bin/eden",
+      "minimum_free_bytes": 12884901888,
+      "timeout": 7200,
+      "experimental": true,
+      "requires_cpu": "x86-64-v3",
+      "require_resource_limits": true
+    },
+    "kytyps5": {
+      "kind": "archive",
+      "requires": [
+        "workspace"
+      ],
+      "source": {
+        "url": "https://github.com/KytyPS5/KytyPS5/releases/download/KytyPS5-2026-10-26-597137e/KytyPS5-2026-10-26-597137e-Linux-x86_64.tar.gz",
+        "size_bytes": 77242193,
+        "sha256": "05b487510ce056078c5267565006ebdb6c1dd742115d097a212e731398e12db6",
+        "allowed_hosts": [
+          "github.com",
+          "release-assets.githubusercontent.com",
+          "objects.githubusercontent.com"
+        ]
+      },
+      "format": "tar",
+      "target_dir": "emulator/linux/kytyps5",
+      "entry": "kyty_emulator",
+      "experimental": true,
+      "entry_kind": "elf"
+    },
+    "ps5pcem": {
+      "kind": "archive",
+      "requires": [
+        "workspace"
+      ],
+      "source": {
+        "url": "https://github.com/iStark/PS5PCEM/releases/download/v0.3.5/PS5PCEM-0.3.5-linux-x64.pacman",
+        "size_bytes": 15025056,
+        "sha256": "03c14f20c6d2b79e8ad0c67fea29573adebca8fa8039c6b76ecbf29e5e811463",
+        "allowed_hosts": [
+          "github.com",
+          "release-assets.githubusercontent.com",
+          "objects.githubusercontent.com"
+        ]
+      },
+      "format": "tar",
+      "target_dir": "emulator/linux/ps5pcem",
+      "entry": "ps5pcem",
+      "member_map": {
+        "usr/lib/ps5pcem/ps5pcem": "ps5pcem",
+        "usr/lib/ps5pcem/game-run": "game-run",
+        "usr/lib/ps5pcem/pkgextractor": "pkgextractor",
+        "usr/share/doc/ps5pcem/LICENSE": "LICENSE",
+        "usr/share/doc/ps5pcem/linux.md": "linux.md",
+        "usr/share/doc/ps5pcem/VERSION": "VERSION"
+      },
+      "experimental": true,
+      "entry_kind": "elf"
+    },
+    "configuration": {
+      "kind": "configuration",
+      "requires": [
+        "workspace",
+        "python-tools"
+      ]
+    },
+    "runtime-core-bluemsx": {
+      "kind": "runtime",
+      "runtime_id": "core-bluemsx",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-fbneo": {
+      "kind": "runtime",
+      "runtime_id": "core-fbneo",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-freeintv": {
+      "kind": "runtime",
+      "runtime_id": "core-freeintv",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-fuse": {
+      "kind": "runtime",
+      "runtime_id": "core-fuse",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-genesis-plus-gx": {
+      "kind": "runtime",
+      "runtime_id": "core-genesis-plus-gx",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-mednafen-ngp": {
+      "kind": "runtime",
+      "runtime_id": "core-mednafen-ngp",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-mednafen-pce": {
+      "kind": "runtime",
+      "runtime_id": "core-mednafen-pce",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-mednafen-vb": {
+      "kind": "runtime",
+      "runtime_id": "core-mednafen-vb",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-mednafen-wswan": {
+      "kind": "runtime",
+      "runtime_id": "core-mednafen-wswan",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-mesen": {
+      "kind": "runtime",
+      "runtime_id": "core-mesen",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-mgba": {
+      "kind": "runtime",
+      "runtime_id": "core-mgba",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-mupen64plus-next": {
+      "kind": "runtime",
+      "runtime_id": "core-mupen64plus-next",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-opera": {
+      "kind": "runtime",
+      "runtime_id": "core-opera",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-puae": {
+      "kind": "runtime",
+      "runtime_id": "core-puae",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-snes9x": {
+      "kind": "runtime",
+      "runtime_id": "core-snes9x",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-stella": {
+      "kind": "runtime",
+      "runtime_id": "core-stella",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "runtime-core-vice-x64": {
+      "kind": "runtime",
+      "runtime_id": "core-vice-x64",
+      "requires": [
+        "host-packages"
+      ]
+    },
+    "desktop-shortcuts": {
+      "kind": "shortcuts",
+      "requires": [
+        "configuration",
+        "retrofe",
+        "es-de",
+        "quiver"
+      ]
+    },
+    "runtime-xenia-canary-linux": {
+      "kind": "runtime",
+      "runtime_id": "xenia-canary-linux",
+      "requires": [
+        "experimental-linux-libraries"
+      ],
+      "experimental": true
+    },
+    "sharpemu": {
+      "kind": "archive",
+      "requires": [
+        "workspace"
+      ],
+      "source": {
+        "url": "https://github.com/sharpemu/sharpemu/releases/download/v0.0.7-pulse/sharpemu-0.0.7-pulse-linux-x64.tar.gz",
+        "size_bytes": 66875306,
+        "sha256": "38d7507a57e891a5763e23fc68c72172d2395931f8f64f59fc522ed4ed3d761e",
+        "allowed_hosts": [
+          "github.com",
+          "release-assets.githubusercontent.com",
+          "objects.githubusercontent.com"
+        ]
+      },
+      "format": "tar",
+      "target_dir": "emulator/linux/sharpemu",
+      "entry": "SharpEmu",
+      "experimental": true,
+      "entry_kind": "elf",
+      "version": "0.0.7-pulse"
+    },
+    "eglantine": {
+      "kind": "runtime",
+      "runtime_id": "eglantine",
+      "requires": [
+        "workspace"
+      ],
+      "experimental": true
+    },
+    "experimental-linux-libraries": {
+      "kind": "packages",
+      "requires": [
+        "workspace"
+      ],
+      "packages": {
+        "pacman": [
+          "sdl2-compat",
+          "gtk3",
+          "vulkan-icd-loader"
+        ],
+        "apt-get": [
+          "libsdl2-2.0-0",
+          "libgtk-3-0",
+          "libvulkan1"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,647 @@
+{
+  "schema_version": 1,
+  "policy": "Explicit source-only allowlist. No personal library, binaries or art. Private engineering review, not a redistribution license.",
+  "files": [
+    {
+      "source": "tools/distribution/repository/.gitignore",
+      "target": ".gitignore"
+    },
+    {
+      "source": "tools/distribution/repository/AGENTS.md",
+      "target": "AGENTS.md"
+    },
+    {
+      "source": "README.md",
+      "target": "README.md"
+    },
+    {
+      "source": "tools/distribution/repository/bitbucket-pipelines.yml",
+      "target": "bitbucket-pipelines.yml"
+    },
+    {
+      "source": "docs/business/README.md",
+      "target": "docs/business/README.md"
+    },
+    {
+      "source": "docs/business/architecture.md",
+      "target": "docs/business/architecture.md"
+    },
+    {
+      "source": "docs/business/assets/branding/emuatlas-hero.svg",
+      "target": "docs/business/assets/branding/emuatlas-hero.svg"
+    },
+    {
+      "source": "docs/business/automated-install.md",
+      "target": "docs/business/automated-install.md"
+    },
+    {
+      "source": "docs/business/distribution-policy.md",
+      "target": "docs/business/distribution-policy.md"
+    },
+    {
+      "source": "docs/business/operations.md",
+      "target": "docs/business/operations.md"
+    },
+    {
+      "source": "docs/business/quality-and-roadmap.md",
+      "target": "docs/business/quality-and-roadmap.md"
+    },
+    {
+      "source": "docs/business/releasing.md",
+      "target": "docs/business/releasing.md"
+    },
+    {
+      "source": "frontend/ES-DE/configure-rom-directory.py",
+      "target": "frontend/ES-DE/configure-rom-directory.py"
+    },
+    {
+      "source": "frontend/ES-DE/launch.sh",
+      "target": "frontend/ES-DE/launch.sh"
+    },
+    {
+      "source": "frontend/ES-DE/structure-frontend.py",
+      "target": "frontend/ES-DE/structure-frontend.py"
+    },
+    {
+      "source": "frontend/QuiverLauncher/launch.sh",
+      "target": "frontend/QuiverLauncher/launch.sh"
+    },
+    {
+      "source": "frontend/QuiverLauncher/structure-frontend.py",
+      "target": "frontend/QuiverLauncher/structure-frontend.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/audits/backup-preimage-audit.py",
+      "target": "frontend/RetroFE/Tools/audits/backup-preimage-audit.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/audits/capture-theme-states.py",
+      "target": "frontend/RetroFE/Tools/audits/capture-theme-states.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/audits/check-all.py",
+      "target": "frontend/RetroFE/Tools/audits/check-all.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/audits/layout-references.py",
+      "target": "frontend/RetroFE/Tools/audits/layout-references.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/audits/platform-coverage.py",
+      "target": "frontend/RetroFE/Tools/audits/platform-coverage.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/audits/search-assets.py",
+      "target": "frontend/RetroFE/Tools/audits/search-assets.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/audits/validate-aeon-nox-navigation.py",
+      "target": "frontend/RetroFE/Tools/audits/validate-aeon-nox-navigation.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/audits/validate-aeon-nox-presentation.py",
+      "target": "frontend/RetroFE/Tools/audits/validate-aeon-nox-presentation.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/audits/validate-esde-metadata-runtime.py",
+      "target": "frontend/RetroFE/Tools/audits/validate-esde-metadata-runtime.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/audits/validate-session-safety.py",
+      "target": "frontend/RetroFE/Tools/audits/validate-session-safety.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/audits/validate-theme-session-runtime.py",
+      "target": "frontend/RetroFE/Tools/audits/validate-theme-session-runtime.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/emulators/host-emulator-launcher.py",
+      "target": "frontend/RetroFE/Tools/launchers/emulators/host-emulator-launcher.py",
+      "mode": "0755"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/emulators/mame-profile-launcher.py",
+      "target": "frontend/RetroFE/Tools/launchers/emulators/mame-profile-launcher.py",
+      "mode": "0755"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/emulators/retrofe_audio.py",
+      "target": "frontend/RetroFE/Tools/launchers/emulators/retrofe_audio.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/desktop_environment.py",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/desktop_environment.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/display-profile.py",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/display-profile.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/input-debug-overlay.py",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/input-debug-overlay.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/input-session.py",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/input-session.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/launch-retrofe.sh",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/launch-retrofe.sh"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/media-tasks.py",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/media-tasks.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/navigation-panel.py",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/navigation-panel.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/run-retrofe.sh",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/run-retrofe.sh"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/steam-input.py",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/steam-input.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/steam_desktop_session.py",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/steam_desktop_session.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/theme-profile.py",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/theme-profile.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/theme-transition.py",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/theme-transition.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/window_placement.py",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/window_placement.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/materializers/materialize-aeon-nox-layouts.py",
+      "target": "frontend/RetroFE/Tools/materializers/materialize-aeon-nox-layouts.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/materializers/materialize-aeon-nox-navigation.py",
+      "target": "frontend/RetroFE/Tools/materializers/materialize-aeon-nox-navigation.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/materializers/materialize-esde-metadata.py",
+      "target": "frontend/RetroFE/Tools/materializers/materialize-esde-metadata.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/materializers/materialize-host-profile.py",
+      "target": "frontend/RetroFE/Tools/materializers/materialize-host-profile.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/materializers/materialize-platform-catalog.py",
+      "target": "frontend/RetroFE/Tools/materializers/materialize-platform-catalog.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/materializers/materialize-profile.py",
+      "target": "frontend/RetroFE/Tools/materializers/materialize-profile.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/materializers/organize-asset-library.py",
+      "target": "frontend/RetroFE/Tools/materializers/organize-asset-library.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/materializers/reorganize-shared-assets.py",
+      "target": "frontend/RetroFE/Tools/materializers/reorganize-shared-assets.py"
+    },
+    {
+      "source": "install.sh",
+      "target": "install.sh",
+      "mode": "0755"
+    },
+    {
+      "source": "preview.sh",
+      "target": "preview.sh"
+    },
+    {
+      "source": "tools/distribution/config/component-review.json",
+      "target": "tools/distribution/config/component-review.json"
+    },
+    {
+      "source": "tools/distribution/config/components.json",
+      "target": "tools/distribution/config/components.json"
+    },
+    {
+      "source": "tools/distribution/config/installation.json",
+      "target": "tools/distribution/config/installation.json"
+    },
+    {
+      "source": "tools/distribution/config/product.json",
+      "target": "tools/distribution/config/product.json"
+    },
+    {
+      "source": "tools/distribution/config/release-files.json",
+      "target": "tools/distribution/config/release-files.json"
+    },
+    {
+      "source": "tools/distribution/config/state-schemas.json",
+      "target": "tools/distribution/config/state-schemas.json"
+    },
+    {
+      "source": "tools/distribution/examples/media-source-lock.json",
+      "target": "tools/distribution/examples/media-source-lock.json"
+    },
+    {
+      "source": "tools/distribution/install_config.py",
+      "target": "tools/distribution/install_config.py"
+    },
+    {
+      "source": "tools/distribution/release.py",
+      "target": "tools/distribution/release.py"
+    },
+    {
+      "source": "tools/distribution/repository/.gitignore",
+      "target": "tools/distribution/repository/.gitignore"
+    },
+    {
+      "source": "tools/distribution/repository/AGENTS.md",
+      "target": "tools/distribution/repository/AGENTS.md"
+    },
+    {
+      "source": "tools/distribution/repository/bitbucket-pipelines.yml",
+      "target": "tools/distribution/repository/bitbucket-pipelines.yml"
+    },
+    {
+      "source": "tools/distribution/setup.py",
+      "target": "tools/distribution/setup.py"
+    },
+    {
+      "source": "tools/distribution/templates/frontend/RetroFE/Config/media-map.json",
+      "target": "tools/distribution/templates/frontend/RetroFE/Config/media-map.json"
+    },
+    {
+      "source": "tools/distribution/templates/frontend/RetroFE/Config/platform-catalog.json",
+      "target": "tools/distribution/templates/frontend/RetroFE/Config/platform-catalog.json"
+    },
+    {
+      "source": "tools/distribution/templates/frontend/RetroFE/Config/profiles/host-linux.json",
+      "target": "tools/distribution/templates/frontend/RetroFE/Config/profiles/host-linux.json"
+    },
+    {
+      "source": "tools/distribution/templates/frontend/RetroFE/Config/systems.json",
+      "target": "tools/distribution/templates/frontend/RetroFE/Config/systems.json"
+    },
+    {
+      "source": "tools/distribution/templates/frontend/RetroFE/Config/themes.json",
+      "target": "tools/distribution/templates/frontend/RetroFE/Config/themes.json"
+    },
+    {
+      "source": "tools/distribution/templates/tools/roms/config/platform-rules.json",
+      "target": "tools/distribution/templates/tools/roms/config/platform-rules.json"
+    },
+    {
+      "source": "tools/distribution/templates/tools/roms/config/policy.json",
+      "target": "tools/distribution/templates/tools/roms/config/policy.json"
+    },
+    {
+      "source": "tools/distribution/templates/tools/roms/config/portable-runtimes.json",
+      "target": "tools/distribution/templates/tools/roms/config/portable-runtimes.json"
+    },
+    {
+      "source": "tools/distribution/templates/tools/roms/config/roots.json",
+      "target": "tools/distribution/templates/tools/roms/config/roots.json"
+    },
+    {
+      "source": "tools/distribution/tests/test_setup.py",
+      "target": "tools/distribution/tests/test_setup.py"
+    },
+    {
+      "source": "tools/distribution/tests/test_workspace.py",
+      "target": "tools/distribution/tests/test_workspace.py"
+    },
+    {
+      "source": "tools/distribution/workspace.py",
+      "target": "tools/distribution/workspace.py"
+    },
+    {
+      "source": "tools/roms/catalog_projection.py",
+      "target": "tools/roms/catalog_projection.py"
+    },
+    {
+      "source": "tools/roms/collection_hierarchy.py",
+      "target": "tools/roms/collection_hierarchy.py"
+    },
+    {
+      "source": "tools/roms/config/compression-profiles.json",
+      "target": "tools/roms/config/compression-profiles.json"
+    },
+    {
+      "source": "tools/roms/config/variant-policy.json",
+      "target": "tools/roms/config/variant-policy.json"
+    },
+    {
+      "source": "tools/roms/eden_runtime.py",
+      "target": "tools/roms/eden_runtime.py"
+    },
+    {
+      "source": "tools/roms/emutool.py",
+      "target": "tools/roms/emutool.py"
+    },
+    {
+      "source": "tools/roms/emulator_controls.py",
+      "target": "tools/roms/emulator_controls.py"
+    },
+    {
+      "source": "tools/roms/tests/test_emulator_controls.py",
+      "target": "tools/roms/tests/test_emulator_controls.py"
+    },
+    {
+      "source": "tools/roms/esde_media.py",
+      "target": "tools/roms/esde_media.py"
+    },
+    {
+      "source": "tools/roms/examples/plan-template.json",
+      "target": "tools/roms/examples/plan-template.json"
+    },
+    {
+      "source": "tools/roms/fetch_no_intro_dats.py",
+      "target": "tools/roms/fetch_no_intro_dats.py"
+    },
+    {
+      "source": "tools/roms/launchers/azahar.sh",
+      "target": "tools/roms/launchers/azahar.sh"
+    },
+    {
+      "source": "tools/roms/launchers/bigpemu.sh",
+      "target": "tools/roms/launchers/bigpemu.sh"
+    },
+    {
+      "source": "tools/roms/launchers/cemu.sh",
+      "target": "tools/roms/launchers/cemu.sh"
+    },
+    {
+      "source": "tools/roms/launchers/dolphin-emu.sh",
+      "target": "tools/roms/launchers/dolphin-emu.sh"
+    },
+    {
+      "source": "tools/roms/launchers/duckstation.sh",
+      "target": "tools/roms/launchers/duckstation.sh"
+    },
+    {
+      "source": "tools/roms/launchers/eden.sh",
+      "target": "tools/roms/launchers/eden.sh"
+    },
+    {
+      "source": "tools/roms/launchers/flycast.sh",
+      "target": "tools/roms/launchers/flycast.sh"
+    },
+    {
+      "source": "tools/roms/launchers/melonds.sh",
+      "target": "tools/roms/launchers/melonds.sh"
+    },
+    {
+      "source": "tools/roms/launchers/model-2-emulator.sh",
+      "target": "tools/roms/launchers/model-2-emulator.sh"
+    },
+    {
+      "source": "tools/roms/launchers/pcsx2-qt.sh",
+      "target": "tools/roms/launchers/pcsx2-qt.sh"
+    },
+    {
+      "source": "tools/roms/launchers/ppsspp.sh",
+      "target": "tools/roms/launchers/ppsspp.sh"
+    },
+    {
+      "source": "tools/roms/launchers/primehack.sh",
+      "target": "tools/roms/launchers/primehack.sh"
+    },
+    {
+      "source": "tools/roms/launchers/retroarch.sh",
+      "target": "tools/roms/launchers/retroarch.sh"
+    },
+    {
+      "source": "tools/roms/launchers/rpcs3.sh",
+      "target": "tools/roms/launchers/rpcs3.sh"
+    },
+    {
+      "source": "tools/roms/launchers/ryujinx.sh",
+      "target": "tools/roms/launchers/ryujinx.sh"
+    },
+    {
+      "source": "tools/roms/launchers/scummvm.sh",
+      "target": "tools/roms/launchers/scummvm.sh"
+    },
+    {
+      "source": "tools/roms/launchers/shadps4.sh",
+      "target": "tools/roms/launchers/shadps4.sh"
+    },
+    {
+      "source": "tools/roms/launchers/supermodel.sh",
+      "target": "tools/roms/launchers/supermodel.sh"
+    },
+    {
+      "source": "tools/roms/launchers/vita3k.sh",
+      "target": "tools/roms/launchers/vita3k.sh"
+    },
+    {
+      "source": "tools/roms/launchers/xemu-emu.sh",
+      "target": "tools/roms/launchers/xemu-emu.sh"
+    },
+    {
+      "source": "tools/roms/launchers/xenia.sh",
+      "target": "tools/roms/launchers/xenia.sh"
+    },
+    {
+      "source": "tools/roms/materialize-collection-media-paths.py",
+      "target": "tools/roms/materialize-collection-media-paths.py"
+    },
+    {
+      "source": "tools/roms/media_covers.py",
+      "target": "tools/roms/media_covers.py"
+    },
+    {
+      "source": "tools/roms/media_optimizer.py",
+      "target": "tools/roms/media_optimizer.py"
+    },
+    {
+      "source": "tools/roms/media_session.py",
+      "target": "tools/roms/media_session.py"
+    },
+    {
+      "source": "tools/roms/media_stray.py",
+      "target": "tools/roms/media_stray.py"
+    },
+    {
+      "source": "tools/roms/metadata_ingest.py",
+      "target": "tools/roms/metadata_ingest.py"
+    },
+    {
+      "source": "tools/roms/preview-client.js",
+      "target": "tools/roms/preview-client.js"
+    },
+    {
+      "source": "tools/roms/preview-ui.html",
+      "target": "tools/roms/preview-ui.html"
+    },
+    {
+      "source": "tools/roms/preview.py",
+      "target": "tools/roms/preview.py"
+    },
+    {
+      "source": "tools/roms/preview_games.py",
+      "target": "tools/roms/preview_games.py"
+    },
+    {
+      "source": "tools/roms/romtool.py",
+      "target": "tools/roms/romtool.py"
+    },
+    {
+      "source": "tools/roms/runtime_install.py",
+      "target": "tools/roms/runtime_install.py"
+    },
+    {
+      "source": "emulator/linux/eden-nx2/eden-nx2-launch",
+      "target": "emulator/linux/eden-nx2/eden-nx2-launch",
+      "mode": "0755"
+    },
+    {
+      "source": "tools/roms/save_capture.py",
+      "target": "tools/roms/save_capture.py"
+    },
+    {
+      "source": "tools/roms/schemas/event.schema.json",
+      "target": "tools/roms/schemas/event.schema.json"
+    },
+    {
+      "source": "tools/roms/schemas/operation.schema.json",
+      "target": "tools/roms/schemas/operation.schema.json"
+    },
+    {
+      "source": "tools/roms/schemas/plan.schema.json",
+      "target": "tools/roms/schemas/plan.schema.json"
+    },
+    {
+      "source": "tools/roms/schemas/rom-variant-record.schema.json",
+      "target": "tools/roms/schemas/rom-variant-record.schema.json"
+    },
+    {
+      "source": "tools/roms/skraper/launch.sh",
+      "target": "tools/roms/skraper/launch.sh",
+      "mode": "0755"
+    },
+    {
+      "source": "tools/roms/steam_centralizer.py",
+      "target": "tools/roms/steam_centralizer.py"
+    },
+    {
+      "source": "tools/roms/storage_dedupe.py",
+      "target": "tools/roms/storage_dedupe.py"
+    },
+    {
+      "source": "tools/roms/variant_metadata.py",
+      "target": "tools/roms/variant_metadata.py"
+    },
+    {
+      "source": "tools/roms/variant_organization.py",
+      "target": "tools/roms/variant_organization.py"
+    },
+    {
+      "source": "tools/roms/tests/test_module_identity.py",
+      "target": "tools/roms/tests/test_module_identity.py"
+    },
+    {
+      "source": "tools/roms/tests/test_esde_validate_contract.py",
+      "target": "tools/roms/tests/test_esde_validate_contract.py"
+    },
+    {
+      "source": "tools/roms/tests/test_switch2_launch_alias.py",
+      "target": "tools/roms/tests/test_switch2_launch_alias.py"
+    },
+    {
+      "source": "tools/roms/tests/test_emutool_platform_status.py",
+      "target": "tools/roms/tests/test_emutool_platform_status.py"
+    },
+    {
+      "source": "tools/roms/tests/test_game_maintenance_exclusion.py",
+      "target": "tools/roms/tests/test_game_maintenance_exclusion.py"
+    },
+    {
+      "source": "tools/roms/tests/test_launcher_archive_extraction.py",
+      "target": "tools/roms/tests/test_launcher_archive_extraction.py"
+    },
+    {
+      "source": "tools/roms/tests/test_media_stray_promotion.py",
+      "target": "tools/roms/tests/test_media_stray_promotion.py"
+    },
+    {
+      "source": "tools/distribution/repository/github/ci.yml",
+      "target": ".github/workflows/ci.yml"
+    },
+    {
+      "source": "tools/roms/tests/launcher_fixture.py",
+      "target": "tools/roms/tests/launcher_fixture.py"
+    },
+    {
+      "source": "tools/roms/controller_session.py",
+      "target": "tools/roms/controller_session.py"
+    },
+    {
+      "source": "tools/roms/tests/test_controller_session.py",
+      "target": "tools/roms/tests/test_controller_session.py"
+    },
+    {
+      "source": "tools/roms/runtime_setup.py",
+      "target": "tools/roms/runtime_setup.py"
+    },
+    {
+      "source": "tools/roms/tests/test_runtime_alternatives.py",
+      "target": "tools/roms/tests/test_runtime_alternatives.py"
+    },
+    {
+      "source": "tools/roms/esde_theme.py",
+      "target": "tools/roms/esde_theme.py"
+    },
+    {
+      "source": "tools/roms/tests/test_esde_theme.py",
+      "target": "tools/roms/tests/test_esde_theme.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/audits/validate-esde-shared-theme.py",
+      "target": "frontend/RetroFE/Tools/audits/validate-esde-shared-theme.py"
+    },
+    {
+      "source": "tools/roms/portable_emulator.py",
+      "target": "tools/roms/portable_emulator.py"
+    },
+    {
+      "source": "tools/roms/native_bindings.py",
+      "target": "tools/roms/native_bindings.py"
+    },
+    {
+      "source": "tools/roms/frontend_projection.py",
+      "target": "tools/roms/frontend_projection.py"
+    },
+    {
+      "source": "tools/roms/tests/test_emulator_library.py",
+      "target": "tools/roms/tests/test_emulator_library.py"
+    },
+    {
+      "source": "emulator/launch.sh",
+      "target": "emulator/launch.sh"
+    },
+    {
+      "source": "emulator/launch.cmd",
+      "target": "emulator/launch.cmd"
+    },
+    {
+      "source": "emulator/README.md",
+      "target": "emulator/README.md"
+    },
+    {
+      "source": "tools/roms/steam_shortcuts.py",
+      "target": "tools/roms/steam_shortcuts.py"
+    },
+    {
+      "source": "tools/distribution/repository/github/ci.yml",
+      "target": "tools/distribution/repository/github/ci.yml"
+    }
+  ]
+}

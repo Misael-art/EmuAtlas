@@ -36,7 +36,7 @@ Bibliotecas de emulação crescem. Jogos, artes, versões, ferramentas e configu
 
 ## Instalar
 
-**Esta primeira publicação reúne a apresentação e a documentação.** O código-fonte e os pacotes de instalação ainda aguardam publicação revisada neste repositório. Os comandos a seguir destinam-se ao pacote de engenharia preparado localmente, em **Linux x86_64**:
+**Esta prévia inclui as fontes de engenharia, os templates e a documentação.** A seleção publicada exclui jogos, BIOS, saves e executáveis de terceiros. Os comandos a seguir destinam-se à instalação em **Linux x86_64**:
 
 ```bash
 # 1. Conheça o plano — sem alterar o host
@@ -74,7 +74,7 @@ Leia o [guia de instalação automatizada](docs/business/automated-install.md) p
 
 <table>
   <tr>
-    <td align="center"><strong>59</strong><br/>componentes no fluxo de instalação</td>
+    <td align="center"><strong>62</strong><br/>componentes no fluxo de instalação</td>
     <td align="center"><strong>24</strong><br/>núcleos libretro com receitas</td>
     <td align="center"><strong>3</strong><br/>frontends integrados ao instalador</td>
   </tr>
@@ -83,12 +83,13 @@ Leia o [guia de instalação automatizada](docs/business/automated-install.md) p
 | Camada | O que o projeto prepara |
 | :--- | :--- |
 | **Frontends** | RetroFE, ES-DE e Quiver Launcher. |
+| **Launcher alternativo** | [RocketLauncher](docs/business/architecture.md), adicionado localmente para lançamento de jogos pelos frontends; ativação no Linux pendente de validação. |
 | **Emulação** | RetroArch, MAME, Dolphin, DuckStation, PCSX2, RPCS3, PPSSPP, Flycast, Cemu, melonDS, Azahar e xemu. |
 | **Host** | Dependências de mídia, arquivos compactados, fontes, janelas, Python, Wine e ferramentas de compilação. |
 | **Organização** | Inventário, integridade, identificação, variantes, compactação e planos reversíveis. |
 | **Mídia** | Ferramentas de scraping/ingestão, metadados, histórias e caminhos compartilhados por plataforma. |
 | **Compilações** | Receitas para RetroFE, ZArchive, orbis-unpkg e Eden-NX2. |
-| **Pesquisa** | Eden-NX2, Xenia Canary Linux, KytyPS5 e PS5PCEM permanecem experimentais. |
+| **Pesquisa** | Eden-NX2, Eglantine, Xenia Canary Linux, KytyPS5, PS5PCEM e SharpEmu permanecem experimentais. |
 
 As receitas usam pacotes do sistema, Flatpak, arquivos verificados ou fontes fixadas por commit. **Instalar um runtime não comprova compatibilidade jogável.**
 
@@ -112,7 +113,11 @@ workspace/
 ├── tools/
 │   ├── distribution/       # Bootstrap, receitas, templates e releases
 │   └── roms/               # Organizadores, validação e manutenção
-├── frontend/               # RetroFE, ES-DE e Quiver Launcher
+├── frontend/               # Frontends e alternativa RocketLauncher
+├── emulator/
+│   ├── linux/              # Binários e núcleos Linux
+│   ├── windows/            # Binários e núcleos Windows
+│   └── data/               # Dados únicos compartilhados de emulação
 ├── roms/<system_id>/        # Biblioteca fornecida pelo usuário
 ├── media/<system_id>/       # Capas, vídeos, screenshots, histórias…
 ├── bios/                   # BIOS e firmware fornecidos pelo usuário
@@ -126,6 +131,8 @@ workspace/
 **Código no repositório. Dados na instalação.** O pacote contém ferramentas, templates e documentação. Jogos, BIOS, chaves, saves, biblioteca pessoal de arte e executáveis de terceiros ficam fora; as aquisições previstas ocorrem na origem.
 
 A mídia compartilhada possui uma origem canônica. Aliases relativos oferecem compatibilidade entre consumidores, evitando criar uma biblioteca de payloads para cada frontend.
+
+Os emuladores usam a [estrutura portátil em emulator/](emulator/README.md), com binários separados por SO e dados compartilhados. O Linux atual foi preservado; os pacotes Windows estão preparados para aceitação nativa. Runtimes com pastas fixas exigem NTFS e preparação dos vínculos após mudar de unidade. A execução física no Windows e os binários Windows dos frontends ainda estão pendentes.
 
 ## Estado do projeto
 

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "legacy_state_directory": "outputs/roms-consolidacao-2026-10-24",
+  "csv_fields": {
+    "catalogo-arquivos.csv": [
+      "system_id",
+      "source",
+      "source_root",
+      "relative_path",
+      "absolute_path",
+      "file_name",
+      "game_or_set_hint",
+      "variant_hint",
+      "function_hint",
+      "inventory_category",
+      "extension",
+      "size_bytes",
+      "sha256",
+      "hash_status",
+      "hash_evidence",
+      "dependencies",
+      "integrity_status",
+      "destination_proposal",
+      "action",
+      "metadata_recheck",
+      "current_absolute_path",
+      "current_path_status",
+      "current_sha256",
+      "current_size_bytes",
+      "current_operation_id"
+    ],
+    "pendencias-integridade-dependencias.csv": [
+      "type",
+      "source",
+      "path",
+      "status",
+      "dependency_or_impact",
+      "next_step",
+      "case_sha256",
+      "case_source_relative"
+    ]
+  }
+}

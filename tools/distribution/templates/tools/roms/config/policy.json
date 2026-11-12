@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "allowed_roots": [
+    "${WORKSPACE}"
+  ],
+  "protected_roots": [
+    "${WORKSPACE}/frontend"
+  ],
+  "protected_path_components": [
+    "bios",
+    "firmware",
+    "save",
+    "saves",
+    "savestates",
+    "frontend",
+    "retrofe",
+    "hakchi",
+    "config",
+    "configs"
+  ],
+  "protected_extensions": [
+    ".sav",
+    ".srm",
+    ".state",
+    ".mcd",
+    ".dsv",
+    ".pup",
+    ".toml",
+    ".settings",
+    ".log",
+    ".sh",
+    ".exe"
+  ],
+  "protected_names": [
+    ".directory",
+    "metadata.txt",
+    "systeminfo.txt",
+    "license.txt",
+    "portable.txt",
+    "rpcs3_guide.txt",
+    "vita3k_guide.txt"
+  ],
+  "permanent_delete_enabled": false,
+  "follow_symlinks": false,
+  "quarantine_leaf_symlink": true,
+  "overwrite_enabled": false,
+  "frontend_configuration_edits_enabled": false,
+  "archive_extract_symlinks_enabled": false,
+  "require_sha256_before_after_for_changes": true,
+  "require_quarantine_for_removal": true
+}

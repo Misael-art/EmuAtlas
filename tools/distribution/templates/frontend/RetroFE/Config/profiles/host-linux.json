@@ -1,0 +1,1869 @@
+{
+  "profile": "host-linux",
+  "description": "Starter adapter profile. Not a claim of installed emulators or tested gameplay.",
+  "rom_root": "../../roms",
+  "bios_root": "../../bios",
+  "mame_executable": "mame",
+  "python_executable": "python3",
+  "mame_user_data": "../../emulator/data/MAME/host-linux",
+  "systems": {
+    "Nintendo Entertainment System": {
+      "rom_subdir": "nes",
+      "launcher": "Nintendo Entertainment System",
+      "driver": "nes",
+      "media_argument": "-cart",
+      "extensions": "7z,zip,nes,fds,unif,unf",
+      "subcollections": [
+        "Nintendo Entertainment System Brazil Games Translated",
+        "Nintendo Entertainment System HD",
+        "Nintendo Entertainment System Homebrew",
+        "Nintendo Entertainment System select",
+        "Nintendo Famicom Brazil Games Translated",
+        "Nintendo Famicom English Games Translated"
+      ]
+    },
+    "Sega Genesis": {
+      "rom_subdir": "genesis",
+      "launcher": "Sega Genesis",
+      "driver": "genesis",
+      "media_argument": "-cart",
+      "extensions": "7z,zip,bin,md",
+      "subcollections": [
+        "Sega Mega Drive (Russian Unlicensed ROMs)",
+        "Sega Mega Drive Blast Processing",
+        "Sega Mega Drive Brazil Games Translated",
+        "Sega Mega Drive Hacks",
+        "Sega Mega Drive Japan",
+        "Sega Mega Drive New"
+      ]
+    },
+    "Sega 32X": {
+      "rom_subdir": "sega32xna",
+      "launcher": "Sega 32X",
+      "driver": "32x",
+      "media_argument": "-cart",
+      "extensions": "7z,zip,bin,md",
+      "subcollections": []
+    },
+    "Creatronic Mega Duck": {
+      "rom_subdir": "megaduck",
+      "launcher": "Host MAME",
+      "driver": "megaduck",
+      "media_argument": "-cart",
+      "extensions": "bin",
+      "subcollections": []
+    }
+  },
+  "retroarch": {
+    "app_id": "org.libretro.RetroArch",
+    "command": "retroarch",
+    "core_root": "../../emulator/linux/retroarch-cores",
+    "bios_root": "../../bios",
+    "userdata_root": "../../emulator/data/RetroArch",
+    "config_template": "Config/templates/host-apps/retroarch.cfg.original",
+    "config_path": "../../emulator/data/RetroArch/retroarch.cfg",
+    "savefile_directory": "../../emulator/data/RetroArch/saves",
+    "savestate_directory": "../../emulator/data/RetroArch/states"
+  },
+  "flatpak_apps": {
+    "org.flycast.Flycast": {
+      "command": "flycast",
+      "version": "v2.7",
+      "portable_xdg_config_home": "config",
+      "legacy_xdg_config_subdir": "flycast",
+      "portable_xdg_data_home": "data",
+      "legacy_xdg_data_subdir": "flycast"
+    },
+    "net.kuribo64.melonDS": {
+      "command": "melonDS",
+      "version": "1.1"
+    },
+    "org.azahar_emu.Azahar": {
+      "command": "azahar-launcher",
+      "version": "2126.2",
+      "portable_xdg_config_home": "config",
+      "portable_xdg_data_home": "data",
+      "legacy_xdg_config_subdir": "azahar-emu",
+      "legacy_xdg_data_subdir": "azahar-emu"
+    },
+    "org.DolphinEmu.dolphin-emu": {
+      "command": "dolphin-emu-wrapper",
+      "version": "2609a"
+    },
+    "info.cemu.Cemu": {
+      "command": "Cemu-wrapper",
+      "version": "2.6",
+      "portable_xdg_config_home": "config",
+      "portable_xdg_data_home": "data",
+      "legacy_xdg_config_subdir": "Cemu",
+      "legacy_xdg_data_subdir": "Cemu"
+    },
+    "net.pcsx2.PCSX2": {
+      "command": "pcsx2-qt",
+      "version": "v2.8.2"
+    },
+    "net.rpcs3.RPCS3": {
+      "command": "rpcs3",
+      "version": "0.0.43-20376-1f2e2eb9",
+      "portable_xdg_config_home": "config",
+      "portable_xdg_data_home": "data"
+    },
+    "org.ppsspp.PPSSPP": {
+      "command": "PPSSPPSDL",
+      "version": "1.20.4",
+      "portable_xdg_config_home": "config",
+      "portable_xdg_data_home": "data",
+      "legacy_xdg_config_subdir": "ppsspp"
+    },
+    "app.xemu.xemu": {
+      "command": "xemu",
+      "version": "0.8.136",
+      "portable_xdg_config_home": "config",
+      "portable_xdg_data_home": "data"
+    }
+  },
+  "collections": {
+    "Sega Master System": {
+      "rom_subdir": "mastersystem",
+      "extensions": "7z,zip,sms",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "genesis_plus_gx_libretro.so",
+      "subcollections": [
+        "Sega Mark III",
+        "Sega Master System Brazil Games Translated",
+        "Sega Master System Hacks",
+        "Sega Master System Homebrew",
+        "Sega Master System New",
+        "Sega Master System Tech Demo",
+        "Sega Master System TecToy",
+        "Sega Master System Unreleased-Prototype"
+      ],
+      "rom_path": "../../roms/mastersystem",
+      "bios_root": "../../bios"
+    },
+    "Sega Game Gear": {
+      "rom_subdir": "gamegear",
+      "extensions": "7z,zip,gg",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "genesis_plus_gx_libretro.so",
+      "subcollections": [
+        "Sega Game Gear Hacks",
+        "Sega Game Gear Japan",
+        "Sega Game Gear New",
+        "Sega Game Gear Unreleased-Prototype"
+      ],
+      "rom_path": "../../roms/gamegear",
+      "bios_root": "../../bios"
+    },
+    "Sega 32X": {
+      "rom_subdir": "sega32xna",
+      "extensions": "7z,zip,bin,md",
+      "adapter": "mame",
+      "launcher": "Sega 32X",
+      "subcollections": [
+        "Sega 32X Brazil Games Translated"
+      ],
+      "rom_path": "../../roms/sega32xna"
+    },
+    "Sega CD": {
+      "rom_subdir": "megacd",
+      "extensions": "chd,cue,iso,bin,7z,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "genesis_plus_gx_libretro.so",
+      "subcollections": [],
+      "rom_path": "../../roms/megacd",
+      "bios_root": "../../bios"
+    },
+    "Sega Dreamcast": {
+      "rom_subdir": "dreamcast",
+      "extensions": "chd,cdi,gdi,7z,zip",
+      "adapter": "flatpak",
+      "launcher": "Host Flatpak",
+      "app_id": "org.flycast.Flycast",
+      "command": "flycast",
+      "args": [
+        "-config",
+        "config:Dreamcast.BiosPath={bios_dc}",
+        "{item}"
+      ],
+      "bios_subdir": "dc",
+      "userdata_subdir": "Flycast",
+      "subcollections": [
+        "Sega Dreamcast English Games Translated",
+        "Sega Dreamcast Indies"
+      ],
+      "rom_path": "../../roms/dreamcast",
+      "bios_root": "../../bios"
+    },
+    "Sega Genesis": {
+      "rom_subdir": "genesis",
+      "extensions": "7z,zip,bin,md",
+      "adapter": "mame",
+      "launcher": "Sega Genesis",
+      "subcollections": [
+        "Sega Mega Drive (Russian Unlicensed ROMs)",
+        "Sega Mega Drive Blast Processing",
+        "Sega Mega Drive Brazil Games Translated",
+        "Sega Mega Drive Hacks",
+        "Sega Mega Drive Japan",
+        "Sega Mega Drive New"
+      ],
+      "rom_path": "../../roms/genesis"
+    },
+    "3DO Interactive Multiplayer": {
+      "rom_subdir": "3do",
+      "extensions": "chd,cue,iso,bin",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "opera_libretro.so",
+      "subcollections": [],
+      "rom_path": "../../roms/3do",
+      "bios_root": "../../bios"
+    },
+    "Sega Saturn": {
+      "rom_subdir": "saturn",
+      "extensions": "chd,cue,iso,bin,img",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "kronos_libretro.so",
+      "core_root": "../../emulator/linux/retroarch-cores",
+      "subcollections": [
+        "Sega Saturn Hacks"
+      ],
+      "rom_path": "../../roms/saturn"
+    },
+    "Commodore Amiga": {
+      "rom_subdir": "amiga1200",
+      "extensions": "adf,adz,dms,ipf,zip,7z",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "puae_libretro.so",
+      "subcollections": [],
+      "rom_path": "../../roms/amiga1200",
+      "bios_root": "../../bios"
+    },
+    "Microsoft MSX": {
+      "rom_subdir": "msx",
+      "extensions": "dsk,rom,cas,zip,7z",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "bluemsx_libretro.so",
+      "bios_files": [
+        "Databases/msxromdb.xml",
+        "Machines/Shared Roms/MSX.rom"
+      ],
+      "subcollections": [
+        "Microsoft MSX 2",
+        "Microsoft MSX 2 English Games Translated",
+        "Microsoft MSX Brazil Games Translated",
+        "Microsoft MSX English Games Translated",
+        "Microsoft MSX Turbo-R Japan"
+      ],
+      "rom_path": "../../roms/msx",
+      "bios_root": "../../bios"
+    },
+    "Microsoft Xbox": {
+      "rom_subdir": "xbox",
+      "extensions": "iso,xiso,zip,7z",
+      "adapter": "flatpak",
+      "launcher": "Host Flatpak",
+      "app_id": "app.xemu.xemu",
+      "userdata_subdir": "xemu",
+      "command": "xemu",
+      "args": [
+        "-config_path",
+        "{userdata}/xemu.toml",
+        "-dvd_path",
+        "{item}",
+        "-full-screen"
+      ],
+      "bios_files": [
+        "mcpx_1.0.bin",
+        "Complex_4627.bin"
+      ],
+      "subcollections": [],
+      "rom_path": "../../roms/xbox"
+    },
+    "Microsoft Xbox 360": {
+      "rom_subdir": "xbox360",
+      "extensions": "iso,xex",
+      "adapter": "command",
+      "launcher": "Host Command",
+      "subcollections": [
+        "Microsoft Xbox 360 Live Arcade"
+      ],
+      "rom_path": "../../roms/xbox360",
+      "command": "../../emulator/linux/xenia-canary-linux/Xenia.AppImage",
+      "args": [
+        "{item}",
+        "--storage_root={userdata}",
+        "--content_root={userdata}/content",
+        "--cache_root={userdata}/cache",
+        "--hid=sdl",
+        "--gpu=vulkan",
+        "--discord=false"
+      ],
+      "userdata_subdir": "Xenia",
+      "environment": {
+        "APPIMAGELAUNCHER_DISABLE": "1",
+        "XDG_CONFIG_HOME": "{userdata}/config",
+        "XDG_DATA_HOME": "{userdata}/data",
+        "XDG_CACHE_HOME": "{userdata}/cache"
+      },
+      "launch_inputs": [
+        "iso",
+        "xex"
+      ],
+      "runtime_id": "xenia-canary-linux",
+      "probe_args": [
+        "--appimage-version"
+      ],
+      "runtime_version": "80cecb7",
+      "status": "runtime_installed_gameplay_unverified",
+      "reason": "Xenia Canary Linux nativo fixado por SHA; SDL/Vulkan e userdata locais. EXE Windows histórico não é usado. Gameplay e controles físicos precisam aceite por jogo."
+    },
+    "NEC PC Engine": {
+      "rom_subdir": "pcengine",
+      "extensions": "pce,zip,7z",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "mednafen_pce_libretro.so",
+      "subcollections": [
+        "NEC PC Engine Homebrew"
+      ],
+      "rom_path": "../../roms/pcengine",
+      "bios_root": "../../bios"
+    },
+    "NEC PC Engine-CD": {
+      "rom_subdir": "pcenginecd",
+      "extensions": "chd,cue,iso,bin,zip,7z",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "mednafen_pce_libretro.so",
+      "subcollections": [],
+      "rom_path": "../../roms/pcenginecd",
+      "bios_root": "../../bios"
+    },
+    "NEC TurboGrafx-16": {
+      "rom_subdir": "tg16",
+      "extensions": "pce,zip,7z",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "mednafen_pce_libretro.so",
+      "subcollections": [],
+      "rom_path": "../../roms/tg16",
+      "bios_root": "../../bios"
+    },
+    "NEC TurboGrafx-CD": {
+      "rom_subdir": "tg-cd",
+      "extensions": "chd,cue,iso,bin,zip,7z",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "mednafen_pce_libretro.so",
+      "subcollections": [],
+      "rom_path": "../../roms/tg-cd",
+      "bios_root": "../../bios"
+    },
+    "Nintendo 3DS": {
+      "rom_subdir": "n3ds",
+      "extensions": "3ds,cia,zip,7z",
+      "adapter": "flatpak",
+      "launcher": "Host Flatpak",
+      "app_id": "org.azahar_emu.Azahar",
+      "userdata_subdir": "Azahar",
+      "command": "azahar-launcher",
+      "args": [
+        "{item}"
+      ],
+      "subcollections": [],
+      "rom_path": "../../roms/n3ds",
+      "bios_root": "../../bios"
+    },
+    "Nintendo 64": {
+      "rom_subdir": "n64",
+      "extensions": "n64,z64,v64,zip,7z",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "mupen64plus_next_libretro.so",
+      "subcollections": [
+        "Nintendo 64 Brazil Games Translated",
+        "Nintendo 64 New",
+        "Nintendo 64 Unreleased-Prototype"
+      ],
+      "rom_path": "../../roms/n64",
+      "bios_root": "../../bios"
+    },
+    "Nintendo DS": {
+      "rom_subdir": "nds",
+      "extensions": "nds,zip,7z",
+      "adapter": "flatpak",
+      "launcher": "Host Flatpak",
+      "app_id": "net.kuribo64.melonDS",
+      "command": "melonDS",
+      "args": [
+        "{item}"
+      ],
+      "extract_extensions": [
+        ".7z",
+        ".zip"
+      ],
+      "extracted_extensions": [
+        ".nds"
+      ],
+      "userdata_subdir": "MelonDS",
+      "subcollections": [
+        "Nintendo DS Brazil Games Translated",
+        "Nintendo DS New"
+      ],
+      "rom_path": "../../roms/nds",
+      "bios_root": "../../bios"
+    },
+    "Nintendo Entertainment System": {
+      "rom_subdir": "nes",
+      "extensions": "7z,zip,nes,fds,unif,unf",
+      "adapter": "mame",
+      "launcher": "Nintendo Entertainment System",
+      "subcollections": [
+        "Nintendo Entertainment System Brazil Games Translated",
+        "Nintendo Entertainment System HD",
+        "Nintendo Entertainment System Homebrew",
+        "Nintendo Entertainment System select",
+        "Nintendo Famicom Brazil Games Translated",
+        "Nintendo Famicom English Games Translated"
+      ],
+      "rom_path": "../../roms/nes"
+    },
+    "Nintendo Game Boy": {
+      "rom_subdir": "gb",
+      "extensions": "gb,zip,7z",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "mgba_libretro.so",
+      "subcollections": [
+        "Nintendo Game Boy Brazil Games Translated"
+      ],
+      "rom_path": "../../roms/gb",
+      "bios_root": "../../bios"
+    },
+    "Nintendo Game Boy Advance": {
+      "rom_subdir": "gba",
+      "extensions": "gba,zip,7z",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "mgba_libretro.so",
+      "subcollections": [
+        "Nintendo Game Boy Advance Brazil Games Translated",
+        "Nintendo Game Boy Advance Hacks",
+        "Nintendo Game Boy Advance New"
+      ],
+      "rom_path": "../../roms/gba",
+      "bios_root": "../../bios"
+    },
+    "Nintendo GameCube": {
+      "rom_subdir": "gc",
+      "extensions": "iso,gcz,rvz",
+      "adapter": "flatpak",
+      "launcher": "Host Flatpak",
+      "app_id": "org.DolphinEmu.dolphin-emu",
+      "command": "dolphin-emu-wrapper",
+      "args": [
+        "-u",
+        "{userdata}/shared",
+        "-e",
+        "{item}"
+      ],
+      "subcollections": [],
+      "rom_path": "../../roms/gc",
+      "bios_root": "../../bios"
+    },
+    "Nintendo Super Famicom": {
+      "rom_subdir": "sfc",
+      "extensions": "sfc,smc,zip,7z",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "snes9x_libretro.so",
+      "subcollections": [],
+      "rom_path": "../../roms/sfc",
+      "bios_root": "../../bios"
+    },
+    "Nintendo Switch": {
+      "rom_subdir": "switch",
+      "extensions": "nsp,xci,nsz",
+      "adapter": "unavailable",
+      "launcher": "Host Emulator Unavailable",
+      "subcollections": [],
+      "rom_path": "../../roms/switch"
+    },
+    "Nintendo Switch 2": {
+      "rom_subdir": "switch2",
+      "extensions": "exefs",
+      "adapter": "command",
+      "launcher": "Host Command",
+      "display_name": "Nintendo Switch 2",
+      "profile_kind": "emulator",
+      "subcollections": [],
+      "rom_path": "../../roms/switch2",
+      "command": "../../emulator/linux/eden-nx2/eden-nx2-launch",
+      "args": [
+        "{item}"
+      ],
+      "probe_args": [
+        "--check"
+      ],
+      "launch_inputs": [
+        "exefs",
+        "game_directory"
+      ],
+      "accepts_directories": true,
+      "userdata_subdir": "Eden-NX2",
+      "runtime_id": "eden-nx2",
+      "environment": {
+        "APPIMAGELAUNCHER_DISABLE": "1",
+        "XDG_CONFIG_HOME": "{userdata}/config",
+        "XDG_DATA_HOME": "{userdata}/data",
+        "XDG_CACHE_HOME": "{userdata}/cache"
+      },
+      "runtime_selection_path": "../../emulator/data/EmulatorSelections/switch2.json",
+      "runtime_identity": {
+        "kind": "npdm",
+        "title_id_pattern": "^[0-9a-f]{16}$"
+      },
+      "runtime_options": {
+        "eglantine": {
+          "display_name": "Eglantine daily-20261107",
+          "command": "../../emulator/linux/eglantine/Eglantine.AppImage",
+          "args": [
+            "-f",
+            "-g",
+            "{game_dir}"
+          ],
+          "supported_inputs": [
+            "exefs",
+            "directory"
+          ],
+          "userdata_subdir": "Eglantine",
+          "environment": {
+            "APPIMAGELAUNCHER_DISABLE": "1",
+            "XDG_CONFIG_HOME": "{userdata}/config",
+            "XDG_DATA_HOME": "{userdata}/data",
+            "XDG_CACHE_HOME": "{userdata}/cache",
+            "QT_QPA_PLATFORM": "xcb"
+          },
+          "probe_args": [
+            "--appimage-version"
+          ],
+          "probe_expected_exit_code": 0,
+          "runtime_version": "daily-20261107",
+          "limitations": [
+            "experimental",
+            "gameplay_requires_native_acceptance"
+          ]
+        }
+      }
+    },
+    "Nintendo Wii": {
+      "rom_subdir": "wii",
+      "extensions": "rvz,wbfs,iso,wad,gcz",
+      "adapter": "flatpak",
+      "launcher": "Host Flatpak",
+      "app_id": "org.DolphinEmu.dolphin-emu",
+      "command": "dolphin-emu-wrapper",
+      "args": [
+        "-u",
+        "{userdata}/shared",
+        "-e",
+        "{item}"
+      ],
+      "subcollections": [],
+      "rom_path": "../../roms/wii",
+      "bios_root": "../../bios"
+    },
+    "Nintendo WiiWare": {
+      "rom_subdir": "wiiware",
+      "extensions": "wad,rvz,wbfs,iso,zip,7z",
+      "adapter": "flatpak",
+      "launcher": "Host Flatpak",
+      "app_id": "org.DolphinEmu.dolphin-emu",
+      "command": "dolphin-emu-wrapper",
+      "args": [
+        "-u",
+        "{userdata}/shared",
+        "-e",
+        "{item}"
+      ],
+      "subcollections": [],
+      "rom_path": "../../roms/wiiware",
+      "bios_root": "../../bios"
+    },
+    "Nintendo Wii U": {
+      "rom_subdir": "wiiu",
+      "extensions": "wua,rpx,wud,iso,zip,7z",
+      "adapter": "flatpak",
+      "launcher": "Host Flatpak",
+      "app_id": "info.cemu.Cemu",
+      "userdata_subdir": "Cemu",
+      "command": "Cemu-wrapper",
+      "args": [
+        "-g",
+        "{item}"
+      ],
+      "subcollections": [],
+      "rom_path": "../../roms/wiiu",
+      "bios_root": "../../bios"
+    },
+    "Super Nintendo Entertainment System": {
+      "rom_subdir": "snes",
+      "extensions": "sfc,smc,zip,7z",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "snes9x_libretro.so",
+      "subcollections": [
+        "Super Nintendo Entertainment System Brazil Games Translated",
+        "Super Nintendo Entertainment System Hacks",
+        "Super Nintendo Entertainment System New"
+      ],
+      "rom_path": "../../roms/snes",
+      "bios_root": "../../bios"
+    },
+    "PC Games": {
+      "rom_subdir": "pc",
+      "extensions": "exe,bat,zip,7z",
+      "adapter": "unavailable",
+      "launcher": "Host Emulator Unavailable",
+      "subcollections": [],
+      "rom_path": "../../roms/pc"
+    },
+    "Adventure Game Studio Game Engine": {
+      "rom_subdir": "ags",
+      "extensions": "desktop",
+      "adapter": "unavailable",
+      "launcher": "Host Emulator Unavailable",
+      "display_name": "Adventure Game Studio Game Engine",
+      "runtime_candidate": "ScummVM",
+      "runtime_candidate_app_id": "org.scummvm.ScummVM",
+      "runtime_candidate_source": "https://docs.scummvm.org/en/latest/help/release.html",
+      "profile_kind": "engine",
+      "subcollections": [],
+      "rom_path": "../../roms/ags"
+    },
+    "Sony Playstation": {
+      "rom_subdir": "psx",
+      "extensions": "chd,cue,bin,img,iso,m3u,pbp,mds,mdf,ccd,ecm",
+      "adapter": "command",
+      "launcher": "Host Command",
+      "display_name": "Sony PlayStation",
+      "runtime_candidate": "DuckStation",
+      "runtime_candidate_command": "../../emulator/linux/duckstation/DuckStation-x64.AppImage",
+      "runtime_candidate_source": "https://github.com/stenzek/duckstation/releases",
+      "profile_kind": "emulator",
+      "subcollections": [
+        "Sony PlayStation Brazil Games Translated"
+      ],
+      "rom_path": "../../roms/psx",
+      "command": "../../emulator/linux/duckstation/DuckStation-x64.AppImage",
+      "args": [
+        "-fullscreen",
+        "--",
+        "{item}"
+      ],
+      "userdata_subdir": "DuckStation",
+      "onboarding_defaults": [
+        {
+          "format": "ini",
+          "path": "config/duckstation/settings.ini",
+          "section": "Main",
+          "key": "NoDesktopFile",
+          "value": "true",
+          "source": "https://github.com/stenzek/duckstation/blob/master/src/duckstation-qt/qthost.cpp",
+          "section_source": "https://github.com/stenzek/duckstation/blob/master/src/core/settings.cpp"
+        }
+      ],
+      "onboarding_manual_requirements": [
+        {
+          "format": "ini",
+          "path": "config/duckstation/settings.ini",
+          "section": "Main",
+          "key": "SetupWizardIncomplete",
+          "complete_value": "false",
+          "source": "https://github.com/stenzek/duckstation/blob/master/src/duckstation-qt/qthost.cpp"
+        }
+      ],
+      "onboarding_guide": {
+        "title": "Primeiro uso do DuckStation",
+        "intro": "O DuckStation abriu o assistente de configuração. Este guia prepara as decisões; o assistente nativo fará as alterações somente depois que você escolher cada opção. Você pode adiar e voltar ao jogo mais tarde.",
+        "steps": [
+          {
+            "id": "language",
+            "title": "Idioma e aparência",
+            "instruction": "Escolha o idioma e o tema da interface conforme sua preferência."
+          },
+          {
+            "id": "launcher_shortcut",
+            "title": "Atalho do DuckStation",
+            "instruction": "O DuckStation pode perguntar se deve criar um atalho próprio no menu de aplicativos. O RetroFE já é a entrada principal do projeto; nessa pergunta, escolha No e marque Don't ask again para não duplicar o atalho. Isso só controla a criação do atalho e não afeta jogos, BIOS ou configurações do emulador. O perfil define Main/NoDesktopFile=true somente quando a preferência ainda não existe e preserva um valor que você já escolheu."
+          },
+          {
+            "id": "bios",
+            "title": "Imagem de BIOS PS1",
+            "instruction": "Use somente uma BIOS PS1 cuja identidade e integridade tenham sido confirmadas, dentro da raiz bios/ do projeto. Os candidatos locais atuais ainda não foram validados; não selecione um arquivo apenas pelo nome. Se não houver BIOS confirmada, cancele o assistente e mantenha o teste PSX pendente."
+          },
+          {
+            "id": "game_directories",
+            "title": "Diretórios de jogos",
+            "instruction": "Adicione a pasta roms/psx, relativa à raiz canônica do projeto. O perfil host já passa o arquivo selecionado diretamente ao DuckStation; não mova nem extraia jogos durante este passo."
+          },
+          {
+            "id": "controller",
+            "title": "Controles",
+            "instruction": "Selecione o controle que será usado, ou teclado se preferir. Depois do assistente, confirme a entrada dentro do jogo; o mapeamento do RetroFE não valida o controle do emulador."
+          },
+          {
+            "id": "graphics",
+            "title": "Gráficos",
+            "instruction": "Escolha uma configuração compatível com a GPU e a tela atuais. Não há um backend gráfico específico validado para este host."
+          },
+          {
+            "id": "updates",
+            "title": "Atualizações automáticas",
+            "instruction": "O assistente observado mostrou esta opção ativada. Decida se permite que o DuckStation verifique e baixe atualizações automaticamente; esta preferência não é alterada pelo projeto."
+          },
+          {
+            "id": "achievements",
+            "title": "RetroAchievements",
+            "instruction": "A integração é opcional. Configure uma conta somente se quiser usar o serviço; não é necessária para abrir jogos locais."
+          },
+          {
+            "id": "interface_view",
+            "title": "Interface, visualização e conclusão",
+            "instruction": "Escolha as opções de interface/visualização que preferir. O assistente encerra o primeiro uso; o estado concluído é gravado pelo DuckStation e verificado pelo emutool na próxima abertura."
+          }
+        ],
+        "completion": "O launcher só considera o onboarding concluído quando o próprio DuckStation grava Main/SetupWizardIncomplete=false. Não altere esse marcador manualmente."
+      },
+      "environment": {
+        "APPIMAGELAUNCHER_DISABLE": "1",
+        "XDG_CONFIG_HOME": "{userdata}/config",
+        "XDG_DATA_HOME": "{userdata}/data"
+      },
+      "runtime_installation_operation_id": "environment-20261025T210046-3fc3a717",
+      "bios_identity": {
+        "candidate_files": [
+          "ps1_rom.bin",
+          "psxonpsp660.bin"
+        ]
+      }
+    },
+    "Sony PlayStation 5": {
+      "rom_subdir": "ps5",
+      "extensions": "zar",
+      "adapter": "command",
+      "launcher": "Host Command",
+      "display_name": "Sony PlayStation 5",
+      "runtime_candidate": "KytyPS5",
+      "runtime_candidate_command": "kyty_emulator",
+      "runtime_candidate_source": "https://github.com/KytyPS5/KytyPS5",
+      "profile_kind": "emulator",
+      "subcollections": [],
+      "rom_path": "../../roms/ps5",
+      "command": "../../emulator/linux/kytyps5/kyty_emulator",
+      "args": [
+        "--game",
+        "{item}"
+      ],
+      "probe_args": [
+        "--help"
+      ],
+      "launch_inputs": [
+        "game_directory",
+        "zar"
+      ],
+      "accepts_directories": true,
+      "userdata_subdir": "KytyPS5",
+      "runtime_id": "kytyps5",
+      "runtime_selection_path": "../../emulator/data/EmulatorSelections/ps5.json",
+      "runtime_identity": {
+        "metadata_path": "sce_sys/param.json",
+        "metadata_key": "TITLE_ID",
+        "title_id_pattern": "^[A-Z]{4}[0-9]{5}$",
+        "executable_path": "eboot.bin"
+      },
+      "runtime_options": {
+        "ps5pcem": {
+          "display_name": "PS5PCEM Linux 0.3.5",
+          "command": "../../emulator/linux/ps5pcem/game-run",
+          "args": [
+            "{eboot}"
+          ],
+          "probe_command": "../../emulator/linux/ps5pcem/ps5pcem",
+          "probe_args": [
+            "--version"
+          ],
+          "runtime_version": "0.3.5",
+          "supported_inputs": [
+            "directory"
+          ],
+          "userdata_subdir": "PS5PCEM",
+          "working_directory": "{userdata}/run/{title_id}",
+          "environment": {
+            "XDG_CONFIG_HOME": "{userdata}/config",
+            "XDG_DATA_HOME": "{userdata}/data",
+            "XDG_CACHE_HOME": "{userdata}/cache"
+          },
+          "limitations": [
+            "experimental_linux_build",
+            "keyboard_input_only_on_linux",
+            "no_windows_media_foundation_video_decoder"
+          ]
+        },
+        "sharpemu": {
+          "display_name": "SharpEmu 0.0.7-pulse",
+          "command": "../../emulator/linux/sharpemu/SharpEmu",
+          "args": [
+            "{item}",
+            "--no-log-file"
+          ],
+          "supported_inputs": [
+            "directory",
+            "zar"
+          ],
+          "userdata_subdir": "SharpEmu",
+          "environment": {
+            "SHARPEMU_USER_DIR": "{userdata}",
+            "XDG_CONFIG_HOME": "{userdata}/config",
+            "XDG_DATA_HOME": "{userdata}/data",
+            "XDG_CACHE_HOME": "{userdata}/cache"
+          },
+          "probe_args": [
+            "--help"
+          ],
+          "probe_expected_exit_code": 1,
+          "runtime_version": "0.0.7-pulse",
+          "limitations": [
+            "experimental",
+            "native_sdl_first_gamepad_only_unverified_gameplay"
+          ]
+        }
+      },
+      "environment": {
+        "XDG_CONFIG_HOME": "{userdata}/config",
+        "XDG_DATA_HOME": "{userdata}/data",
+        "XDG_CACHE_HOME": "{userdata}/cache"
+      },
+      "runtime_version": "0.3.0 (597137e, 2026-10-26)",
+      "runtime_installation_path": "emulator/linux/kytyps5/kyty_emulator",
+      "runtime_installation_operation_id": "environment-20261026T054847-8da6f2cb"
+    },
+    "Sony Playstation 2": {
+      "rom_subdir": "ps2",
+      "extensions": "chd,iso,cue,bin,7z,zip",
+      "adapter": "flatpak",
+      "launcher": "Host Flatpak",
+      "app_id": "net.pcsx2.PCSX2",
+      "command": "pcsx2-qt",
+      "args": [
+        "-datapath",
+        "{userdata}",
+        "-fullscreen",
+        "--",
+        "{item}"
+      ],
+      "userdata_subdir": "PCSX2",
+      "subcollections": [],
+      "rom_path": "../../roms/ps2",
+      "bios_root": "../../bios",
+      "onboarding_manual_requirements": [
+        {
+          "format": "ini",
+          "path": "PCSX2/inis/PCSX2.ini",
+          "section": "UI",
+          "key": "SetupWizardIncomplete",
+          "complete_value": "false",
+          "source": "https://github.com/PCSX2/pcsx2/blob/master/pcsx2-qt/QtHost.cpp"
+        }
+      ],
+      "onboarding_guide": {
+        "title": "Primeiro uso do PCSX2",
+        "intro": "O PCSX2 abriu o assistente inicial. Revise as escolhas manualmente; o launcher não seleciona BIOS, controles, política de atualização ou conta.",
+        "steps": [
+          {
+            "id": "language_updates",
+            "title": "Idioma, tema e atualizações",
+            "instruction": "Escolha idioma e tema. Decida se o PCSX2 deve verificar atualizações automaticamente; essa preferência não é alterada pelo projeto."
+          },
+          {
+            "id": "bios",
+            "title": "BIOS do PlayStation 2",
+            "instruction": "A pasta de BIOS do projeto é configurada como bios/. Selecione somente uma BIOS PS2 com identidade e integridade confirmadas. Os nomes de arquivo, sozinhos, não comprovam isso; sem BIOS validada, pare e mantenha o teste pendente."
+          },
+          {
+            "id": "game_directory",
+            "title": "Pasta de jogos",
+            "instruction": "Confirme roms/ps2 como pasta de busca. O perfil passa o jogo selecionado diretamente ao PCSX2; não mova nem extraia arquivos durante o assistente."
+          },
+          {
+            "id": "controller",
+            "title": "Controle",
+            "instruction": "Escolha o dispositivo do jogador 1 e revise o mapeamento. Se não houver controle conectado, mantenha uma opção de entrada que você possa usar."
+          },
+          {
+            "id": "achievements",
+            "title": "RetroAchievements",
+            "instruction": "O login e as conquistas são opcionais; não são necessários para iniciar jogos locais."
+          },
+          {
+            "id": "finish",
+            "title": "Conclusão",
+            "instruction": "Finalize o assistente depois de revisar cada escolha. Se você cancelar, o PCSX2 repetirá o assistente na próxima abertura."
+          }
+        ],
+        "completion": "O emutool considera o primeiro uso concluído quando o próprio PCSX2 grava UI/SetupWizardIncomplete=false em ../../emulator/data/PCSX2/PCSX2/inis/PCSX2.ini. Não altere esse marcador manualmente."
+      }
+    },
+    "Sony PlayStation 3": {
+      "rom_subdir": "ps3",
+      "extensions": "iso,ps3,ps3dir,sfb,sfo,elf,self",
+      "adapter": "command",
+      "launcher": "Host Command",
+      "display_name": "Sony PlayStation 3",
+      "command": "../../emulator/linux/rpcs3/rpcs3.AppImage",
+      "args": [
+        "--no-gui",
+        "--fullscreen",
+        "{item}"
+      ],
+      "probe_args": [
+        "--headless",
+        "--version"
+      ],
+      "launch_inputs": [
+        "iso",
+        "game_directory",
+        "elf"
+      ],
+      "accepts_directories": true,
+      "userdata_subdir": "RPCS3",
+      "environment": {
+        "XDG_CONFIG_HOME": "{userdata}/config",
+        "XDG_DATA_HOME": "{userdata}/data",
+        "XDG_CACHE_HOME": "{userdata}/cache",
+        "APPIMAGELAUNCHER_DISABLE": "1",
+        "APPIMAGE_EXTRACT_AND_RUN": "1"
+      },
+      "subcollections": [],
+      "rom_path": "../../roms/ps3",
+      "bios_root": "../../bios",
+      "firmware": {
+        "type": "ps3_system_software_pup",
+        "download_page": "https://www.playstation.com/en-us/support/hardware/ps3/system-software/",
+        "canonical_path": "ps3/PS3UPDAT.pup",
+        "expected_size_bytes": 206197916,
+        "expected_sha256": "158471fd834f8ea8036136b6aab43cd86c7ba73d79ca30e0af3c0fe0001cf365",
+        "installed_version_file": "../../emulator/data/RPCS3/config/rpcs3/dev_flash/vsh/etc/version.txt",
+        "expected_installed_release": "04.9300",
+        "headless_install_args": [
+          "--headless",
+          "--installfw",
+          "{firmware}"
+        ],
+        "download_filename": "PS3UPDAT.PUP",
+        "download_policy": "official_playstation_support_page_only; https; allow only *.ps3.update.playstation.net; exact pinned size/SHA-256 and SCEUF signature; never download PlayStation 2 BIOS"
+      },
+      "runtime_version": "0.0.43-20404-e8979d31 (2026-10-26)",
+      "runtime_installation_path": "emulator/linux/rpcs3/rpcs3.AppImage",
+      "runtime_installation_operation_id": "environment-20261026T062023-640fe20b"
+    },
+    "Sony PlayStation 4": {
+      "rom_subdir": "ps4",
+      "extensions": "elf",
+      "adapter": "command",
+      "launcher": "Host Command",
+      "display_name": "Sony PlayStation 4",
+      "runtime_candidate": "shadPS4",
+      "runtime_candidate_command": "shadPS4",
+      "runtime_candidate_source": "https://github.com/shadps4-emu/shadPS4",
+      "profile_kind": "emulator",
+      "command": "../../emulator/linux/shadps4/Shadps4-sdl.AppImage",
+      "args": [
+        "--game",
+        "{item}",
+        "--fullscreen",
+        "true"
+      ],
+      "probe_args": [
+        "--help"
+      ],
+      "launch_inputs": [
+        "game_directory",
+        "elf"
+      ],
+      "accepts_directories": true,
+      "userdata_subdir": "shadPS4",
+      "environment": {
+        "XDG_CONFIG_HOME": "{userdata}/config",
+        "XDG_DATA_HOME": "{userdata}/data",
+        "XDG_CACHE_HOME": "{userdata}/cache",
+        "APPIMAGELAUNCHER_DISABLE": "1",
+        "APPIMAGE_EXTRACT_AND_RUN": "1"
+      },
+      "subcollections": [],
+      "rom_path": "../../roms/ps4",
+      "runtime_version": "0.20.0 (official SDL AppImage, 2026-10-14)",
+      "runtime_installation_path": "emulator/linux/shadps4/Shadps4-sdl.AppImage",
+      "runtime_installation_operation_id": "environment-20261026T065332-1598b009"
+    },
+    "Sony PlayStation Portable": {
+      "rom_subdir": "psp",
+      "extensions": "iso,cso,pbp,zip,7z",
+      "adapter": "flatpak",
+      "launcher": "Host Flatpak",
+      "app_id": "org.ppsspp.PPSSPP",
+      "userdata_subdir": "PPSSPP",
+      "command": "PPSSPPSDL",
+      "args": [
+        "{item}"
+      ],
+      "subcollections": [],
+      "rom_path": "../../roms/psp",
+      "bios_root": "../../bios"
+    },
+    "PortMaster": {
+      "rom_subdir": "portmaster",
+      "extensions": "sh",
+      "adapter": "unavailable",
+      "launcher": "Host Emulator Unavailable",
+      "display_name": "PortMaster",
+      "profile_kind": "not_applicable",
+      "subcollections": [],
+      "rom_path": "../../roms/portmaster"
+    },
+    "MAME": {
+      "rom_subdir": "mame",
+      "extensions": "zip,7z,chd",
+      "adapter": "mame_named",
+      "launcher": "Host MAME",
+      "subcollections": [],
+      "rom_path": "../../roms/mame"
+    },
+    "Atari 2600": {
+      "rom_subdir": "atari2600",
+      "extensions": "a26,a52,bin,zip,7z",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "stella_libretro.so",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/atari2600",
+      "bios_root": "../../bios"
+    },
+    "Commodore Amiga (amiga)": {
+      "display_name": "Commodore Amiga",
+      "rom_subdir": "amiga",
+      "extensions": "7z,adf,adz,ccd,chd,cue,dms,fdi,hdf,hdz,ipf,iso,lha,m3u,mds,nrg,rp9,uae,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/amiga",
+      "bios_root": "../../bios",
+      "core": "puae_libretro.so"
+    },
+    "Commodore Amiga 600": {
+      "display_name": "Commodore Amiga 600",
+      "rom_subdir": "amiga600",
+      "extensions": "7z,adf,adz,ccd,chd,cue,dms,fdi,hdf,hdz,ipf,iso,lha,m3u,mds,nrg,rp9,uae,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/amiga600",
+      "bios_root": "../../bios",
+      "core": "puae_libretro.so"
+    },
+    "Commodore Amiga CD32": {
+      "display_name": "Commodore Amiga CD32",
+      "rom_subdir": "amigacd32",
+      "extensions": "7z,adf,adz,ccd,chd,cue,dms,fdi,hdf,hdz,ipf,iso,lha,m3u,mds,nrg,rp9,uae,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/amigacd32",
+      "bios_root": "../../bios",
+      "core": "puae_libretro.so"
+    },
+    "Arcade": {
+      "display_name": "Arcade",
+      "rom_subdir": "arcade",
+      "extensions": "7z,cmd,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/arcade",
+      "bios_root": "../../bios",
+      "core": "fbneo_libretro.so"
+    },
+    "Commodore 16": {
+      "display_name": "Commodore 16",
+      "rom_subdir": "c16",
+      "extensions": "bin,cmd,crt,d64,d6z,d71,d7z,d80,d81,d82,d8z,g41,g4z,g64,g6z,m3u,nbz,nib,p00,prg,t64,tap,vsf,x64,x6z,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/c16",
+      "bios_root": "../../bios",
+      "core": "vice_x64_libretro.so"
+    },
+    "Commodore 64": {
+      "display_name": "Commodore 64",
+      "rom_subdir": "c64",
+      "extensions": "7z,bin,cmd,crt,d2m,d4m,d64,d6z,d71,d7z,d80,d81,d82,d8z,g41,g4z,g64,g6z,gz,lnx,m3u,nbz,nib,p00,prg,t64,tap,vfl,vsf,x64,x6z,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/c64",
+      "bios_root": "../../bios",
+      "core": "vice_x64_libretro.so"
+    },
+    "Commodore CDTV": {
+      "display_name": "Commodore CDTV",
+      "rom_subdir": "cdtv",
+      "extensions": "7z,ccd,chd,cue,iso,m3u,mds,nrg,rp9,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/cdtv",
+      "bios_root": "../../bios",
+      "core": "puae_libretro.so"
+    },
+    "ColecoVision": {
+      "display_name": "ColecoVision",
+      "rom_subdir": "colecovision",
+      "extensions": "7z,bin,cas,col,cv,dsk,m3u,mx1,mx2,ri,rom,sc,sg,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/colecovision",
+      "bios_root": "../../bios",
+      "core": "bluemsx_libretro.so"
+    },
+    "Capcom Play System": {
+      "display_name": "Capcom Play System",
+      "rom_subdir": "cps",
+      "extensions": "7z,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/cps",
+      "bios_root": "../../bios",
+      "core": "fbneo_libretro.so"
+    },
+    "Capcom Play System I": {
+      "display_name": "Capcom Play System I",
+      "rom_subdir": "cps1",
+      "extensions": "7z,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/cps1",
+      "bios_root": "../../bios",
+      "core": "fbneo_libretro.so"
+    },
+    "Capcom Play System II": {
+      "display_name": "Capcom Play System II",
+      "rom_subdir": "cps2",
+      "extensions": "7z,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/cps2",
+      "bios_root": "../../bios",
+      "core": "fbneo_libretro.so"
+    },
+    "Capcom Play System III": {
+      "display_name": "Capcom Play System III",
+      "rom_subdir": "cps3",
+      "extensions": "7z,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/cps3",
+      "bios_root": "../../bios",
+      "core": "fbneo_libretro.so"
+    },
+    "Nintendo Family Computer": {
+      "display_name": "Nintendo Family Computer",
+      "rom_subdir": "famicom",
+      "extensions": "7z,fds,nes,unf,unif,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/famicom",
+      "bios_root": "../../bios",
+      "core": "mesen_libretro.so"
+    },
+    "FinalBurn Neo": {
+      "display_name": "FinalBurn Neo",
+      "rom_subdir": "fbneo",
+      "extensions": "7z,ccd,cue,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/fbneo",
+      "bios_root": "../../bios",
+      "core": "fbneo_libretro.so"
+    },
+    "Nintendo Famicom Disk System": {
+      "display_name": "Nintendo Famicom Disk System",
+      "rom_subdir": "fds",
+      "extensions": "7z,fds,nes,unf,unif,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/fds",
+      "bios_root": "../../bios",
+      "core": "mesen_libretro.so"
+    },
+    "Nintendo Game Boy Color": {
+      "display_name": "Nintendo Game Boy Color",
+      "rom_subdir": "gbc",
+      "extensions": "7z,bs,cgb,dmg,gb,gbc,sfc,sgb,smc,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/gbc",
+      "bios_root": "../../bios",
+      "core": "mgba_libretro.so"
+    },
+    "Sega Genesis (genesiswide)": {
+      "display_name": "Sega Genesis",
+      "rom_subdir": "genesiswide",
+      "extensions": "32x,68k,7z,bin,bms,chd,cue,gen,gg,iso,m3u,md,mdx,sg,sgd,smd,sms,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/genesiswide",
+      "bios_root": "../../bios",
+      "core": "genesis_plus_gx_libretro.so"
+    },
+    "Mattel Electronics Intellivision": {
+      "display_name": "Mattel Electronics Intellivision",
+      "rom_subdir": "intellivision",
+      "extensions": "7z,bin,int,rom,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "extract_extensions": [
+        "7z"
+      ],
+      "extracted_extensions": [
+        ".int",
+        ".bin",
+        ".rom"
+      ],
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/intellivision",
+      "bios_root": "../../bios",
+      "core": "freeintv_libretro.so"
+    },
+    "Sega Mark III (mark3)": {
+      "display_name": "Sega Mark III",
+      "rom_subdir": "mark3",
+      "extensions": "68k,7z,bin,bms,chd,col,cue,gen,gg,iso,m3u,md,mdx,rom,sg,sgd,smd,sms,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/mark3",
+      "bios_root": "../../bios",
+      "core": "genesis_plus_gx_libretro.so"
+    },
+    "Sega Mega-CD (megacdjp)": {
+      "display_name": "Sega Mega-CD",
+      "rom_subdir": "megacdjp",
+      "extensions": "68k,7z,bin,bms,chd,cue,gen,gg,iso,m3u,md,mdx,sg,sgd,smd,sms,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/megacdjp",
+      "bios_root": "../../bios",
+      "core": "genesis_plus_gx_libretro.so"
+    },
+    "Sega Mega Drive (megadrive)": {
+      "display_name": "Sega Mega Drive",
+      "rom_subdir": "megadrive",
+      "extensions": "32x,68k,7z,bin,bms,chd,cue,gen,gg,iso,m3u,md,mdx,sg,sgd,smd,sms,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/megadrive",
+      "bios_root": "../../bios",
+      "core": "genesis_plus_gx_libretro.so"
+    },
+    "Sega Mega Drive (megadrivejp)": {
+      "display_name": "Sega Mega Drive",
+      "rom_subdir": "megadrivejp",
+      "extensions": "32x,68k,7z,bin,bms,chd,cue,gen,gg,iso,m3u,md,mdx,sg,sgd,smd,sms,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/megadrivejp",
+      "bios_root": "../../bios",
+      "core": "genesis_plus_gx_libretro.so"
+    },
+    "MSX1": {
+      "display_name": "MSX1",
+      "rom_subdir": "msx1",
+      "extensions": "7z,cas,col,dsk,m3u,mx1,mx2,ri,rom,sc,sg,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/msx1",
+      "bios_root": "../../bios",
+      "core": "bluemsx_libretro.so"
+    },
+    "MSX2": {
+      "display_name": "MSX2",
+      "rom_subdir": "msx2",
+      "extensions": "7z,cas,col,dsk,m3u,mx1,mx2,ri,rom,sc,sg,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/msx2",
+      "bios_root": "../../bios",
+      "core": "bluemsx_libretro.so"
+    },
+    "MSX Turbo R": {
+      "display_name": "MSX Turbo R",
+      "rom_subdir": "msxturbor",
+      "extensions": "7z,cas,col,dsk,m3u,mx1,mx2,ri,rom,sc,sg,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/msxturbor",
+      "bios_root": "../../bios",
+      "core": "bluemsx_libretro.so"
+    },
+    "Nintendo 64DD": {
+      "display_name": "Nintendo 64DD",
+      "rom_subdir": "n64dd",
+      "extensions": "7z,bin,n64,ndd,u1,v64,z64,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/n64dd",
+      "bios_root": "../../bios",
+      "core": "mupen64plus_next_libretro.so"
+    },
+    "SNK Neo Geo": {
+      "display_name": "SNK Neo Geo",
+      "rom_subdir": "neogeo",
+      "extensions": "7z,chd,cue,iso,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/neogeo",
+      "bios_root": "../../bios",
+      "core": "fbneo_libretro.so"
+    },
+    "SNK Neo Geo Pocket": {
+      "display_name": "SNK Neo Geo Pocket",
+      "rom_subdir": "ngp",
+      "extensions": "7z,ngc,ngp,ngpc,npc,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/ngp",
+      "bios_root": "../../bios",
+      "core": "mednafen_ngp_libretro.so"
+    },
+    "SNK Neo Geo Pocket Color": {
+      "display_name": "SNK Neo Geo Pocket Color",
+      "rom_subdir": "ngpc",
+      "extensions": "7z,ngc,ngp,ngpc,npc,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/ngpc",
+      "bios_root": "../../bios",
+      "core": "mednafen_ngp_libretro.so"
+    },
+    "Nintendo Satellaview": {
+      "display_name": "Nintendo Satellaview",
+      "rom_subdir": "satellaview",
+      "extensions": "7z,bml,bs,fig,sfc,smc,st,swc,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/satellaview",
+      "bios_root": "../../bios",
+      "core": "snes9x_libretro.so"
+    },
+    "Sega CD (segacd)": {
+      "display_name": "Sega CD",
+      "rom_subdir": "segacd",
+      "extensions": "68k,7z,bin,bms,chd,cue,gen,gg,iso,m3u,md,mdx,sg,sgd,smd,sms,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/segacd",
+      "bios_root": "../../bios",
+      "core": "genesis_plus_gx_libretro.so"
+    },
+    "Sega SG-1000": {
+      "display_name": "Sega SG-1000",
+      "rom_subdir": "sg-1000",
+      "extensions": "68k,7z,bin,bms,chd,cue,gen,gg,iso,m3u,md,mdx,ri,rom,sg,sgd,smd,sms,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/sg-1000",
+      "bios_root": "../../bios",
+      "core": "genesis_plus_gx_libretro.so"
+    },
+    "Nintendo Super Game Boy": {
+      "display_name": "Nintendo Super Game Boy",
+      "rom_subdir": "sgb",
+      "extensions": "7z,gb,gbc,sgb,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/sgb",
+      "bios_root": "../../bios",
+      "core": "mgba_libretro.so"
+    },
+    "Nintendo SNES (Super Nintendo) (snesna)": {
+      "display_name": "Nintendo SNES (Super Nintendo)",
+      "rom_subdir": "snesna",
+      "extensions": "7z,bin,bml,bs,bsx,dx2,fig,gd3,gd7,mgd,sfc,smc,st,swc,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/snesna",
+      "bios_root": "../../bios",
+      "core": "snes9x_libretro.so"
+    },
+    "Spectravideo": {
+      "display_name": "Spectravideo",
+      "rom_subdir": "spectravideo",
+      "extensions": "7z,cas,col,dsk,m3u,mx1,mx2,ri,rom,sc,sg,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/spectravideo",
+      "bios_root": "../../bios",
+      "core": "bluemsx_libretro.so"
+    },
+    "Bandai SuFami Turbo": {
+      "display_name": "Bandai SuFami Turbo",
+      "rom_subdir": "sufami",
+      "extensions": "7z,bml,bs,fig,sfc,smc,st,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/sufami",
+      "bios_root": "../../bios",
+      "core": "snes9x_libretro.so"
+    },
+    "NEC SuperGrafx": {
+      "display_name": "NEC SuperGrafx",
+      "rom_subdir": "supergrafx",
+      "extensions": "7z,ccd,chd,cue,pce,sgx,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/supergrafx",
+      "bios_root": "../../bios",
+      "core": "mednafen_pce_libretro.so"
+    },
+    "Nintendo Virtual Boy": {
+      "display_name": "Nintendo Virtual Boy",
+      "rom_subdir": "virtualboy",
+      "extensions": "7z,bin,vb,vboy,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/virtualboy",
+      "bios_root": "../../bios",
+      "core": "mednafen_vb_libretro.so"
+    },
+    "Bandai WonderSwan": {
+      "display_name": "Bandai WonderSwan",
+      "rom_subdir": "wonderswan",
+      "extensions": "7z,pc2,ws,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/wonderswan",
+      "bios_root": "../../bios",
+      "core": "mednafen_wswan_libretro.so"
+    },
+    "Bandai WonderSwan Color": {
+      "display_name": "Bandai WonderSwan Color",
+      "rom_subdir": "wonderswancolor",
+      "extensions": "7z,pc2,ws,wsc,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/wonderswancolor",
+      "bios_root": "../../bios",
+      "core": "mednafen_wswan_libretro.so"
+    },
+    "Sinclair ZX Spectrum": {
+      "display_name": "Sinclair ZX Spectrum",
+      "rom_subdir": "zxspectrum",
+      "extensions": "7z,dsk,gz,img,mgt,rzx,scl,sh,sna,szx,tap,trd,tzx,udi,z80,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/zxspectrum",
+      "bios_root": "../../bios",
+      "core": "fuse_libretro.so"
+    },
+    "Atomiswave": {
+      "display_name": "Atomiswave",
+      "rom_subdir": "atomiswave",
+      "extensions": "7z,bin,cdi,cue,dat,elf,gdi,iso,lst,m3u,zip",
+      "adapter": "flatpak",
+      "launcher": "Host Flatpak",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/atomiswave",
+      "bios_root": "../../bios",
+      "app_id": "org.flycast.Flycast",
+      "command": "flycast",
+      "args": [
+        "-config",
+        "config:Dreamcast.BiosPath={bios_root}",
+        "{item}"
+      ],
+      "userdata_subdir": "Flycast",
+      "bios_files": [
+        "awbios.zip"
+      ]
+    },
+    "Sega NAOMI (naomi)": {
+      "display_name": "Sega NAOMI",
+      "rom_subdir": "naomi",
+      "extensions": "7z,bin,cdi,cue,dat,elf,gdi,iso,lst,m3u,zip",
+      "adapter": "flatpak",
+      "launcher": "Host Flatpak",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/naomi",
+      "bios_root": "../../bios",
+      "app_id": "org.flycast.Flycast",
+      "command": "flycast",
+      "args": [
+        "-config",
+        "config:Dreamcast.BiosPath={bios_root}",
+        "{item}"
+      ],
+      "userdata_subdir": "Flycast",
+      "bios_files": [
+        "naomi.zip"
+      ]
+    },
+    "Sega NAOMI 2": {
+      "display_name": "Sega NAOMI 2",
+      "rom_subdir": "naomi2",
+      "extensions": "7z,bin,cdi,cue,dat,elf,gdi,iso,lst,m3u,zip",
+      "adapter": "flatpak",
+      "launcher": "Host Flatpak",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/naomi2",
+      "bios_root": "../../bios",
+      "app_id": "org.flycast.Flycast",
+      "command": "flycast",
+      "args": [
+        "-config",
+        "config:Dreamcast.BiosPath={bios_root}",
+        "{item}"
+      ],
+      "userdata_subdir": "Flycast",
+      "bios_files": [
+        "naomi2.zip"
+      ]
+    },
+    "Sega NAOMI GD-ROM": {
+      "display_name": "Sega NAOMI GD-ROM",
+      "rom_subdir": "naomigd",
+      "extensions": "7z,bin,cdi,cue,dat,elf,gdi,iso,lst,m3u,zip",
+      "adapter": "flatpak",
+      "launcher": "Host Flatpak",
+      "menu_visible": false,
+      "subcollections": [],
+      "rom_path": "../../roms/naomigd",
+      "bios_root": "../../bios",
+      "app_id": "org.flycast.Flycast",
+      "command": "flycast",
+      "args": [
+        "-config",
+        "config:Dreamcast.BiosPath={bios_root}",
+        "{item}"
+      ],
+      "userdata_subdir": "Flycast",
+      "bios_files": [
+        "naomigd.zip"
+      ]
+    },
+    "Creatronic Mega Duck": {
+      "display_name": "Creatronic Mega Duck",
+      "rom_subdir": "megaduck",
+      "extensions": "bin",
+      "adapter": "mame",
+      "launcher": "Host MAME",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/megaduck",
+      "bios_root": "../../bios",
+      "media_argument": "-cart"
+    },
+    "Nintendo SNES WideScreen (Super Nintendo)": {
+      "display_name": "Nintendo SNES WideScreen (Super Nintendo)",
+      "rom_subdir": "sneshd",
+      "extensions": "7z,bin,bml,bs,bsx,dx2,fig,gd3,gd7,mgd,sfc,smc,st,swc,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/sneshd",
+      "bios_root": "../../bios",
+      "core": "snes9x_libretro.so",
+      "compatibility_note": "Fallback to installed SNES9x; bsnes-HD Beta is absent, so widescreen-specific enhancements are not available."
+    },
+    "Acorn Archimedes": {
+      "display_name": "Acorn Archimedes",
+      "rom_subdir": "archimedes",
+      "extensions": "1dd,360,7z,adf,adl,adm,ads,apd,bbc,chd,cqi,cqm,d77,d88,dfi,dsd,dsk,hfe,ima,imd,img,ipf,jfd,mfi,mfm,msa,ssd,st,td0,ufi,zip",
+      "adapter": "unavailable",
+      "launcher": "Host Emulator Unavailable",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/archimedes",
+      "bios_root": "../../bios"
+    },
+    "Atari 5200": {
+      "display_name": "Atari 5200",
+      "rom_subdir": "atari5200",
+      "extensions": "7z,a52,atr,atx,bin,cas,cdm,xex,xfd,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "a5200_libretro.so",
+      "core_root": "../../emulator/linux/retroarch-cores",
+      "bios_files": [
+        "5200.rom"
+      ],
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/atari5200",
+      "bios_root": "../../bios"
+    },
+    "Atari 7800 ProSystem": {
+      "display_name": "Atari 7800 ProSystem",
+      "rom_subdir": "atari7800",
+      "extensions": "7z,a78,bin,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "prosystem_libretro.so",
+      "core_root": "../../emulator/linux/retroarch-cores",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/atari7800",
+      "bios_root": "../../bios"
+    },
+    "Acorn Electron": {
+      "display_name": "Acorn Electron",
+      "rom_subdir": "electron",
+      "extensions": "1dd,7z,adf,adl,adm,ads,bbc,bin,cqi,cqm,csw,d77,d88,dfi,dsd,dsk,hfe,imd,img,mfi,mfm,rom,ssd,td0,uef,wav,zip",
+      "adapter": "unavailable",
+      "launcher": "Host Emulator Unavailable",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/electron",
+      "bios_root": "../../bios"
+    },
+    "Sega Model 2": {
+      "display_name": "Sega Model 2",
+      "rom_subdir": "model2",
+      "extensions": "7z,zip",
+      "adapter": "unavailable",
+      "launcher": "Host Emulator Unavailable",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/model2",
+      "bios_root": "../../bios"
+    },
+    "Sega Model 3": {
+      "display_name": "Sega Model 3",
+      "rom_subdir": "model3",
+      "extensions": "7z,zip",
+      "adapter": "unavailable",
+      "launcher": "Host Emulator Unavailable",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/model3",
+      "bios_root": "../../bios"
+    },
+    "SNK Neo Geo CD (neogeocdjp)": {
+      "display_name": "SNK Neo Geo CD",
+      "rom_subdir": "neogeocdjp",
+      "extensions": "7z,chd,cue,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "neocd_libretro.so",
+      "core_root": "../../emulator/linux/retroarch-cores",
+      "bios_files": [
+        "neocd/000-lo.lo"
+      ],
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/neogeocdjp",
+      "bios_root": "../../bios"
+    },
+    "Magnavox Odyssey2": {
+      "display_name": "Magnavox Odyssey2",
+      "rom_subdir": "odyssey2",
+      "extensions": "7z,bin,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "o2em_libretro.so",
+      "core_root": "../../emulator/linux/retroarch-cores",
+      "bios_files": [
+        "o2rom.bin"
+      ],
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/odyssey2",
+      "bios_root": "../../bios"
+    },
+    "Nintendo Pokémon Mini": {
+      "display_name": "Nintendo Pokémon Mini",
+      "rom_subdir": "pokemini",
+      "extensions": "7z,min,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "pokemini_libretro.so",
+      "core_root": "../../emulator/linux/retroarch-cores",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/pokemini",
+      "bios_root": "../../bios"
+    },
+    "Sega Saturn (saturnjp)": {
+      "display_name": "Sega Saturn",
+      "rom_subdir": "saturnjp",
+      "extensions": "7z,bin,ccd,chd,cue,iso,m3u,mds,toc,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "kronos_libretro.so",
+      "core_root": "../../emulator/linux/retroarch-cores",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/saturnjp",
+      "bios_root": "../../bios"
+    },
+    "Sharp X68000": {
+      "display_name": "Sharp X68000",
+      "rom_subdir": "x68000",
+      "extensions": "2hd,7z,88d,cmd,d88,dim,dup,hdf,hdm,img,m3u,xdf,zip",
+      "adapter": "retroarch",
+      "launcher": "RetroArch Host",
+      "core": "px68k_libretro.so",
+      "extract_extensions": [
+        ".zip"
+      ],
+      "extracted_extensions": [
+        ".xdf",
+        ".dim",
+        ".d88",
+        ".hdm",
+        ".2hd",
+        ".88d",
+        ".dup",
+        ".hdf"
+      ],
+      "extract_playlist": true,
+      "core_root": "../../emulator/linux/retroarch-cores",
+      "bios_files": [
+        "keropi/iplrom.dat",
+        "keropi/cgrom.dat"
+      ],
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/x68000",
+      "bios_root": "../../bios"
+    }
+  },
+  "subcollection_overrides": {
+    "Nintendo Entertainment System select": {
+      "rom_subdir": "famicom",
+      "extensions": "7z,zip,nes,fds,unif,unf"
+    },
+    "Nintendo Famicom Brazil Games Translated": {
+      "rom_subdir": "famicom",
+      "extensions": "7z,zip,nes,fds,unif,unf"
+    },
+    "Nintendo Famicom English Games Translated": {
+      "rom_subdir": "famicom",
+      "extensions": "7z,zip,nes,fds,unif,unf"
+    },
+    "Sega Mark III": {
+      "rom_subdir": "mastersystem",
+      "extensions": "68k,7z,bin,bms,chd,col,cue,gen,gg,iso,m3u,md,mdx,rom,sg,sgd,smd,sms,zip"
+    }
+  },
+  "melonDS": {
+    "app_id": "net.kuribo64.melonDS",
+    "command": "melonDS",
+    "userdata_root": "../../emulator/data/MelonDS",
+    "config_environment": "XDG_CONFIG_HOME",
+    "config_path": "../../emulator/data/MelonDS/config/melonDS/melonDS.toml",
+    "config_template": "Config/templates/host-apps/melonDS.toml.original",
+    "bios_files": {
+      "BIOS7Path": "bios7.bin",
+      "BIOS9Path": "bios9.bin",
+      "FirmwarePath": "firmware.bin"
+    }
+  },
+  "platform_catalog": "Config/platform-catalog.json"
+}

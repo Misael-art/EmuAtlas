@@ -8,7 +8,7 @@ Na raiz das fontes:
 python3 -m unittest discover -s tools/distribution/tests
 python3 tools/distribution/release.py plan
 python3 tools/distribution/release.py build --apply
-python3 tools/distribution/release.py verify --root outputs/releases/emulation-workspace-0.2.0-alpha.6
+python3 tools/distribution/release.py verify --root outputs/releases/emulation-workspace-0.2.0-alpha.7
 ```
 
 A allowlist `tools/distribution/config/release-files.json` relaciona origem e destino de cada arquivo. Configurações locais não entram: seus templates são gerados na instalação. Revisar mudanças na allowlist com o mesmo cuidado que mudanças de código. O pacote inclui um manifesto por arquivo e SHA-256 do tar.gz. O tarball usa ordem e timestamps fixos; mesma seleção de bytes/modos gera o mesmo pacote. Não sobrescrever release existente.
@@ -17,10 +17,12 @@ A allowlist `tools/distribution/config/release-files.json` relaciona origem e de
 
 ## Repositório GitHub
 
-O projeto usa o nome **EmuAtlas** e o repositório [Misael-art/EmuAtlas](https://github.com/Misael-art/EmuAtlas), branch `main`. A primeira publicação contém README, banner vetorial próprio e guias. O código e os arquivos de instalação ainda aguardam publicação revisada; não há release para download no GitHub nesta etapa.
+O projeto usa o nome **EmuAtlas** e o repositório [Misael-art/EmuAtlas](https://github.com/Misael-art/EmuAtlas), branch `main`. A publicação inicial contém README, banner vetorial próprio e guias. A atualização de portabilidade apresenta as fontes e os templates pela allowlist revisada em uma pull request; abrir a PR não incorpora a mudança à `main` nem publica executáveis ou uma release para download.
 
 O repositório foi criado público pelo responsável. Não confundir visibilidade do repositório com licença aberta ou aprovação comercial: os direitos por componente e a licença do código ainda exigem revisão. A configuração histórica da engenharia usa o identificador técnico `emulation-workspace` e a versão `0.2.0-alpha.6`; o nome de apresentação EmuAtlas não renomeia nem reescreve pacotes já gerados.
 
 Para publicar código depois, exportar somente a allowlist revisada. Não inicializar Git sobre a biblioteca operacional nem enviar ROMs, BIOS, chaves, saves, userdata, executáveis de terceiros ou históricos locais. Autenticação fica no conector autorizado ou credential manager; nunca salvar token em remoto, arquivo ou log. Registrar commit, hashes e resultado da verificação no histórico local do projeto.
 
-Nenhuma GitHub Action ou release foi criada nesta publicação documental. O pipeline Bitbucket existente nas fontes é configuração histórica e não comprova execução no GitHub. Uma futura integração contínua deve executar os testes isolados sem baixar biblioteca pessoal ou iniciar GUIs.
+A seleção `0.2.0-alpha.7` (05/11/2026) acrescenta o workflow `.github/workflows/ci.yml` (origem `tools/distribution/repository/github/ci.yml`): permissão `contents: read`, checkout sem credenciais persistidas, testes de distribuição e regressões do saneamento somente com fixtures, 7z e ImageMagick do runner; sem biblioteca pessoal, GUI, GPU, BIOS ou Steam. Um workflow presente não prova execução: confira os checks remotos reais. As releases `alpha.6` e anteriores permanecem imutáveis.
+
+Antes de `alpha.7`, nenhuma GitHub Action ou release havia sido criada na publicação documental. O pipeline Bitbucket existente nas fontes é configuração histórica e não comprova execução no GitHub. Uma futura integração contínua deve executar os testes isolados sem baixar biblioteca pessoal ou iniciar GUIs.

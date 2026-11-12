@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rom-variant-record-v1",
+  "title": "ROM variant metadata record",
+  "type": "object",
+  "required": [
+    "schema_version", "record_id", "system_id", "artifact_sha256", "artifact_hash_scope",
+    "artifact_role", "profile_support_status",
+    "locations", "classification_status", "variant_kind", "language_tag", "language_candidates",
+    "release_version", "version_candidates", "contributors", "credit_candidates", "name_evidence",
+    "patch_note_refs", "format_evidence", "validation"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "record_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "system_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$"},
+    "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact_hash_scope": {"const": "entire_stored_file_bytes"},
+    "artifact_role": {"enum": ["catalog_supported_content_candidate", "unprofiled_rom_candidate", "unclassified_payload_candidate"]},
+    "profile_support_status": {"enum": ["catalog_supported", "extension_not_in_catalog"]},
+    "artifact_size_bytes": {"type": "integer", "minimum": 0},
+    "classification_status": {"enum": ["candidate_by_name_only", "needs_review", "confirmed_variant", "confirmed_original", "not_variant"]},
+    "variant_kind": {"type": ["string", "null"]},
+    "language_tag": {"type": ["string", "null"]},
+    "language_candidates": {"type": "array", "items": {"type": "object"}},
+    "release_version": {"type": ["string", "null"]},
+    "version_candidates": {"type": "array", "items": {"type": "object"}},
+    "contributors": {"type": "array", "items": {"type": "object"}},
+    "credit_candidates": {"type": "array", "items": {"type": "object"}},
+    "name_evidence": {"type": "object"},
+    "patch_note_refs": {"type": "array", "items": {"type": "object"}},
+    "format_evidence": {"type": "object"},
+    "validation": {"type": "object"},
+    "locations": {"type": "array", "items": {"type": "object"}},
+    "created_at": {"type": "string", "format": "date-time"},
+    "last_seen_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": true
+}
