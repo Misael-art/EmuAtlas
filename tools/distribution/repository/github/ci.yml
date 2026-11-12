@@ -17,8 +17,27 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Test tools (7z, ImageMagick)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full imagemagick
+      - name: Test tools (7z, ripgrep)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full ripgrep
+      - name: Pinned ImageMagick 7 without FUSE
+        shell: bash
+        run: |
+          set -euo pipefail
+          magick_dir="$RUNNER_TEMP/emuatlas-imagemagick"
+          mkdir -p "$magick_dir/bin"
+          curl --fail --silent --show-error --location --retry 3 --max-time 180 --max-filesize 33352184 \
+            'https://github.com/ImageMagick/ImageMagick/releases/download/7.1.2-35/ImageMagick-7.1.2-35-gcc-x86_64.AppImage' \
+            --output "$magick_dir/magick.AppImage"
+          test "$(stat -c %s "$magick_dir/magick.AppImage")" -eq 33352184
+          printf '%s  %s\n' 'f111044ed06b68cfb478df724c5a32d35145afa21073242f888d234a2f8cc002' \
+            "$magick_dir/magick.AppImage" | sha256sum --check --strict
+          chmod +x "$magick_dir/magick.AppImage"
+          cd "$magick_dir"
+          ./magick.AppImage --appimage-extract > extract.log
+          printf '#!/bin/sh\nexec "%s/squashfs-root/AppRun" "$@"\n' "$magick_dir" > bin/magick
+          chmod +x bin/magick
+          ./bin/magick -version
+          printf '%s\n' "$magick_dir/bin" >> "$GITHUB_PATH"
       - name: Distribution tests
         run: python3 -B -m unittest discover -s tools/distribution/tests -v
       - name: Integration-recovery regressions

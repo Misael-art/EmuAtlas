@@ -7,8 +7,8 @@
   "files": [
     {
       "target": ".github/workflows/ci.yml",
-      "sha256": "847d002b274fa2abb176ffb210c2f5fc2b3eff9f9accddb50730c38c3f5c72a5",
-      "size_bytes": 1273,
+      "sha256": "eb9dd1b4d7c41c529f9d9c5385a0888287c2ab2864b2c2e9f608dba24b318bd1",
+      "size_bytes": 2350,
       "mode": "0644"
     },
     {
@@ -439,8 +439,8 @@
     },
     {
       "target": "tools/distribution/repository/github/ci.yml",
-      "sha256": "847d002b274fa2abb176ffb210c2f5fc2b3eff9f9accddb50730c38c3f5c72a5",
-      "size_bytes": 1273,
+      "sha256": "eb9dd1b4d7c41c529f9d9c5385a0888287c2ab2864b2c2e9f608dba24b318bd1",
+      "size_bytes": 2350,
       "mode": "0644"
     },
     {
