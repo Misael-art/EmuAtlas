@@ -7,8 +7,8 @@
   "files": [
     {
       "target": ".github/workflows/ci.yml",
-      "sha256": "eb9dd1b4d7c41c529f9d9c5385a0888287c2ab2864b2c2e9f608dba24b318bd1",
-      "size_bytes": 2350,
+      "sha256": "78c7f58b060f05e8f9bc629c4846494bb21ba8a46390b122d23ea9940e5b4710",
+      "size_bytes": 2394,
       "mode": "0644"
     },
     {
@@ -391,8 +391,8 @@
     },
     {
       "target": "tools/distribution/config/release-files.json",
-      "sha256": "a28e73b2dc06a638bd2adb611d7a4816cde38ab79cec6c7395ad525ad0ea0b71",
-      "size_bytes": 21637,
+      "sha256": "dfa75674abe060bff5fc174ebced1602836349c97716f397b49857718872b1db",
+      "size_bytes": 21887,
       "mode": "0644"
     },
     {
@@ -439,8 +439,8 @@
     },
     {
       "target": "tools/distribution/repository/github/ci.yml",
-      "sha256": "eb9dd1b4d7c41c529f9d9c5385a0888287c2ab2864b2c2e9f608dba24b318bd1",
-      "size_bytes": 2350,
+      "sha256": "78c7f58b060f05e8f9bc629c4846494bb21ba8a46390b122d23ea9940e5b4710",
+      "size_bytes": 2394,
       "mode": "0644"
     },
     {
@@ -549,6 +549,12 @@
       "target": "tools/roms/controller_session.py",
       "sha256": "93882b17b63f78841e351fc98e751bc618a2fd66af690503402f89b5f77033ac",
       "size_bytes": 39060,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/docs/media-continuation.md",
+      "sha256": "182c1fbcc5463417de8a241fd46633caf4017ec252acbff6b5d1490b83c6dc25",
+      "size_bytes": 4581,
       "mode": "0644"
     },
     {
@@ -799,8 +805,8 @@
     },
     {
       "target": "tools/roms/romtool.py",
-      "sha256": "49ceecd97875077bebbdb6d9785b4ac4141da8d2b76101440c4034d24b638f0f",
-      "size_bytes": 470885,
+      "sha256": "41a424efe93b945b3b85c3204c95eb8f7a114af3832f51b57c9cfc5552b7f94b",
+      "size_bytes": 472253,
       "mode": "0644"
     },
     {
@@ -873,6 +879,12 @@
       "target": "tools/roms/tests/launcher_fixture.py",
       "sha256": "481b3739905b90a011903e84f65c4f235e00461f2b7fe0150bdbf99abbc4d5fe",
       "size_bytes": 2070,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_atomic_json.py",
+      "sha256": "3bd9e06e9ddb652b0c1b9bba0d272429e86a5b8c83cf34e6652e83ef54f4f03e",
+      "size_bytes": 8433,
       "mode": "0644"
     },
     {

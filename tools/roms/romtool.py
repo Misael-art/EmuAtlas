@@ -209,10 +209,36 @@ def operation_dir(operation_id: str) -> Path:
 
 
 def atomic_json(path: Path, value: dict) -> None:
+    """Publish complete JSON after syncing its bytes, then sync POSIX directories."""
+    payload = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
+    missing_parents = []
+    parent = path.parent
+    while not parent.exists():
+        missing_parents.append(parent)
+        parent = parent.parent
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_name(path.name + ".tmp")
-    temp.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(temp, path)
+    mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else None
+    temp = path.with_name(f".romtool-{uuid.uuid4().hex}.tmp")
+    stream = temp.open("x", encoding="utf-8")
+    try:
+        with stream:
+            stream.write(payload)
+            stream.flush()
+            if mode is not None:
+                os.chmod(temp, mode)
+            os.fsync(stream.fileno())
+        os.replace(temp, path)
+        if os.name != "nt":
+            directories = [path.parent]
+            directories.extend(parent.parent for parent in missing_parents)
+            for directory in directories:
+                descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+    finally:
+        temp.unlink(missing_ok=True)
 
 
 def append_event(operation_id: str, event: str, **values) -> None:
@@ -5576,10 +5602,14 @@ def command_record_artifacts(args) -> dict:
         "reason": args.reason, "items": artifacts,
         "details": {"change_type": args.change_type, "artifact_count": len(artifacts)},
     }
+    defer_history_index = getattr(args, "defer_history_index", False)
+    if defer_history_index:
+        manifest["history_index_refresh"] = "deferred"
     atomic_json(opdir / "manifest.json", manifest)
     append_event(operation_id, "project_artifacts_recorded", action=args.change_type,
                  status="completed", details={"reason": args.reason, "artifacts": artifacts})
-    rebuild_history_index()
+    if not defer_history_index:
+        rebuild_history_index()
     return manifest
 
 
@@ -7021,6 +7051,8 @@ def build_parser() -> argparse.ArgumentParser:
     artifacts.add_argument("--change-type", required=True)
     artifacts.add_argument("--reason", required=True)
     artifacts.add_argument("--artifacts-json", required=True)
+    artifacts.add_argument("--defer-history-index", action="store_true",
+                           help="registra artefatos e diário agora; adia a reconstrução integral para history")
     steam_shortcuts_parser = commands.add_parser(
         "steam-shortcuts", help="cadastra RetroFE/ES-DE como jogos não-Steam e lança via Big Picture")
     steam_shortcuts_commands = steam_shortcuts_parser.add_subparsers(

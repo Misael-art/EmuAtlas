@@ -642,6 +642,14 @@
     {
       "source": "tools/distribution/repository/github/ci.yml",
       "target": "tools/distribution/repository/github/ci.yml"
+    },
+    {
+      "source": "tools/roms/tests/test_atomic_json.py",
+      "target": "tools/roms/tests/test_atomic_json.py"
+    },
+    {
+      "source": "tools/roms/docs/media-continuation.md",
+      "target": "tools/roms/docs/media-continuation.md"
     }
   ]
 }
