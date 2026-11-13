@@ -7,8 +7,8 @@
   "files": [
     {
       "target": ".github/workflows/ci.yml",
-      "sha256": "78c7f58b060f05e8f9bc629c4846494bb21ba8a46390b122d23ea9940e5b4710",
-      "size_bytes": 2394,
+      "sha256": "2358b36d7a7438296778da9a6f82cbed9f7b2ba3b23ce357c2cef8d9c59b5adf",
+      "size_bytes": 2445,
       "mode": "0644"
     },
     {
@@ -391,8 +391,8 @@
     },
     {
       "target": "tools/distribution/config/release-files.json",
-      "sha256": "dfa75674abe060bff5fc174ebced1602836349c97716f397b49857718872b1db",
-      "size_bytes": 21887,
+      "sha256": "ba8b142415fc58e777cf8b5431be733bd3edbd51a8c67d4471112bf3e8972355",
+      "size_bytes": 22025,
       "mode": "0644"
     },
     {
@@ -439,8 +439,8 @@
     },
     {
       "target": "tools/distribution/repository/github/ci.yml",
-      "sha256": "78c7f58b060f05e8f9bc629c4846494bb21ba8a46390b122d23ea9940e5b4710",
-      "size_bytes": 2394,
+      "sha256": "2358b36d7a7438296778da9a6f82cbed9f7b2ba3b23ce357c2cef8d9c59b5adf",
+      "size_bytes": 2445,
       "mode": "0644"
     },
     {
@@ -553,8 +553,8 @@
     },
     {
       "target": "tools/roms/docs/media-continuation.md",
-      "sha256": "182c1fbcc5463417de8a241fd46633caf4017ec252acbff6b5d1490b83c6dc25",
-      "size_bytes": 4581,
+      "sha256": "8e5d735511d6f9a37268bb126af58be7e8afafb247d333c1859f8939fc7982e4",
+      "size_bytes": 5964,
       "mode": "0644"
     },
     {
@@ -757,8 +757,8 @@
     },
     {
       "target": "tools/roms/media_stray.py",
-      "sha256": "895fd04334c5d0a1baba37296ff521e79c925bcc38090cce27c8979c67aba624",
-      "size_bytes": 36627,
+      "sha256": "6eff0449c4448a1f7e2bfdb226a376dfa29b853f39d304f060ff711c4a42dd6f",
+      "size_bytes": 42916,
       "mode": "0644"
     },
     {
@@ -805,8 +805,8 @@
     },
     {
       "target": "tools/roms/romtool.py",
-      "sha256": "41a424efe93b945b3b85c3204c95eb8f7a114af3832f51b57c9cfc5552b7f94b",
-      "size_bytes": 472253,
+      "sha256": "05eef1909030a3a7d396c1e82b7ebc4d2cd8a0d9bc694dad837b643468b41824",
+      "size_bytes": 472719,
       "mode": "0644"
     },
     {
@@ -939,6 +939,12 @@
       "target": "tools/roms/tests/test_media_stray_promotion.py",
       "sha256": "93e3a6315c69efc584157d0941de085e28b20969825b91a89adf06106fcf4fb6",
       "size_bytes": 13005,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_media_stray_status.py",
+      "sha256": "0743fd22a976443a7c05c18c9d4363910c9f708240894bcd06d99062ce8a9ba6",
+      "size_bytes": 11541,
       "mode": "0644"
     },
     {

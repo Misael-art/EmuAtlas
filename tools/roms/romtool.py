@@ -7185,6 +7185,8 @@ def build_parser() -> argparse.ArgumentParser:
     media_stray_apply.add_argument("--apply", action="store_true")
     media_stray_verify = media_stray_commands.add_parser("verify")
     media_stray_verify.add_argument("--operation-id", required=True)
+    media_stray_status = media_stray_commands.add_parser("status", help="consulta manifesto, eventos e presença dos caminhos selecionados")
+    media_stray_status.add_argument("--operation-id", required=True)
     media_stray_rollback = media_stray_commands.add_parser("rollback")
     media_stray_rollback.add_argument("--operation-id", required=True)
     media_stray_rollback.add_argument("--rollback", action="store_true")
@@ -7513,6 +7515,10 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         if args.command == "steam-shortcuts" and result.get("status") == "diverged":
             return 1
+        if (args.command == "media" and getattr(args, "media_command", None) == "stray"
+                and getattr(args, "media_stray_command", None) == "status"
+                and result.get("status") == "reconciliation_required"):
+            return 3
         if (args.command == "media" and getattr(args, "media_command", None) == "esde"
                 and (getattr(args, "esde_media_command", None) == "validate"
                      or (getattr(args, "esde_media_command", None) == "aliases" and getattr(args, "esde_aliases_command", None) in {"ensure", "verify"}))

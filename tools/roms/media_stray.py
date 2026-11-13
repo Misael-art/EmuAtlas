@@ -12,8 +12,10 @@ import hashlib
 import json
 import os
 import re
+import stat
 import uuid
-from pathlib import Path
+from collections import Counter
+from pathlib import Path, PureWindowsPath
 
 SAFE_SEGMENT = re.compile(r"^[a-z0-9][a-z0-9_+-]{0,63}$")
 QUARANTINE_ACTION = "quarantine_duplicate"
@@ -346,13 +348,124 @@ def plan(api, promote: bool = False, system_id: str | None = None, nested_varian
 
 
 def _load(api, operation_id: str) -> tuple[dict, Path]:
-    if not re.fullmatch(r"[A-Za-z0-9._-]+", operation_id):
+    if operation_id in {".", ".."} or not re.fullmatch(r"[A-Za-z0-9._-]+", operation_id):
         raise ValueError("ID de operação inválido")
     path = Path(api["operation_dir"](operation_id)) / "manifest.json"
     manifest = json.loads(path.read_text(encoding="utf-8"))
     if manifest.get("kind") != "media_stray" or manifest.get("operation_id") != operation_id:
         raise ValueError("Operação não é media_stray")
     return manifest, path
+
+
+def _journal_diagnosis(manifest: dict, operation: Path) -> dict:
+    journal = operation / "events.jsonl"
+    issues = []
+    last = None
+    lifecycle = {"media_stray_applied": "completed_verified", "media_stray_rolled_back": "rolled_back"}
+    if journal.is_symlink():
+        return {"last_lifecycle_event": None, "issues": ["journal_symlink"]}
+    try:
+        with journal.open(encoding="utf-8") as stream:
+            for number, line in enumerate(stream, 1):
+                if not line.strip():
+                    continue
+                try:
+                    event = json.loads(line)
+                    if not isinstance(event, dict):
+                        raise ValueError("evento não é objeto JSON")
+                except ValueError:
+                    issues.append(f"invalid_journal_record line={number}")
+                    continue
+                if event.get("operation_id", manifest["operation_id"]) != manifest["operation_id"]:
+                    issues.append(f"foreign_journal_record line={number}")
+                    continue
+                if not isinstance(event.get("event"), str):
+                    issues.append(f"invalid_journal_record line={number}")
+                    continue
+                if event.get("event") in lifecycle:
+                    last = {key: event.get(key) for key in ("event", "status", "timestamp")}
+    except FileNotFoundError:
+        pass
+    except (OSError, UnicodeError) as exc:
+        issues.append(f"unreadable_journal {type(exc).__name__}")
+    if last:
+        expected = lifecycle[last["event"]]
+        if manifest["status"] != expected:
+            issues.append(f"journal_manifest_status_mismatch manifest={manifest['status']} journal={expected}")
+        if last["status"] not in (None, expected):
+            issues.append(f"journal_event_status_mismatch event={last['event']}")
+    return {"last_lifecycle_event": last, "issues": issues}
+
+
+def _path_kind(project: Path, relative: str | None) -> str:
+    if not isinstance(relative, str) or not relative or "\x00" in relative:
+        return "unsafe_path"
+    path = Path(relative)
+    if path.is_absolute() or PureWindowsPath(relative).drive or ".." in path.parts or not path.parts:
+        return "unsafe_path"
+    target = project / path
+    current = project
+    for part in path.parts:
+        current /= part
+        try:
+            info = current.lstat()
+        except FileNotFoundError:
+            return "missing"
+        except OSError:
+            return "unreadable"
+        if stat.S_ISLNK(info.st_mode):
+            return "symlink" if current == target else "ancestor_symlink"
+    if stat.S_ISREG(info.st_mode):
+        return "regular"
+    return "other"
+
+
+def status(operation_id: str, api) -> dict:
+    """Inspect recorded paths and local events without reading media payloads."""
+    manifest, manifest_path = _load(api, operation_id)
+    project = Path(api["PROJECT_ROOT"])
+    operation = manifest_path.parent
+    journal = _journal_diagnosis(manifest, operation)
+    issues = list(journal["issues"])
+    if manifest["status"] not in {"prepared", "applying", "completed_verified", "rolled_back"}:
+        issues.append("unrecognized_manifest_status")
+    items = []
+    for item in manifest["items"]:
+        action = item["action"]
+        moved = action in {"promoted", "quarantined"}
+        expected_source = "missing" if moved else "regular"
+        if action == "preserve_symlink":
+            expected_source = "symlink"
+        paths = {"source": (item["project_relative"], expected_source)}
+        if action in PROMOTE_ACTIONS | {"promoted"}:
+            paths["destination"] = (item.get("destination_relative"), "regular" if moved else "missing")
+        elif action in {QUARANTINE_ACTION, "quarantined"}:
+            rollback = operation.relative_to(project) / "rollback/originals" / item["relative_path"]
+            paths["destination"] = (item.get("rollback_relative", rollback.as_posix()), "regular" if moved else "missing")
+            paths["canonical"] = (item.get("canonical_relative"), "regular")
+        diagnosis = {"relative_path": item["relative_path"], "action": action, "paths": {}, "issues": []}
+        if action not in PROMOTE_ACTIONS | {QUARANTINE_ACTION, "promoted", "quarantined"} and not action.startswith("preserve_"):
+            diagnosis["issues"].append("unknown_item_action")
+        if manifest["status"] == "completed_verified" and action in PROMOTE_ACTIONS | {QUARANTINE_ACTION}:
+            diagnosis["issues"].append("completed_manifest_has_planned_move")
+        for role, (relative, expected) in paths.items():
+            kind = _path_kind(project, relative)
+            diagnosis["paths"][role] = {"path": relative, "kind": kind, "expected": expected}
+            if kind != expected:
+                diagnosis["issues"].append(f"{role}_state_mismatch expected={expected} observed={kind}")
+        diagnosis["status"] = "diverged" if diagnosis["issues"] else "matches_recorded_paths"
+        issues.extend(f"{item['relative_path']} {issue}" for issue in diagnosis["issues"])
+        items.append(diagnosis)
+    return {
+        "operation_id": operation_id, "kind": "media_stray", "manifest": str(manifest_path),
+        "status": "reconciliation_required" if issues else "consistent_metadata",
+        "item_count": len(items), "items": items, "issues": issues[:20],
+        "summary": {"manifest_status": manifest["status"], "issue_count": len(issues),
+                    "source_kinds": dict(Counter(item["paths"]["source"]["kind"] for item in items)),
+                    "destination_kinds": dict(Counter(item["paths"]["destination"]["kind"] for item in items if "destination" in item["paths"]))},
+        "evidence": {"read_only": True, "payload_hashes_checked": False, "global_records_checked": False,
+                     "last_lifecycle_event": journal["last_lifecycle_event"]},
+    }
 
 
 def _snapshot_lists(api, operation: Path) -> None:
@@ -450,6 +563,9 @@ def apply(operation_id: str, confirmed: bool, api) -> dict:
     if not confirmed:
         raise ValueError("Aplicação exige --apply")
     manifest, _path = _load(api, operation_id)
+    journal = _journal_diagnosis(manifest, _path.parent)
+    if journal["issues"]:
+        raise ValueError("Diário exige reconciliação antes de aplicar. Consulte media stray status. " + journal["issues"][0])
     if manifest.get("tool_source_sha256") and manifest["tool_source_sha256"] != _sha256(Path(__file__)):
         raise ValueError("A ferramenta mudou desde o plano; prepare outro plano de mídia stray")
     if manifest.get("validator_source_sha256") and manifest["validator_source_sha256"] != _sha256(Path(api["media_session"].__file__)):
@@ -621,6 +737,8 @@ def dispatch(args, api) -> dict:
                     getattr(args, "nested_game_paths", False), getattr(args, "pdf_linearization_review", False))
     if command == "apply":
         return apply(args.operation_id, args.apply, api)
+    if command == "status":
+        return status(args.operation_id, api)
     if command == "verify":
         return verify(args.operation_id, api)
     if command == "rollback":

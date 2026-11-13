@@ -46,6 +46,7 @@ jobs:
         run: >-
           python3 -B -m unittest -v
           tools.roms.tests.test_atomic_json
+          tools.roms.tests.test_media_stray_status
           tools.roms.tests.test_module_identity
           tools.roms.tests.test_esde_validate_contract
           tools.roms.tests.test_switch2_launch_alias

@@ -650,6 +650,10 @@
     {
       "source": "tools/roms/docs/media-continuation.md",
       "target": "tools/roms/docs/media-continuation.md"
+    },
+    {
+      "source": "tools/roms/tests/test_media_stray_status.py",
+      "target": "tools/roms/tests/test_media_stray_status.py"
     }
   ]
 }

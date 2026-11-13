@@ -30,9 +30,22 @@ A opção padrão de `record-artifacts` mantém a reconstrução imediata do ín
 
 ```sh
 python3 -B -m unittest -v tools.roms.tests.test_atomic_json
+python3 -B -m unittest -v tools.roms.tests.test_media_stray_status
 ```
 
 As fixtures exercitam ordem de sincronização, permissões, criação de diretórios, falhas antes e depois da publicação, escrita sobreposta, colisão de temporário, nome longo, preservação de temporário legado e registro com índice adiado. Cada caso usa arquivos pequenos em diretório temporário privado. Falhas de energia e a execução nativa Windows precisam de evidência adicional em ambiente apropriado.
+
+## Consulta leve da operação interrompida
+
+```sh
+python3 tools/roms/romtool.py media stray status --operation-id <operation-id>
+```
+
+A consulta lê o manifesto, os eventos locais e os metadados dos caminhos selecionados. O resultado `consistent_metadata` usa código de saída 0. O resultado `reconciliation_required` usa código 3 e inclui os motivos na saída JSON. A evidência identifica `payload_hashes_checked=false` e `global_records_checked=false`, pois essas verificações pertencem à reconciliação integral.
+
+O diagnóstico compara a presença esperada de origem, destino de promoção/quarentena e payload canônico, conforme a ação registrada. Também identifica eventos ilegíveis, registros de outra operação, links ancestrais e caminhos fora do escopo. A observação descreve aquele instante, e mudanças concorrentes exigem nova conferência.
+
+`media stray apply` consulta o diário antes de calcular hashes, criar preimagens ou alterar o manifesto. Um registro de conclusão incompatível com o manifesto impede a reaplicação e orienta a consulta de status. A reconciliação precisa preservar os eventos originais e confirmar os bytes e os registros globais. Depois deve ser preparado um plano atual, respeitando os fingerprints das ferramentas e as demais precondições existentes.
 
 ## Sequência da próxima tarefa
 
