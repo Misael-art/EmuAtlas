@@ -198,6 +198,20 @@ class HubTests(unittest.TestCase):
                 client.discover(start=True)
             self.assertEqual(client.info['pid'], 20)
 
+    def test_polling_does_not_wait_for_the_background_pairing_startup_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            client = m.Client(root)
+            finished = threading.Event()
+            with (root/'startup.lock').open('a') as lock, patch.object(m, 'runtime_directory', return_value=root):
+                m.fcntl.flock(lock, m.fcntl.LOCK_EX)
+                worker = threading.Thread(target=lambda: (client.discover(), finished.set()), daemon=True)
+                worker.start()
+                unblocked = finished.wait(1)
+                m.fcntl.flock(lock, m.fcntl.LOCK_UN)
+                worker.join(timeout=2)
+            self.assertTrue(unblocked)
+
 
 class HttpTests(unittest.TestCase):
     @classmethod

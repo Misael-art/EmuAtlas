@@ -409,7 +409,10 @@ class Client:
     def discover(self, start=False):
         directory = runtime_directory(self.root)
         with (directory / 'startup.lock').open('a') as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | (0 if start else fcntl.LOCK_NB))
+            except BlockingIOError:
+                return  # The input/UI loop keeps running while pairing starts.
             path = directory / 'server.json'
             if path.is_symlink():
                 raise RuntimeError('Descritor de sessão inválido.')

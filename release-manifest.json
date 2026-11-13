@@ -811,8 +811,8 @@
     },
     {
       "target": "tools/roms/mobile_controller.py",
-      "sha256": "adb9dd29ed8e48ffde99d185c6ac0fc676b7a4d24a3a1714169043272802e2ce",
-      "size_bytes": 25913,
+      "sha256": "0efdd82550a8a8323db30ff9f392356aa2f393aa88dc1c428e2a0dbc5d8e731c",
+      "size_bytes": 26084,
       "mode": "0644"
     },
     {
@@ -1027,8 +1027,8 @@
     },
     {
       "target": "tools/roms/tests/test_mobile_controller.py",
-      "sha256": "05b4cbd5a552a61a26de5a336170e91100784ea33b5a64f4c24ff4202a432000",
-      "size_bytes": 17093,
+      "sha256": "50700977f387abe63763e3c4cd9840202049ee9b2a13471573b3f27047f930c6",
+      "size_bytes": 17827,
       "mode": "0644"
     },
     {
