@@ -16,7 +16,8 @@ __pycache__/
 **/UserData/
 **/Assets/
 **/Manifests/
-/frontend/RetroFE/Config/
+/frontend/RetroFE/Config/*
+!/frontend/RetroFE/Config/controller-artwork.json
 /tools/roms/runtimes/*
 !/tools/roms/runtimes/eden-nx2/
 /tools/roms/runtimes/eden-nx2/*

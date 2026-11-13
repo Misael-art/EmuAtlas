@@ -46,6 +46,18 @@ transition = module("retrofe_clean_exit", "theme-transition.py")
 feedback = module("retrofe_session_feedback", "session-feedback.py")
 
 
+def controller_backend(root):
+    directory = root.resolve().parents[1] / "tools/roms"
+    if str(directory) not in sys.path:
+        sys.path.insert(0, str(directory))
+    spec = importlib.util.spec_from_file_location("retrofe_controller_routing", directory / "controller_session.py")
+    routing = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(routing)
+    # Resolve the same configuration dependencies used by assignment callbacks.
+    importlib.import_module("emulator_controls")
+    return routing
+
+
 def navigation_contract(root, theme_id=None):
     """The session owns recovery/exit; themes may style their presentation."""
     registry = json.loads((root / "Config/themes.json").read_text())
@@ -158,15 +170,49 @@ class OptionsPanel:
         self.drawn = None
         self.last_window_check = 0.0
         self.front_active = False
-        self.feedback = feedback.SessionFeedback(self.window, accent=self.contract.get("accent", "#94afbe"))
+        self.feedback = feedback.SessionFeedback(self.window, root=self.root_path.parents[1],
+            on_assign=self.reassign_player, on_identify=self.identify_controller)
         self.player_order = []
+        self.player_devices = []
+        self.preferences = {"schema": 1, "revision": 0, "slots": None, "models": {}}
         self.last_player_scan = 0.0
-        path = self.root_path.parents[1] / "tools/roms/controller_session.py"
-        spec = importlib.util.spec_from_file_location("retrofe_controller_routing", path)
-        self.routing = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(self.routing)
+        self.routing = controller_backend(self.root_path)
         self.window.after(30, self.tick)
         self.log("ready", options_key=OPTIONS_KEY, options_button=OPTIONS_BUTTON)
+
+    def refresh_players(self):
+        rows = self.routing.input_inventory()
+        try:
+            self.preferences = self.routing.load_preferences(self.root_path.parents[1])
+        except (ValueError, OSError) as exc:
+            self.feedback.notice = str(exc)
+        self.player_devices = [{**row,
+            "controller_id": self.routing.device_key(row),
+            "routable": bool(self.routing.source_mapping(row, self.sdl.devices.values())),
+            "model_override": self.preferences["models"].get(self.routing.device_key(row))}
+            for row in rows if row["kind"] in {"deck", "external"}]
+        mapped = [row for row in self.player_devices if row["routable"]]
+        output = windows.active_output_name()
+        self.player_order = self.routing.slots(mapped, self.routing.dock_mode(output),
+                                               self.player_order, self.preferences["slots"])
+        available = {row["path"]: row for row in rows}
+        self.feedback.set_devices(self.player_devices,
+            [self.routing.device_key(available[path]) if path else None for path in self.player_order],
+            keyboard=not any(self.player_order))
+
+    def reassign_player(self, source_id, player):
+        self.refresh_players()
+        self.preferences = self.routing.assign_player(self.root_path.parents[1], self.player_devices,
+            self.player_order, source_id, player, self.preferences["revision"])
+        self.refresh_players()
+
+    def identify_controller(self, source_id, model):
+        self.refresh_players()
+        if source_id not in {self.routing.device_key(row) for row in self.player_devices}:
+            raise ValueError("O controle foi desconectado.")
+        self.preferences = self.routing.identify_controller(self.root_path.parents[1],
+            source_id, model, self.preferences["revision"])
+        self.refresh_players()
 
     def log(self, event, **values):
         print(json.dumps({"time": time.strftime("%Y-%m-%dT%H:%M:%S"), "event": event,
@@ -482,14 +528,7 @@ class OptionsPanel:
         self.sdl.poll(self.event if (self.opened or self.front_active) else None, {})
         if now - self.last_player_scan > 1:
             self.last_player_scan = now
-            rows = self.routing.input_inventory()
-            # This is a preview of the existing routing policy. The game HUD
-            # subsequently receives the exact assigned, SDL-mapped sources.
-            output = windows.active_output_name()
-            mapped = [row for row in rows if self.routing.source_mapping(row, self.sdl.devices.values())]
-            self.player_order = self.routing.slots(mapped, self.routing.dock_mode(output), self.player_order)
-            available = {row["path"]: row["name"] for row in rows}
-            self.feedback.set_players([available[path] for path in self.player_order], identity=tuple(self.player_order))
+            self.refresh_players()
         rect = self.target.client
         self.feedback.update(self.front_active and not self.opened,
                              (rect.x, rect.y, rect.width, rect.height), now)
@@ -538,6 +577,8 @@ def main():
         if args.check and (not windows.backend_available() or not all(shutil.which(name) for name in ("xinput", "xmodmap"))):
             raise RuntimeError("Options requer backend X11/XWayland, wmctrl, xdotool, xprop, xinput e xmodmap.")
         theme, _ = navigation_contract(args.root, args.theme)
+        if args.check:
+            controller_backend(args.root)
         print(f"[OPÇÕES] {theme['label']}: Start/F10 e saída confirmada disponíveis.")
         return
     if not args.app_pid:

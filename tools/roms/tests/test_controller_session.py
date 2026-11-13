@@ -1,6 +1,8 @@
 """Routing state and boundaries without touching any host input device."""
 import importlib.util
 import os
+import json
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -21,12 +23,17 @@ class FeedbackTests(unittest.TestCase):
         hud = feedback.SessionFeedback.__new__(feedback.SessionFeedback)
         hud.owns_master = False
         hud.toast, hud.hint = Mock(), Mock()
+        hud.toast.winfo_viewable.return_value = False
+        hud.toast.winfo_pointerxy.return_value = (0, 0)
+        hud.animation = hud.highlight = hud.drag = hud.press = hud.picker = hud.selected = None
+        hud.highlight_until = 0
         hud.focused = False
         hud.pending = True
         hud.toast_started = None
         hud.signature = None
         hud.drawn = None
         hud.draw = Mock()
+        hud.draw_body = Mock()
         return hud
 
     def test_four_slots_and_keyboard_fallback_are_explicit(self):
@@ -78,12 +85,223 @@ class FeedbackTests(unittest.TestCase):
         self.assertIn('Ctrl + Shift + F10', feedback.KEYBOARD_EXIT_HINT)
         self.assertIn('F10', feedback.exit_hint(False)[0])
 
+    def test_hover_keeps_the_card_visible_and_opaque(self):
+        hud = self.hud()
+        hud.pending = False
+        hud.focused = True
+        hud.toast_started = 0
+        hud.toast.winfo_viewable.return_value = True
+        hud.toast.winfo_pointerxy.return_value = (10, 10)
+        hud.toast.winfo_rootx.return_value = hud.toast.winfo_rooty.return_value = 0
+        hud.toast.winfo_width.return_value = hud.toast.winfo_height.return_value = 500
+        hud.update(True, (0, 0, 1280, 800), 20)
+        hud.toast.attributes.assert_called_with('-alpha', 1)
+
+    def test_drop_waits_for_backend_acknowledgement(self):
+        hud = self.hud()
+        hud.devices = {'a': {'name': 'Pad A', 'routable': True}}
+        hud.models = {'generic': {'label': 'Controle'}}
+        hud.ports = ['a', None, None, None]
+        hud.scale = 1
+        hud.row_height = 80
+        def accepted(key, player):
+            hud.ports = [None, None, key, None]
+        hud.on_assign = Mock(side_effect=accepted)
+        hud.apply_drop('a', 2, (40, 50))
+        hud.on_assign.assert_called_once_with('a', 2)
+        self.assertEqual(hud.highlight, 2)
+        self.assertIn('P3', hud.notice)
+        self.assertEqual(hud.ports, [None, None, 'a', None])
+
+    def test_failed_drop_keeps_the_acknowledged_ports(self):
+        hud = self.hud()
+        hud.devices = {'a': {'name': 'Pad A', 'routable': True}}
+        hud.ports = ['a', None, None, None]
+        hud.on_assign = Mock(side_effect=ValueError('Ordem alterada'))
+        hud.apply_drop('a', 2, (40, 50))
+        self.assertEqual(hud.ports, ['a', None, None, None])
+        self.assertEqual(hud.notice, 'Ordem alterada')
+
+    def test_disconnection_cancels_an_active_drag(self):
+        hud = self.hud()
+        hud.drag = {'id': 'a', 'position': (5, 5)}
+        hud.set_devices([], [])
+        self.assertIsNone(hud.drag)
+        self.assertIn('desconectado', hud.notice)
+
+    def test_models_match_history_usb_ids_and_explicit_identification(self):
+        models = json.loads((FEEDBACK_PATH.parents[3] / 'Config/controller-artwork.json').read_text())['models']
+        self.assertEqual(feedback.controller_model({'name': 'Gamesir-T4pro_2980'}, models), 'gamesir-t4-pro')
+        self.assertEqual(feedback.controller_model({'name': '8BitDo Ultimate 2C Wireless'}, models), '8bitdo-ultimate-2c')
+        self.assertEqual(feedback.controller_model({'name': 'Wireless Controller', 'vendor': 0x054c, 'product': 0x0ce6}, models), 'dualsense')
+        self.assertEqual(feedback.controller_model({'name': 'Xbox 360', 'model_override': 'gamesir-t4-pro'}, models), 'gamesir-t4-pro')
+        self.assertEqual(feedback.controller_model({'name': 'Unknown'}, models), 'generic')
+
+
+class AssignmentTests(unittest.TestCase):
+    def setUp(self):
+        import romtool
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        operations = self.root / 'outputs/operations'
+        operations.mkdir(parents=True)
+        for name, value in [('PROJECT_ROOT', self.root), ('OPS_ROOT', operations)]:
+            mocked = patch.object(romtool, name, value)
+            mocked.start()
+            self.addCleanup(mocked.stop)
+        self.events = patch.object(romtool, 'append_event').start()
+        self.addCleanup(patch.stopall)
+        self.devices = [{'path': 'event1', 'controller_id': 'pad-a', 'name': 'A', 'kind': 'external'},
+                        {'path': 'event2', 'controller_id': 'pad-b', 'name': 'B', 'kind': 'external'}]
+
+    def test_one_player_can_move_to_p3_and_keep_p1_empty_after_reload(self):
+        prefs = c.assign_player(self.root, self.devices[:1], ['event1'], 'pad-a', 2, 0)
+        self.assertEqual(prefs['slots'], [None, None, 'pad-a', None])
+        self.assertEqual(c.load_preferences(self.root), prefs)
+        self.assertEqual(c.slots(self.devices[:1], True, preferred=prefs['slots']), [None, None, 'event1', None])
+
+    def test_occupied_target_swaps_players_and_disconnect_preserves_surviving_port(self):
+        prefs = c.assign_player(self.root, self.devices, ['event1', 'event2'], 'pad-a', 1, 0)
+        self.assertEqual(prefs['slots'], ['pad-b', 'pad-a', None, None])
+        self.assertEqual(c.slots(self.devices[:1], True, preferred=prefs['slots']), [None, 'event1', None, None])
+
+    def test_reconnected_device_uses_stable_identity_and_new_device_fills_free_port(self):
+        prefs = c.assign_player(self.root, self.devices[:1], ['event1'], 'pad-a', 2, 0)
+        current = [{**self.devices[0], 'path': 'event9'}, self.devices[1]]
+        self.assertEqual(c.slots(current, True, preferred=prefs['slots']), ['event2', None, 'event9', None])
+
+    def test_disconnected_or_unmapped_source_cannot_change_preferences(self):
+        for rows in [[], [{**self.devices[0], 'routable': False}]]:
+            with self.assertRaises(ValueError):
+                c.assign_player(self.root, rows, [], 'pad-a', 1, 0)
+        self.assertFalse((self.root / c.ORDER_PATH).exists())
+
+    def test_stale_window_revision_cannot_overwrite_the_new_order(self):
+        c.assign_player(self.root, self.devices, ['event1', 'event2'], 'pad-a', 2, 0)
+        before = (self.root / c.ORDER_PATH).read_bytes()
+        with self.assertRaisesRegex(ValueError, 'outra janela'):
+            c.assign_player(self.root, self.devices, ['event1', 'event2'], 'pad-a', 1, 0)
+        self.assertEqual((self.root / c.ORDER_PATH).read_bytes(), before)
+
+    def test_model_choice_is_persistent_and_keeps_player_ports(self):
+        prefs = c.assign_player(self.root, self.devices, ['event1', 'event2'], 'pad-a', 2, 0)
+        result = c.identify_controller(self.root, 'pad-a', 'gamesir-t4-pro', prefs['revision'])
+        self.assertEqual(result['slots'], prefs['slots'])
+        self.assertEqual(c.load_preferences(self.root)['models'], {'pad-a': 'gamesir-t4-pro'})
+
+    def test_live_scan_neutralizes_all_ports_and_applies_the_actual_p3_mapping(self):
+        c.assign_player(self.root, self.devices[:1], ['event1'], 'pad-a', 2, 0)
+        session = c.Session.__new__(c.Session)
+        session.root = self.root
+        session.preferences = {'slots': None, 'models': {}, 'revision': 0}
+        session.inputs = {'event1': Mock()}
+        session.source_maps = {'event1': {'a': 'b0'}}
+        session.source_signature = (('event1', 'external', 'pad-a', None),)
+        session.assigned = ['event1']
+        session.deck_identity = None
+        session.keyboard_down = {1}
+        session.keyboard_state = {'event1': {1}}
+        session.exit_chords = {'event1': c.HeldChord()}
+        session.manifest = {'docked': True, 'changes': []}
+        session.stop_effects = Mock()
+        session.neutral = Mock()
+        session.forward = Mock()
+        session.save = Mock()
+        session.feedback = None
+        with patch.object(c, 'input_inventory', return_value=self.devices[:1]):
+            session.scan(True)
+        self.assertEqual(session.assigned, [None, None, 'event1', None])
+        self.assertEqual(session.neutral.call_args_list, [unittest.mock.call(n) for n in range(4)])
+        session.forward.assert_called_once_with(session.inputs['event1'], 2)
+        self.assertEqual(session.manifest['changes'][0]['players'], [{'player': 3, 'name': 'A'}])
+        self.assertFalse(session.keyboard_down)
+        self.assertFalse(session.exit_chords)
+        old_device = session.inputs['event1']
+        new_device = Mock()
+        session.evdev = Mock()
+        session.evdev.InputDevice.return_value = new_device
+        session.neutral.reset_mock()
+        session.forward.reset_mock()
+        reconnected = {**self.devices[0], 'device_cookie': 99}
+        with patch.object(c, 'input_inventory', return_value=[reconnected]), patch.object(
+                c, 'source_gamepads', return_value=[{'path': 'event1', 'mapping': {'a': 'b0'}}]):
+            session.scan(True)
+        old_device.close.assert_called_once()
+        session.forward.assert_called_once_with(new_device, 2)
+        self.assertEqual(session.neutral.call_count, 4)
+        self.assertEqual(session.assigned, [None, None, 'event1', None])
+
+    def test_journal_failure_restores_existing_configuration(self):
+        c.assign_player(self.root, self.devices, ['event1', 'event2'], 'pad-a', 2, 0)
+        before = (self.root / c.ORDER_PATH).read_bytes()
+        self.events.side_effect = OSError('journal unavailable')
+        with self.assertRaises(OSError):
+            c.assign_player(self.root, self.devices, ['event1', 'event2'], 'pad-a', 1, 1)
+        self.assertEqual((self.root / c.ORDER_PATH).read_bytes(), before)
+
+    def test_invalid_or_symlink_configuration_is_preserved(self):
+        path = self.root / c.ORDER_PATH
+        path.parent.mkdir(parents=True)
+        path.write_text('[]')
+        with self.assertRaises(ValueError):
+            c.load_preferences(self.root)
+        path.unlink()
+        other = self.root / 'personal.json'
+        other.write_text('personal')
+        path.symlink_to(other)
+        with self.assertRaises(ValueError):
+            c.load_preferences(self.root)
+        self.assertEqual(other.read_text(), 'personal')
+
 
 def device(path, kind='external'):
     return {'path':path,'kind':kind}
 
 
+class BackendEntryTests(unittest.TestCase):
+    def test_navigation_resolves_backend_dependencies_in_an_isolated_python(self):
+        project = FEEDBACK_PATH.parents[5]
+        code = """from pathlib import Path
+import importlib.util, sys, tempfile
+root = Path.cwd()
+directory = root / 'frontend/RetroFE/Tools/launchers/retrofe'
+sys.path.insert(0, str(directory))
+spec = importlib.util.spec_from_file_location('panel_entry', directory / 'navigation-panel.py')
+panel = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(panel)
+backend = panel.controller_backend(root / 'frontend/RetroFE')
+with tempfile.TemporaryDirectory() as directory:
+    assert backend.load_preferences(Path(directory))['revision'] == 0
+"""
+        result = subprocess.run([sys.executable, '-I', '-B', '-c', code], cwd=project,
+                                capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
 class RoutingTests(unittest.TestCase):
+    def test_reassignment_waits_for_release_then_routes_new_presses_to_p3(self):
+        from evdev import ecodes as e
+        session = c.Session.__new__(c.Session)
+        session.e = e
+        session.source_maps = {'event1': {'a': 'b0'}}
+        session.wait_for_release = {'event1'}
+        session.virtual = [Mock() for _ in range(4)]
+        session.neutral = Mock()
+        session.write = Mock()
+        device = Mock(path='event1')
+        device.capabilities.return_value = {e.EV_KEY: [e.BTN_SOUTH]}
+        device.active_keys.return_value = [e.BTN_SOUTH]
+        session.forward(device, 2)
+        session.write.assert_not_called()
+        self.assertIn('event1', session.wait_for_release)
+        device.active_keys.return_value = []
+        session.forward(device, 2)
+        self.assertNotIn('event1', session.wait_for_release)
+        device.active_keys.return_value = [e.BTN_SOUTH]
+        session.forward(device, 2)
+        session.write.assert_any_call(2, e.EV_KEY, e.BTN_SOUTH, 1)
+
     def test_preview_and_game_select_unique_mapping_by_path_before_vendor(self):
         row = {'path':'event1','vendor':1,'product':2}
         pads = [{'path':'event1','vendor':1,'product':2,'mapping':{'a':'b0'}},

@@ -682,6 +682,10 @@
     {
       "source": "frontend/RetroFE/Tools/launchers/retrofe/session-feedback.py",
       "target": "frontend/RetroFE/Tools/launchers/retrofe/session-feedback.py"
+    },
+    {
+      "source": "frontend/RetroFE/Config/controller-artwork.json",
+      "target": "frontend/RetroFE/Config/controller-artwork.json"
     }
   ]
 }

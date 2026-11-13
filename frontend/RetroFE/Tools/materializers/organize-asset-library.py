@@ -1299,7 +1299,7 @@ def build_external_static_asset_plan(manifest_path: Path, spec_path: Path, reaso
     entries = {}
     allowed = {"controllers/artwork", "collection-metadata/genre", "fade"}
     if project_staging:
-        allowed = {"branding/logos/full-set", "devices"}
+        allowed = {"branding/logos/full-set", "devices", "controllers/artwork"}
     for entry in spec["assets"]:
         relative = PurePosixPath(entry["relative_path"])
         if relative.is_absolute() or any(p in {".", ".."} for p in relative.parts):

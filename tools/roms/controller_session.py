@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import importlib.util
+import hashlib
 from contextlib import closing
 import os
 from pathlib import Path
@@ -20,9 +21,114 @@ import uuid
 VID = 0x1209
 PRODUCTS = tuple(0xE101 + i for i in range(4))
 EXIT_SECONDS = 2.0
+ORDER_PATH = Path('frontend/RetroFE/UserData/retrofe/controller-order.json')
 
 
-def slots(devices, docked, previous=()):
+def device_key(row):
+    return row.get('controller_id') or hashlib.sha256(row['path'].encode()).hexdigest()
+
+
+def load_preferences(root):
+    from emulator_controls import target
+    path = target(root, ORDER_PATH)
+    if not path.exists():
+        return {'schema': 1, 'revision': 0, 'slots': None, 'models': {}}
+    if path.stat().st_size > 16384:
+        raise ValueError('Preferências de controles excedem o tamanho suportado.')
+    value = json.loads(path.read_text())
+    if not isinstance(value, dict):
+        raise ValueError('Preferências de controles inválidas.')
+    ports = value.get('slots')
+    if (value.get('schema') != 1 or type(value.get('revision')) is not int
+            or value['revision'] < 0 or not isinstance(value.get('models', {}), dict)):
+        raise ValueError('Preferências de controles inválidas.')
+    if ports is not None:
+        if not isinstance(ports, list) or len(ports) != 4:
+            raise ValueError('A ordem precisa conter quatro portas.')
+        keys = [key for key in ports if key is not None]
+        if any(not isinstance(key, str) or not 1 <= len(key) <= 128 for key in keys) or len(set(keys)) != len(keys):
+            raise ValueError('Identidade duplicada ou inválida na ordem dos controles.')
+    models = value.get('models', {})
+    if any(not isinstance(k, str) or not isinstance(v, str) or len(k) > 128 or len(v) > 128 for k, v in models.items()):
+        raise ValueError('Identificação visual de controle inválida.')
+    return {**value, 'models': models}
+
+
+def save_preferences(root, value, expected_revision):
+    """One durable preference file, serialized with native control preparation."""
+    from emulator_controls import configuration_lock, target
+    import romtool
+    with configuration_lock():
+        previous = load_preferences(root)
+        if previous['revision'] != expected_revision:
+            raise ValueError('A ordem mudou em outra janela. Tente novamente.')
+        path = target(root, ORDER_PATH)
+        before = path.read_bytes() if path.exists() else None
+        after = {**value, 'schema': 1, 'revision': expected_revision + 1}
+        operation_id = 'controller-order-' + time.strftime('%Y%m%dT%H%M%S-') + uuid.uuid4().hex[:8]
+        directory = romtool.operation_dir(operation_id)
+        directory.mkdir(mode=0o700)
+        if before is not None:
+            romtool.atomic_write_bytes(directory / 'before.json', before, mode=0o600)
+        payload = (json.dumps(after, ensure_ascii=False, indent=2) + '\n').encode()
+        romtool.atomic_write_bytes(directory / 'after.json', payload, mode=0o600)
+        manifest = {'operation_id': operation_id, 'kind': 'controller_assignment',
+            'created_at': romtool.now(), 'status': 'prepared', 'path': str(ORDER_PATH),
+            'sha256_before': hashlib.sha256(before).hexdigest() if before is not None else None,
+            'sha256_after': hashlib.sha256(payload).hexdigest(), 'slots': after['slots'],
+            'models': after['models'], 'physical_gameplay_verified': False}
+        romtool.write_manifest(manifest)
+        try:
+            if (path.read_bytes() if path.exists() else None) != before:
+                raise ValueError('Preferências alteradas durante a aplicação.')
+            romtool.atomic_write_bytes(path, payload, mode=0o600)
+            if path.read_bytes() != payload:
+                raise RuntimeError('A nova ordem não foi confirmada em disco.')
+            manifest['status'] = 'completed_verified'
+            romtool.write_manifest(manifest)
+            romtool.append_event(operation_id, 'controller_order_updated', status='completed_verified',
+                destination=str(ORDER_PATH), sha256_before=manifest['sha256_before'],
+                sha256_after=manifest['sha256_after'])
+        except Exception as exc:
+            if path.exists() and path.read_bytes() == payload:
+                if before is None:
+                    os.rename(path, directory / 'uncommitted.json')
+                else:
+                    romtool.atomic_write_bytes(path, before, mode=0o600)
+            manifest['status'] = 'failed_restored'
+            manifest['error'] = str(exc)
+            romtool.write_manifest(manifest)
+            raise
+        return after
+
+
+def assign_player(root, devices, assigned, source_id, player, revision):
+    if type(player) is not int or not 0 <= player < 4:
+        raise ValueError('Jogador de destino inválido.')
+    available = {device_key(row): row for row in devices if row.get('routable', True)}
+    if source_id not in available:
+        raise ValueError('O controle foi desconectado ou está sem mapeamento seguro.')
+    by_path = {row['path']: key for key, row in available.items()}
+    ports = [by_path.get(path) for path in assigned]
+    ports = (ports + [None] * 4)[:4]
+    source = ports.index(source_id) if source_id in ports else None
+    if source == player:
+        return load_preferences(root)
+    if source is not None:
+        ports[source], ports[player] = ports[player], ports[source]
+    else:
+        ports[player] = source_id
+    prefs = load_preferences(root)
+    return save_preferences(root, {**prefs, 'slots': ports}, revision)
+
+
+def identify_controller(root, source_id, model, revision):
+    prefs = load_preferences(root)
+    models = {**prefs['models'], source_id: model}
+    return save_preferences(root, {**prefs, 'models': models}, revision)
+
+
+def slots(devices, docked, previous=(), preferred=None):
     """Deck is P1 handheld; external pads fill dock ports in connection order.
 
     Compact disconnected ports; preserve surviving controllers' relative order.
@@ -33,6 +139,14 @@ def slots(devices, docked, previous=()):
     external.sort(key=lambda d: (order.get(d['path'], 999), d['path']))
     builtins = [d for d in devices if d['kind'] == 'deck']
     chosen = external if docked else builtins[:1] + external
+    if preferred is not None:
+        available = {device_key(d): d['path'] for d in devices if d['kind'] in {'deck', 'external'}}
+        selected = [available.get(key) for key in preferred]
+        remaining = [d['path'] for d in chosen if d['path'] not in selected]
+        for n, path in enumerate(selected):
+            if path is None and remaining:
+                selected[n] = remaining.pop(0)
+        return selected
     return [d['path'] for d in chosen[:4]]
 
 
@@ -234,8 +348,11 @@ def input_inventory():
                 if keyboard and dev.info.vendor == 0x28DE:
                     continue  # Never interpret Steam's mouse/keyboard emulation as a physical keyboard.
                 kind = 'keyboard' if keyboard and not pad else ('deck_virtual' if virtual else 'deck' if deck else 'external')
+                identifier = f'{dev.info.vendor:04x}:{dev.info.product:04x}:{dev.uniq or dev.phys or path}'
                 rows.append({'path': path, 'name': dev.name, 'vendor': dev.info.vendor,
-                             'product': dev.info.product, 'kind': kind})
+                             'product': dev.info.product, 'kind': kind, 'bus': dev.info.bustype,
+                             'device_cookie': os.fstat(dev.fd).st_ino,
+                             'controller_id': hashlib.sha256(identifier.encode()).hexdigest()})
         except (OSError, PermissionError):
             continue
     # Steam may expose the built-in pad virtually. Only a single unambiguous
@@ -335,7 +452,9 @@ def diagnose(root):
             'backend': 'KWin + evdev/uinput, sessão somente', 'error': error,
             'exit': {'gamepad': 'Back/Select + Start', 'keyboard': 'Ctrl + Shift + F10', 'hold_seconds': 2},
             'policy': {'handheld': 'Deck P1; externos P2-P4', 'dock': 'externos P1-P4; teclado sem externo',
-                       'hotplug': True, 'exclusive_grabs': False}, 'coverage': coverage(root),
+                       'hotplug': True, 'manual_player_order': True, 'occupied_target': 'swap',
+                       'manual_overrides_automatic': True, 'preference_file': str(ORDER_PATH),
+                       'exclusive_grabs': False}, 'coverage': coverage(root),
             'physical_gameplay_verified': False}
 
 
@@ -352,6 +471,8 @@ class Session:
         self.inputs, self.virtual, self.assigned = {}, [], []
         self.source_maps = {}
         self.source_signature = None
+        self.preferences = {'schema': 1, 'revision': 0, 'slots': None, 'models': {}}
+        self.wait_for_release = set()
         self.output_state = [{}, {}, {}, {}]
         self.effects = [{}, {}, {}, {}]
         self.forwarded_effects = [{}, {}, {}, {}]
@@ -429,7 +550,8 @@ class Session:
                 spec = importlib.util.spec_from_file_location('emulation_session_feedback', path)
                 feedback = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(feedback)
-                self.feedback = feedback.SessionFeedback(game=True)
+                self.feedback = feedback.SessionFeedback(game=True, root=root,
+                    on_assign=self.reassign, on_identify=self.identify)
                 self.manifest['feedback'] = 'ready'
             except Exception as exc:
                 self.manifest['feedback_error'] = str(exc)
@@ -442,6 +564,24 @@ class Session:
     def save(self):
         import romtool
         romtool.write_manifest(self.manifest)
+
+    def controller_rows(self):
+        return [{**row, 'controller_id': device_key(row), 'routable': row['path'] in self.source_maps,
+                 'model_override': self.preferences['models'].get(device_key(row))}
+                for row in self.rows.values() if row['kind'] in {'deck', 'external'}]
+
+    def reassign(self, source_id, player):
+        docked = self.manifest.get('docked', False)
+        self.scan(docked)
+        self.preferences = assign_player(self.root, self.controller_rows(), self.assigned,
+                                         source_id, player, self.preferences['revision'])
+        self.scan(docked)
+
+    def identify(self, source_id, model):
+        if source_id not in {device_key(row) for row in self.controller_rows()}:
+            raise ValueError('O controle foi desconectado.')
+        self.preferences = identify_controller(self.root, source_id, model, self.preferences['revision'])
+        self.scan(self.manifest.get('docked', False))
 
     def neutral(self, port):
         v = self.virtual[port]
@@ -510,8 +650,12 @@ class Session:
                     if self.deck_identity == (row['path'],os.stat(row['path']).st_ino):row['kind']='deck'
                 except OSError:pass
         available = {r['path']: r for r in rows}
+        previous_rows = getattr(self, 'rows', {})
+        replaced = set()
         for path in list(self.inputs):
-            if path not in available:
+            changed = path in available and previous_rows.get(path, {}).get('device_cookie') != available[path].get('device_cookie')
+            if path not in available or changed:
+                replaced.add(path)
                 self.inputs.pop(path).close()
                 self.keyboard_down.clear()
                 self.keyboard_state.pop(path, None)
@@ -521,7 +665,7 @@ class Session:
             if path not in self.inputs and row['kind'] in {'deck', 'external', 'keyboard'}:
                 try: self.inputs[path] = self.evdev.InputDevice(path)
                 except OSError: continue
-        signature=tuple((r['path'],r['kind']) for r in rows)
+        signature = tuple((r['path'], r['kind'], device_key(r), r.get('device_cookie')) for r in rows)
         if signature != self.source_signature:
             mappings=source_gamepads()
             self.source_signature=signature
@@ -539,23 +683,37 @@ class Session:
             if self.manifest['unmapped_controllers']:
                 print('[CONTROLE] Há controle sem mapeamento SDL seguro; preservado para diagnóstico, teclado mantido.',flush=True)
             self.save()
-        new = slots([r for r in rows if r['path'] in self.inputs and r['path'] in self.source_maps], docked, self.assigned)
-        if new != self.assigned or docked != self.manifest.get('docked'):
+        try:
+            self.preferences = load_preferences(self.root)
+        except (ValueError, OSError) as exc:
+            message = str(exc)
+            if self.manifest.get('controller_order_error') != message:
+                self.manifest['controller_order_error'] = message
+                self.save()
+        new = slots([r for r in rows if r['path'] in self.inputs and r['path'] in self.source_maps],
+                    docked, self.assigned, self.preferences['slots'])
+        if new != self.assigned or docked != self.manifest.get('docked') or replaced.intersection(new):
             self.stop_effects()
             for n in range(4): self.neutral(n)
             self.assigned = new
+            self.wait_for_release = {path for path in new if path}
             self.keyboard_down.clear()
             self.keyboard_state.clear()
             self.exit_chords.clear()
             self.manifest['docked'] = docked
-            change = {'at': time.time(), 'players': [{'player': n+1, 'name': available[p]['name']} for n,p in enumerate(new)],
-                      'keyboard_fallback': not new, 'docked': docked}
+            change = {'at': time.time(), 'players': [{'player': n+1, 'name': available[p]['name']}
+                      for n,p in enumerate(new) if p], 'keyboard_fallback': not any(new), 'docked': docked,
+                      'order_revision': self.preferences['revision']}
             self.manifest['changes'].append(change)
             self.save()
+            for port, path in enumerate(new):
+                if path:
+                    self.forward(self.inputs[path], port)
         self.rows = available
         if getattr(self, 'feedback', None):
-            self.feedback.set_players([available[p]['name'] for p in self.assigned],
-                                      identity=tuple(self.assigned))
+            self.feedback.set_devices(self.controller_rows(),
+                [device_key(available[p]) if p else None for p in self.assigned],
+                keyboard=not any(self.assigned))
 
     def forward(self, device, port):
         """Translate the whole current state after an event batch; writes are diffed."""
@@ -577,6 +735,18 @@ class Session:
             y=raw_axes.get(e.ABS_HAT0Y+n*2)
             hats[n]=(1 if y and y.value<0 else 4 if y and y.value>0 else 0)|(8 if x and x.value<0 else 2 if x and x.value>0 else 0)
         def value(key):return binding_value(mapping.get(key,''),buttons,axes,hats)
+        waiting = getattr(self, 'wait_for_release', set())
+        if device.path in waiting:
+            held = any(value(key) > .5 for key in ('a', 'b', 'x', 'y', 'start', 'back',
+                'leftshoulder', 'rightshoulder', 'leftstick', 'rightstick',
+                'dpup', 'dpdown', 'dpleft', 'dpright'))
+            moved = any(abs(value(key)) > .35 for key in ('leftx', 'lefty', 'rightx', 'righty'))
+            triggers = any(value(key) > (-.8 if mapping.get(key, '').startswith('a') else .1)
+                           for key in ('lefttrigger', 'righttrigger') if key in mapping)
+            if not held and not moved and not triggers:
+                waiting.discard(device.path)
+            self.neutral(port)
+            return
         if getattr(self,'exit_pending',False) and self.dialog_armed:
             desired={key for binding,key in {'a':e.KEY_ENTER,'b':e.KEY_ESC,'dpleft':e.KEY_LEFT,
                 'dpright':e.KEY_RIGHT,'dpup':e.KEY_UP,'dpdown':e.KEY_DOWN}.items() if value(binding)>.5}
@@ -648,7 +818,7 @@ class Session:
         if now-self.last_scan > 1:
             self.scan(dock_mode(self.focus.current[3]) if focused else self.manifest.get('docked', False))
             self.last_scan = now
-        ready, _, _ = select.select([*self.inputs.values(),*self.virtual], [], [], .04)
+        ready, _, _ = select.select([*self.inputs.values(),*self.virtual], [], [], .02)
         for dev in ready:
             if dev in self.virtual:
                 for event in dev.read():
@@ -680,6 +850,8 @@ class Session:
         keyboard_exit = bool(pressed & {e.KEY_LEFTCTRL,e.KEY_RIGHTCTRL}) and bool(pressed & {e.KEY_LEFTSHIFT,e.KEY_RIGHTSHIFT}) and e.KEY_F10 in pressed
         chords = {'keyboard': keyboard_exit}
         for path in self.assigned:
+            if path is None:
+                continue
             state=self.output_state[self.assigned.index(path)]
             chords[path] = bool(state.get((e.EV_KEY,e.BTN_SELECT)) and state.get((e.EV_KEY,e.BTN_START)))
         for key, held in chords.items():
@@ -710,7 +882,7 @@ class Session:
                     name={'enter':'enter','rshift':'rightshift','shift':'leftshift','ctrl':'leftctrl','alt':'leftalt'}.get(name,name)
                     return getattr(e,'KEY_'+name.upper(),None)
                 self.ra_keyboard={name:keycode(configured.get(name,default)) for name,default in defaults.items()}
-        if focused and not self.assigned and self.keyboard_fallback:
+        if focused and not any(self.assigned) and self.keyboard_fallback:
             mapping = {e.KEY_Z:e.BTN_SOUTH, e.KEY_X:e.BTN_EAST, e.KEY_A:e.BTN_WEST,
                 e.KEY_S:e.BTN_NORTH, e.KEY_Q:e.BTN_TL, e.KEY_E:e.BTN_TR,
                 e.KEY_BACKSPACE:e.BTN_SELECT, e.KEY_ENTER:e.BTN_START}

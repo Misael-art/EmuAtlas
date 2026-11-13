@@ -13,8 +13,8 @@
     },
     {
       "target": ".gitignore",
-      "sha256": "e39a8a8e274d191b2263bf9dfc8fdc3e96a3dd5d9a84bde585f5bbb2a94957fd",
-      "size_bytes": 706,
+      "sha256": "ff44b6483991629dd6a3656e2e2119fd6b6117f80b746eb8e3d188711308ed5f",
+      "size_bytes": 757,
       "mode": "0644"
     },
     {
@@ -135,6 +135,12 @@
       "target": "frontend/QuiverLauncher/structure-frontend.py",
       "sha256": "7da154d274e41c7ad4d6e052b70083227a98a8ede7b5f7480b8efaf27636ab11",
       "size_bytes": 42329,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/RetroFE/Config/controller-artwork.json",
+      "sha256": "c6c4ffd60a00b215891f0bab7de191df7997c1627e7e09e1df1fea9795523f94",
+      "size_bytes": 7296,
       "mode": "0644"
     },
     {
@@ -265,8 +271,8 @@
     },
     {
       "target": "frontend/RetroFE/Tools/launchers/retrofe/navigation-panel.py",
-      "sha256": "c208ae3d70d71b42274611ce8d17b851ec9527641e514e4995ec58e7ab5b4c7d",
-      "size_bytes": 29170,
+      "sha256": "e5924f21dd9b4f0bde61c29b219b2a021b3dd3a030e1d28508e0840a533f938a",
+      "size_bytes": 30994,
       "mode": "0644"
     },
     {
@@ -277,8 +283,8 @@
     },
     {
       "target": "frontend/RetroFE/Tools/launchers/retrofe/session-feedback.py",
-      "sha256": "2a3b6fe59a1998a478fff202b45e493f883b230d4a043402c9a1d6bb36d837fb",
-      "size_bytes": 8758,
+      "sha256": "302f0a65640af33f187dab0c6bb7b4aab63e7e3efd1733a6a9f4ec552e4e1778",
+      "size_bytes": 27976,
       "mode": "0644"
     },
     {
@@ -349,8 +355,8 @@
     },
     {
       "target": "frontend/RetroFE/Tools/materializers/organize-asset-library.py",
-      "sha256": "aecac427a22df057dcbba49cfada9e026379cac077683fc342bb55d6922d0b36",
-      "size_bytes": 192753,
+      "sha256": "d2aed40e880d7b0ae293270f99218f4653646cd3ce8d051d237516a1505a5222",
+      "size_bytes": 192776,
       "mode": "0644"
     },
     {
@@ -397,8 +403,8 @@
     },
     {
       "target": "tools/distribution/config/release-files.json",
-      "sha256": "a13508b5ee1ee847116a4645a71388da16cd7de3fbac087d9429d7b33020552d",
-      "size_bytes": 22981,
+      "sha256": "266f298ead5b8898ae24651193b8d414b6398a2cfa8fedff0ec17c5d6326959e",
+      "size_bytes": 23127,
       "mode": "0644"
     },
     {
@@ -427,8 +433,8 @@
     },
     {
       "target": "tools/distribution/repository/.gitignore",
-      "sha256": "e39a8a8e274d191b2263bf9dfc8fdc3e96a3dd5d9a84bde585f5bbb2a94957fd",
-      "size_bytes": 706,
+      "sha256": "ff44b6483991629dd6a3656e2e2119fd6b6117f80b746eb8e3d188711308ed5f",
+      "size_bytes": 757,
       "mode": "0644"
     },
     {
@@ -553,8 +559,8 @@
     },
     {
       "target": "tools/roms/controller_session.py",
-      "sha256": "10d3fdb2a6757dccacb553f0f1ef16ed8778a5da21d3d0922ca7d6476748ca7c",
-      "size_bytes": 41745,
+      "sha256": "6083511142762ad9dc1920e6da5b19a6580cde1dc868dc0f1782e64262488866",
+      "size_bytes": 51153,
       "mode": "0644"
     },
     {
@@ -907,8 +913,8 @@
     },
     {
       "target": "tools/roms/tests/test_controller_session.py",
-      "sha256": "b9b980a0fd02ba04f57c0b0cd15a4df39d32f0741bd4a680d3c2fe97e9e72da9",
-      "size_bytes": 15420,
+      "sha256": "b1520963342f708aa67aef9f1a7ce7bc10279eb4a4ca85ca4f717364b72ba8ee",
+      "size_bytes": 26849,
       "mode": "0644"
     },
     {
