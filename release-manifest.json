@@ -7,8 +7,8 @@
   "files": [
     {
       "target": ".github/workflows/ci.yml",
-      "sha256": "af67c94a131a7fd37cf7899f7b335fbbca4047642bd763ba5a4925d33a5c6058",
-      "size_bytes": 2965,
+      "sha256": "cfabee77165be356bbd5ddc1a6948321dcf917c515d56733811daf5feb90a7e4",
+      "size_bytes": 3029,
       "mode": "0644"
     },
     {
@@ -199,8 +199,8 @@
     },
     {
       "target": "frontend/RetroFE/Tools/audits/validate-session-safety.py",
-      "sha256": "27f4d4b0c6d686aabec58c14bfbd134a8b70ec703c995156301577326d591b3d",
-      "size_bytes": 9502,
+      "sha256": "b2dd69dde024d8c9a00c30f7eec52afdf3bfba8cf4a1392ee2acf395bae04c5e",
+      "size_bytes": 12281,
       "mode": "0644"
     },
     {
@@ -241,8 +241,8 @@
     },
     {
       "target": "frontend/RetroFE/Tools/launchers/retrofe/input-debug-overlay.py",
-      "sha256": "22770ad732ec1a64a5dc4213edc584cdf7ff1a55066d620e4a6d4fc2167774a0",
-      "size_bytes": 36570,
+      "sha256": "b029cdee6ce65ec0b4c2f537f0fd6291f5a2ec602d09d2822281a6d712f16cd2",
+      "size_bytes": 38735,
       "mode": "0644"
     },
     {
@@ -253,8 +253,8 @@
     },
     {
       "target": "frontend/RetroFE/Tools/launchers/retrofe/launch-retrofe.sh",
-      "sha256": "0ec4e8a37b892ace22a9bd89d9c615d67d45094223f0f57ec04b04e31443ace2",
-      "size_bytes": 56713,
+      "sha256": "27d66d6a8ad9f0a03b4189e9d67595af51c1d305e50d067c763bcedc73c9ac84",
+      "size_bytes": 56933,
       "mode": "0755"
     },
     {
@@ -265,8 +265,8 @@
     },
     {
       "target": "frontend/RetroFE/Tools/launchers/retrofe/navigation-panel.py",
-      "sha256": "29cae5477ae17c46355b8d830174c105e4b72751ef77354d442564f8202e3f44",
-      "size_bytes": 25890,
+      "sha256": "c208ae3d70d71b42274611ce8d17b851ec9527641e514e4995ec58e7ab5b4c7d",
+      "size_bytes": 29170,
       "mode": "0644"
     },
     {
@@ -274,6 +274,12 @@
       "sha256": "0c7629926ac8bdf1a7a163f8a3f9817d56d0dc9c71800938279d4360180cf950",
       "size_bytes": 121,
       "mode": "0755"
+    },
+    {
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/session-feedback.py",
+      "sha256": "2a3b6fe59a1998a478fff202b45e493f883b230d4a043402c9a1d6bb36d837fb",
+      "size_bytes": 8758,
+      "mode": "0644"
     },
     {
       "target": "frontend/RetroFE/Tools/launchers/retrofe/steam-input.py",
@@ -391,8 +397,8 @@
     },
     {
       "target": "tools/distribution/config/release-files.json",
-      "sha256": "76f86ad6ed18a3b87d661441d80def5d6c8c489445c75a185fd106409cf7e2b5",
-      "size_bytes": 22809,
+      "sha256": "a13508b5ee1ee847116a4645a71388da16cd7de3fbac087d9429d7b33020552d",
+      "size_bytes": 22981,
       "mode": "0644"
     },
     {
@@ -439,8 +445,8 @@
     },
     {
       "target": "tools/distribution/repository/github/ci.yml",
-      "sha256": "af67c94a131a7fd37cf7899f7b335fbbca4047642bd763ba5a4925d33a5c6058",
-      "size_bytes": 2965,
+      "sha256": "cfabee77165be356bbd5ddc1a6948321dcf917c515d56733811daf5feb90a7e4",
+      "size_bytes": 3029,
       "mode": "0644"
     },
     {
@@ -547,8 +553,8 @@
     },
     {
       "target": "tools/roms/controller_session.py",
-      "sha256": "4753171e77a691c23f95a078b117c456379daf6a99e6b529922727d0a8580fcf",
-      "size_bytes": 39230,
+      "sha256": "10d3fdb2a6757dccacb553f0f1ef16ed8778a5da21d3d0922ca7d6476748ca7c",
+      "size_bytes": 41745,
       "mode": "0644"
     },
     {
@@ -571,8 +577,8 @@
     },
     {
       "target": "tools/roms/emulator_controls.py",
-      "sha256": "9477841d9fbfbb7a93e997bf12e8d3f184f77e45ab0e6cdd7e0a1fab84fb9cea",
-      "size_bytes": 51230,
+      "sha256": "cd103004a5cc067c56e13e553a84a37ae64fecae79ae0542e4b4aa615388b461",
+      "size_bytes": 56745,
       "mode": "0644"
     },
     {
@@ -901,8 +907,8 @@
     },
     {
       "target": "tools/roms/tests/test_controller_session.py",
-      "sha256": "57fbf356389a0f2211666ff8af9a5ee193f456042b95a7430e5508353e1a330d",
-      "size_bytes": 11941,
+      "sha256": "b9b980a0fd02ba04f57c0b0cd15a4df39d32f0741bd4a680d3c2fe97e9e72da9",
+      "size_bytes": 15420,
       "mode": "0644"
     },
     {
@@ -913,8 +919,8 @@
     },
     {
       "target": "tools/roms/tests/test_emulator_controls.py",
-      "sha256": "873b70e1aa629f2973c990d5de268ab09f3a011e22488aa6fbed038040d4161a",
-      "size_bytes": 14396,
+      "sha256": "0d971e4496b01e5ddb73d9cbc2148df7f92a0fe77bd5670ca3640085c1bd2e39",
+      "size_bytes": 16797,
       "mode": "0644"
     },
     {

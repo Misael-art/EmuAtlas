@@ -26,6 +26,42 @@ def load(name, path):
 
 
 class BindingsTests(unittest.TestCase):
+    def test_retrofe_reserves_real_start_and_maps_each_pad_independently(self):
+        before = b'up = Up,joy0Hat0Up\nselect = Return,joy0Button0\nback = Escape,joy0Button1\nfavPlaylist = F,joyButton6\npageUp = A,joy0Button9\nquit = Q\n'
+        pads = [{'index':0, 'mapping':{'start':'b6','back':'b4','a':'b0','b':'b1','dpup':'h0.1','lefty':'a1','leftstick':'b7'}},
+                {'index':1, 'mapping':{'start':'b11','back':'b10','a':'b0','b':'b1','dpup':'h0.1','lefty':'a1','leftstick':'b13'}}]
+        after = controls.retrofe_controls(before, pads)
+        self.assertIn(b'favPlaylist = F,joy2Button6,joy3Button6,joy0Button4,joy1Button10', after)
+        self.assertIn(b'pageUp = A,joy0Button7,joy1Button13', after)
+        self.assertIn(b'select = Return,joy0Button0,joy1Button0', after)
+        self.assertIn(b'quit = Q\n', after)
+        self.assertNotIn(b'joy0Button6', after)
+        self.assertNotIn(b'joy1Button11', after)
+        self.assertEqual(controls.retrofe_controls(after, pads), after)
+
+    def test_retrofe_projection_keeps_bom_crlf_keyboard_and_custom_actions(self):
+        before = b'\xef\xbb\xbfselect = Return,joy0Button0\r\ncustom = F9\r\n# personal\r\n'
+        after = controls.retrofe_controls(before, [{'index':0,'mapping':{'a':'b3'}}])
+        self.assertIn(b'\xef\xbb\xbfselect = Return,joy0Button3\r\ncustom = F9\r\n# personal\r\n', after)
+
+    def test_retrofe_mapping_supports_inverted_axes_and_button_dpad(self):
+        after = controls.retrofe_controls(b'up = Up\ndown = Down\n',
+            [{'index':0,'mapping':{'dpup':'b16','dpdown':'b17','lefty':'a2~'}}])
+        self.assertIn(b'up = Up,joy0Button16,joy0Axis2+', after)
+        self.assertIn(b'down = Down,joy0Button17,joy0Axis2-', after)
+
+    def test_retrofe_ambiguous_duplicate_action_is_preserved(self):
+        with self.assertRaises(ValueError):
+            controls.retrofe_controls(b'select = Return\nselect = Space\n', [])
+
+    def test_retrofe_custom_start_conflict_blocks_before_writing(self):
+        with self.assertRaisesRegex(ValueError, 'Start SDL'):
+            controls.retrofe_controls(b'custom = joyButton12\n', [{'index':0,'mapping':{'start':'b12'}}])
+
+    def test_retrofe_new_bindings_follow_a_complete_line(self):
+        after = controls.retrofe_controls(b'# personal', [{'index':0,'mapping':{'a':'b3'}}])
+        self.assertEqual(after, b'# personal\nselect = joy0Button3\n')
+
     def test_keyboard_and_sdl_are_alternatives_not_a_chord(self):
         original = b"; personal preference\r\n[Pad1]\r\nCross = Keyboard/K\r\n[Pad2]\r\nType = None\r\n"
         data = controls.ini_update(original, {"Pad1": {"Cross": "SDL-0/A"}}, append=True)

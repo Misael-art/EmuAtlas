@@ -1266,6 +1266,10 @@ if [[ "$RETROFE_INPUT_BACKEND" == 'steam' ]]; then
 else
     INPUT_SHORTCUT_POLICY='preserve'
 fi
+if ! python3 "$NAVIGATION_PANEL_TOOL" --root "$ROOT" --prepare-controls; then
+    show_error 'Não consegui preparar os controles SDL e reservar Start. As configurações e seus backups foram preservados.'
+    exit 1
+fi
 start_background_music
 while :; do
     APP_LOG_MTIME_BEFORE="$(stat -c '%y' "$ROOT/log.txt" 2>/dev/null || true)"

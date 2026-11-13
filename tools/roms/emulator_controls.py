@@ -726,7 +726,91 @@ def coverage(root):
     return rows
 
 
-def plan(root, *, system_id=None, frontends=True):
+def retrofe_controls(data, pads):
+    """Project logical SDL controls while preserving keyboard and custom actions."""
+    actions = {'up': [('dpup', 0), ('lefty', -1)], 'down': [('dpdown', 0), ('lefty', 1)],
+               'left': [('dpleft', 0), ('leftx', -1)], 'right': [('dpright', 0), ('leftx', 1)],
+               'select': [('a', 0)], 'back': [('b', 0)], 'collectionDown': [('y', 0)],
+               'togglePlaylist': [('x', 0)], 'favPlaylist': [('back', 0)],
+               'pageUp': [('leftstick', 0)], 'pageDown': [('rightstick', 0)],
+               'letterDown': [('leftshoulder', 0)], 'letterUp': [('rightshoulder', 0)]}
+    def raw_token(index, raw, direction):
+        prefix = f'joy{index}'
+        if re.fullmatch(r'b\d+', raw):
+            return prefix + 'Button' + raw[1:]
+        match = re.fullmatch(r'h(\d+)\.([1248])', raw)
+        if match:
+            return prefix + 'Hat' + match[1] + {'1':'Up','2':'Right','4':'Down','8':'Left'}[match[2]]
+        match = re.fullmatch(r'([+-]?)a(\d+)(~?)', raw)
+        if match:
+            sign = direction or (-1 if match[1] == '-' else 1)
+            if match[3]: sign = -sign
+            return prefix + 'Axis' + match[2] + ('-' if sign < 0 else '+')
+        return None
+    projected = {key: [] for key in actions}
+    for pad in pads:
+        mapping = pad.get('mapping', {})
+        if not mapping:
+            continue
+        for action, bindings in actions.items():
+            for key, direction in bindings:
+                token = raw_token(pad['index'], mapping.get(key, ''), direction)
+                if token and token not in projected[action]: projected[action].append(token)
+    lines = []
+    seen = set()
+    text = data.decode('utf-8-sig').replace(
+        '# Start (joyButton7) e F10 são reservados ao navigation-panel.py: Options global.',
+        '# Start lógico SDL e F10 são reservados ao navigation-panel.py: Options global.')
+    for line in text.splitlines(keepends=True):
+        match = re.match(r'^(\s*)(\w+)(\s*=\s*)([^#\r\n]*)(.*)$', line.rstrip('\r\n'))
+        if not match or match[2] not in actions:
+            lines.append(line)
+            continue
+        action = match[2]
+        if action in seen:
+            raise ValueError('Ação duplicada em controls.conf: ' + action)
+        seen.add(action)
+        tokens = [v.strip() for v in match[4].split(',') if v.strip()]
+        preserved = [v for v in tokens if not v.startswith('joy')]
+        # Unknown controllers retain their existing raw bindings.
+        unmapped = set(range(4)) - {p['index'] for p in pads if p.get('mapping')}
+        for token in tokens:
+            index = re.match(r'joy(\d+)', token)
+            if index and int(index[1]) in unmapped and not token.endswith('Button7'):
+                preserved.append(token)
+            elif token.startswith('joy') and not index:
+                if not token.endswith('Button7'):
+                    preserved.extend(f'joy{n}' + token[3:] for n in sorted(unmapped))
+        values = list(dict.fromkeys([*preserved, *projected[action]]))
+        newline = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
+        lines.append(match[1] + action + match[3] + ','.join(values) + match[5] + newline)
+    for action in projected:
+        if action not in seen and projected[action]:
+            if lines and not lines[-1].endswith('\n'): lines[-1] += '\n'
+            lines.append(action + ' = ' + ','.join(projected[action]) + '\n')
+    reserved = set()
+    for pad in pads:
+        token = raw_token(pad['index'], pad.get('mapping', {}).get('start', ''), 0)
+        if token:
+            reserved.update((token, re.sub(r'^joy\d+', 'joy', token)))
+    for line in lines:
+        key, separator, values = line.split('#', 1)[0].partition('=')
+        if separator and reserved.intersection(v.strip() for v in values.split(',')):
+            raise ValueError('Start SDL conflita com a ação preservada ' + key.strip())
+    return (b'\xef\xbb\xbf' if data.startswith(b'\xef\xbb\xbf') else b'') + ''.join(lines).encode('utf-8')
+
+
+def prepare_retrofe(root):
+    """Prepare only the closed frontend's native controls through its plan log."""
+    pads = gamepads()
+    path = target(root, HOST / 'controls.conf')
+    if retrofe_controls(path.read_bytes(), pads) == path.read_bytes():
+        return {'status':'configuration_verified', 'items':0}
+    manifest = plan(root, retrofe_only=True)
+    return execute(root, manifest['operation_id'], 'apply', runtime=True, frontend_startup=True)
+
+
+def plan(root, *, system_id=None, frontends=True, retrofe_only=False):
     pads = runtime_gamepads(root,system_id)
     routed = os.environ.get('EMULATION_ROUTED_CONTROLS') == '1'
     if routed:
@@ -734,15 +818,26 @@ def plan(root, *, system_id=None, frontends=True):
         if len(pads) != 4:
             raise RuntimeError('Roteamento exige quatro portas virtuais confirmadas')
     pad = pads[0] if pads and (routed or len(pads) == 1) else None
-    items = proposals(root, pad=pad, pads=pads, routed=routed, system_id=system_id, frontends=frontends)
+    if retrofe_only:
+        path = target(root, HOST / 'controls.conf')
+        before = path.read_bytes()
+        after = retrofe_controls(before, pads)
+        items = [] if before == after else [{'path':str(HOST / 'controls.conf'), 'before':before,
+            'after':after, 'reason':'Start reservado e ações lógicas pelo mapping SDL observado'}]
+    else:
+        items = proposals(root, pad=pad, pads=pads, routed=routed, system_id=system_id, frontends=frontends)
     operation_id = f"emulator-controls-{romtool.dt.datetime.now():%Y%m%dT%H%M%S}-{uuid.uuid4().hex[:8]}"
     directory = romtool.operation_dir(operation_id)
     directory.mkdir(mode=0o700)
     manifest = {"schema_version": "1.0", "kind": "emulator_controls", "operation_id": operation_id,
                 "created_at": romtool.now(), "status": "prepared", "physical_gameplay_verified": False,
                 "system_id": system_id, "frontends": frontends,
-                "coverage": coverage(root) if frontends else [],
+                "retrofe_only": retrofe_only,
+                "coverage": coverage(root) if frontends and not retrofe_only else [],
                 "controllers": [{"index": p["index"], "name": p["name"]} for p in pads], "items": []}
+    if retrofe_only:
+        manifest['frontend_sdl_mappings'] = [
+            {'index': p['index'], 'name': p['name'], 'mapping': p['mapping']} for p in pads]
     for index, item in enumerate(items):
         row = {k: v for k, v in item.items() if k not in {"before", "after"}}
         row.update(sha256_before=digest(item["before"]), sha256_after=digest(item["after"]),
@@ -751,17 +846,16 @@ def plan(root, *, system_id=None, frontends=True):
             if item[field] is not None:
                 path = directory / folder / str(index)
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(item[field])
-                path.chmod(0o600)
+                romtool.atomic_write_bytes(path, item[field], mode=0o600)
                 row[field + "_snapshot"] = str(path.relative_to(root))
         manifest["items"].append(row)
     romtool.write_manifest(manifest)
     romtool.append_event(operation_id, "controller_plan_prepared", status="prepared", details={"items": len(items)})
-    romtool.rebuild_history_index()
+    if not retrofe_only: romtool.rebuild_history_index()
     return manifest
 
 
-def execute(root, operation_id, action, *, runtime=False):
+def execute(root, operation_id, action, *, runtime=False, frontend_startup=False):
     manifest_path = romtool.operation_dir(operation_id) / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
     if manifest.get("kind") != "emulator_controls":
@@ -776,7 +870,11 @@ def execute(root, operation_id, action, *, runtime=False):
                 "diverged": mismatches, "physical_gameplay_verified": False}
     with (nullcontext() if runtime else romtool.media_session.write_lock(vars(romtool))), configuration_lock():
         if runtime:
-            if manifest.get("frontends") or not manifest.get("system_id"):
+            if frontend_startup:
+                if not manifest.get('retrofe_only') or any(row['path'] != str(HOST / 'controls.conf') for row in manifest['items']):
+                    raise ValueError('Preparação RetroFE restrita ao arquivo de controles')
+                assert_closed()
+            elif manifest.get("frontends") or not manifest.get("system_id"):
                 raise ValueError("Configuração de frontend exige aplicação fora da sessão")
         else:
             assert_closed()
@@ -821,7 +919,7 @@ def execute(root, operation_id, action, *, runtime=False):
                                  sha256_before=digest(current), sha256_after=desired)
         manifest["status"] = "rolled_back" if rollback else "completed_verified"
         romtool.write_manifest(manifest)
-        romtool.rebuild_history_index()
+        if not manifest.get('retrofe_only'): romtool.rebuild_history_index()
     return {"operation_id": operation_id, "status": manifest["status"], "items": len(rows), "physical_gameplay_verified": False}
 
 

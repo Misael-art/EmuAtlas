@@ -10,12 +10,88 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import controller_session as c
 
+FEEDBACK_PATH = Path(__file__).resolve().parents[3] / 'frontend/RetroFE/Tools/launchers/retrofe/session-feedback.py'
+spec = importlib.util.spec_from_file_location('feedback_test', FEEDBACK_PATH)
+feedback = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(feedback)
+
+
+class FeedbackTests(unittest.TestCase):
+    def hud(self):
+        hud = feedback.SessionFeedback.__new__(feedback.SessionFeedback)
+        hud.owns_master = False
+        hud.toast, hud.hint = Mock(), Mock()
+        hud.focused = False
+        hud.pending = True
+        hud.toast_started = None
+        hud.signature = None
+        hud.drawn = None
+        hud.draw = Mock()
+        return hud
+
+    def test_four_slots_and_keyboard_fallback_are_explicit(self):
+        self.assertEqual(feedback.player_rows(['Deck','GameSir']),
+                         [('P1','Deck'),('P2','GameSir'),('P3','Sem controle'),('P4','Sem controle')])
+        self.assertEqual(feedback.player_rows([])[0], ('P1','Teclado'))
+        self.assertEqual(feedback.player_rows([], False)[0], ('P1','Sem controle'))
+
+    def test_hint_persists_after_toast_expires_and_hotplug_reopens_toast(self):
+        hud = self.hud()
+        area = (1920, 0, 1280, 800)
+        hud.set_players(['One'], identity=('event1',))
+        hud.update(True, area, 10)
+        hud.update(True, area, 16)
+        hud.toast.withdraw.assert_called_once()
+        self.assertEqual(hud.hint.deiconify.call_count, 2)
+        hud.set_players(['One','Two'], identity=('event1','event2'))
+        hud.update(True, area, 17)
+        self.assertEqual(hud.toast_started, 17)
+        self.assertEqual(hud.toast.deiconify.call_count, 2)
+
+    def test_same_names_with_changed_device_identity_notify_again(self):
+        hud = self.hud()
+        hud.set_players(['Gamepad'], identity=('old',))
+        hud.pending = False
+        hud.set_players(['Gamepad'], identity=('new',))
+        self.assertTrue(hud.pending)
+
+    def test_focus_loss_hides_both_and_pending_assignment_waits_for_return(self):
+        hud = self.hud()
+        hud.set_players(['Pad'])
+        hud.update(False, (0,0,1280,800), 10)
+        hud.toast.withdraw.assert_called_once()
+        hud.hint.withdraw.assert_called_once()
+        self.assertIsNone(hud.toast_started)
+        hud.update(True, (0,0,1280,800), 20)
+        self.assertEqual(hud.toast_started, 20)
+
+    def test_geometry_changes_reposition_without_restarting_timer(self):
+        hud = self.hud()
+        hud.update(True, (0,0,1280,800), 0)
+        hud.update(True, (1920,0,1280,800), 1)
+        self.assertEqual(hud.draw.call_count, 2)
+        self.assertEqual(hud.toast_started, 0)
+
+    def test_legend_matches_actual_held_chord(self):
+        self.assertIn('SELECT / BACK + START', feedback.exit_hint(True)[0])
+        self.assertIn('2 s', feedback.exit_hint(True)[1])
+        self.assertIn('Ctrl + Shift + F10', feedback.KEYBOARD_EXIT_HINT)
+        self.assertIn('F10', feedback.exit_hint(False)[0])
+
 
 def device(path, kind='external'):
     return {'path':path,'kind':kind}
 
 
 class RoutingTests(unittest.TestCase):
+    def test_preview_and_game_select_unique_mapping_by_path_before_vendor(self):
+        row = {'path':'event1','vendor':1,'product':2}
+        pads = [{'path':'event1','vendor':1,'product':2,'mapping':{'a':'b0'}},
+                {'path':'event2','vendor':1,'product':2,'mapping':{'a':'b3'}}]
+        self.assertEqual(c.source_mapping(row,pads), {'a':'b0'})
+        self.assertIsNone(c.source_mapping({**row,'path':'other'},pads))
+        self.assertEqual(c.source_mapping({**row,'path':'other'},pads[:1]), {'a':'b0'})
+
     def test_dock_keyboard_drives_p1_then_yields_to_hotplug_and_neutralizes_on_blur(self):
         from evdev import ecodes as e
         s=c.Session.__new__(c.Session)

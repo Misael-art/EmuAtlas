@@ -166,7 +166,7 @@ def parse_controls(path: Path, include_session: bool = False) -> dict[str, list[
             if token:
                 bindings.setdefault(token.casefold(), []).append(action)
     if include_session:
-        for token in ("f10", "joybutton7"):
+        for token in ("f10", "gamepad:start"):
             bindings.setdefault(token, []).append("optionsPanel")
     return bindings
 
@@ -415,6 +415,7 @@ class SDLInput:
         self.instance_to_index: dict[int, int] = {}
         self.axis_state: dict[tuple[int, int], int] = {}
         self.last_axis_event: dict[tuple[int, int], float] = {}
+        self.mappings: dict[int, dict[str, str]] = {}
         self.refresh()
 
     def _configure_functions(self) -> None:
@@ -431,6 +432,13 @@ class SDLInput:
         lib.SDL_NumJoysticks.restype = ctypes.c_int
         lib.SDL_JoystickNameForIndex.argtypes = [ctypes.c_int]
         lib.SDL_JoystickNameForIndex.restype = ctypes.c_char_p
+        for name in ("SDL_JoystickGetDeviceVendor", "SDL_JoystickGetDeviceProduct"):
+            function = getattr(lib, name)
+            function.argtypes = [ctypes.c_int]
+            function.restype = ctypes.c_uint16
+        if hasattr(lib, "SDL_JoystickPathForIndex"):
+            lib.SDL_JoystickPathForIndex.argtypes = [ctypes.c_int]
+            lib.SDL_JoystickPathForIndex.restype = ctypes.c_char_p
         lib.SDL_JoystickOpen.argtypes = [ctypes.c_int]
         lib.SDL_JoystickOpen.restype = ctypes.c_void_p
         lib.SDL_JoystickClose.argtypes = [ctypes.c_void_p]
@@ -460,12 +468,13 @@ class SDLInput:
         finally:
             self.lib.SDL_free(pointer)
         parts = mapping.split(",")
+        self.mappings[index] = dict(item.split(":", 1) for item in parts[2:] if ":" in item)
         for item in parts[2:]:
             semantic, separator, raw = item.partition(":")
             if not separator:
                 continue
             button_match = re.fullmatch(r"b(\d+)", raw)
-            axis_match = re.fullmatch(r"a(\d+)", raw)
+            axis_match = re.fullmatch(r"[+-]?a(\d+)~?", raw)
             if button_match:
                 buttons[int(button_match.group(1))] = controller_button_name(semantic)
             if axis_match:
@@ -478,6 +487,9 @@ class SDLInput:
                 self.lib.SDL_JoystickClose(data["handle"])
         self.devices.clear()
         self.instance_to_index.clear()
+        self.mappings.clear()
+        self.axis_state.clear()
+        self.last_axis_event.clear()
         for index in range(max(0, self.lib.SDL_NumJoysticks())):
             handle = self.lib.SDL_JoystickOpen(index)
             if not handle:
@@ -492,6 +504,11 @@ class SDLInput:
                 "name": name,
                 "buttons": buttons,
                 "axes": axes,
+                "vendor": self.lib.SDL_JoystickGetDeviceVendor(index),
+                "product": self.lib.SDL_JoystickGetDeviceProduct(index),
+                "path": ((self.lib.SDL_JoystickPathForIndex(index) or b"").decode("utf-8", "replace")
+                         if hasattr(self.lib, "SDL_JoystickPathForIndex") else ""),
+                "mapping": self.mappings.get(index, {}),
             }
             self.instance_to_index[instance_id] = index
 
@@ -523,6 +540,7 @@ class SDLInput:
                 semantic = device.get("buttons", {}).get(button)
                 suffix = f" ({semantic})" if semantic else ""
                 tokens = [f"joy{index}Button{button}", f"joyButton{button}"]
+                tokens += semantic_tokens(self.mappings.get(index, {}), f"b{button}")
                 if callback:
                     callback(f"{source} · Botão {button}{suffix}", tokens, resolve_actions(bindings, tokens))
             elif event_type == SDL_JOYHATMOTION:
@@ -536,6 +554,9 @@ class SDLInput:
                         directions.append((name, glyph))
                 if directions:
                     tokens = [f"joy{index}Hat{hat}{name}" for name, _ in directions]
+                    for bit in (HAT_UP, HAT_RIGHT, HAT_DOWN, HAT_LEFT):
+                        if value & bit:
+                            tokens += semantic_tokens(self.mappings.get(index, {}), f"h{hat}.{bit}")
                     label = f"{source} · Hat {hat} {' + '.join(glyph for _, glyph in directions)}"
                     if callback:
                         callback(label, tokens, resolve_actions(bindings, tokens))
@@ -559,6 +580,7 @@ class SDLInput:
                     glyph = "↑" if direction < 0 else "↓"
                 display_semantic = f" ({semantic})" if semantic else ""
                 tokens = [f"joy{index}Axis{axis}{suffix}"]
+                tokens += semantic_tokens(self.mappings.get(index, {}), f"a{axis}", direction)
                 if callback:
                     callback(f"{source} · Eixo {axis}{display_semantic} {glyph}",
                              tokens, resolve_actions(bindings, tokens))
@@ -570,6 +592,22 @@ class SDLInput:
         self.devices.clear()
         self.instance_to_index.clear()
         self.lib.SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER)
+
+
+def semantic_tokens(mapping, raw, direction=0):
+    """Keep raw engine tokens and expose SDL's logical controls to Options."""
+    tokens = ["gamepad:mapped"] if mapping else []
+    if not mapping and raw == "b7":
+        tokens.append("gamepad:start")
+    for name, binding in mapping.items():
+        if binding == raw:
+            suffix = ("-" if direction < 0 else "+") if direction else ""
+            tokens.append("gamepad:" + name + suffix)
+        elif direction and binding == raw + "~":
+            tokens.append("gamepad:" + name + ("+" if direction < 0 else "-"))
+        elif direction and binding == ("-" if direction < 0 else "+") + raw:
+            tokens.append("gamepad:" + name)
+    return tokens
 
 
 class EvdevKeyboardInput:

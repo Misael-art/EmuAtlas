@@ -6,6 +6,7 @@ emulators keep their port assignments while physical controllers hotplug.
 from __future__ import annotations
 
 import json
+import importlib.util
 from contextlib import closing
 import os
 from pathlib import Path
@@ -33,6 +34,16 @@ def slots(devices, docked, previous=()):
     builtins = [d for d in devices if d['kind'] == 'deck']
     chosen = external if docked else builtins[:1] + external
     return [d['path'] for d in chosen[:4]]
+
+
+def source_mapping(row, pads):
+    matches = [p for p in pads if p.get('path') == row['path']]
+    if not matches:
+        matches = [p for p in pads if (p.get('vendor'), p.get('product')) == (row['vendor'], row['product'])]
+    unique = {json.dumps(p['mapping'], sort_keys=True): p['mapping'] for p in matches if p.get('mapping')}
+    if len(unique) == 1:
+        return next(iter(unique.values()))
+    return None
 
 
 class HeldChord:
@@ -92,7 +103,7 @@ class OwnedProcesses:
 
 class KWinFocus:
     """Event driven focus information from KWin; accept only KWin's D-Bus sender."""
-    XML = '<node><interface name="org.emulation.ControllerSession"><method name="Focus"><arg type="i" direction="in"/><arg type="s" direction="in"/><arg type="b" direction="in"/><arg type="s" direction="in"/></method></interface></node>'
+    XML = '<node><interface name="org.emulation.ControllerSession"><method name="Focus"><arg type="i" direction="in"/><arg type="s" direction="in"/><arg type="b" direction="in"/><arg type="s" direction="in"/></method><method name="Geometry"><arg type="i" direction="in"/><arg type="i" direction="in"/><arg type="i" direction="in"/><arg type="i" direction="in"/></method></interface></node>'
 
     def __init__(self, directory):
         from gi.repository import Gio, GLib
@@ -106,6 +117,7 @@ class KWinFocus:
             'org.freedesktop.DBus', 'GetNameOwner', GLib.Variant('(s)', ('org.kde.KWin',)),
             GLib.VariantType('(s)'), Gio.DBusCallFlags.NONE, 3000, None).unpack()[0]
         self.current = (0, '', False, '')
+        self.geometry = None
         self.fresh=threading.Event()
         self.refresh_count=0
         self.registration = self.connection.register_object('/org/emulation/ControllerSession',
@@ -124,8 +136,12 @@ class KWinFocus:
             ', "/org/emulation/ControllerSession", "org.emulation.ControllerSession", "Focus", '
             'w ? w.pid : 0, w ? String(w.internalId) : "", w ? Boolean(w.dialog) : false, '
             'w && w.output ? String(w.output.name) : ""); '
+            'var g=w ? (w.clientGeometry || w.frameGeometry) : null; '
+            'callDBus('+bus+', "/org/emulation/ControllerSession", "org.emulation.ControllerSession", "Geometry", '
+            'g?Math.round(g.x):0,g?Math.round(g.y):0,g?Math.round(g.width):0,g?Math.round(g.height):0); '
             'if (w && !watched[String(w.internalId)]) { watched[String(w.internalId)] = true; '
-            'w.outputChanged.connect(function(){ if(workspace.activeWindow === w) report(); }); } }); }\n'
+            'w.outputChanged.connect(function(){ if(workspace.activeWindow === w) report(); }); '
+            'w.frameGeometryChanged.connect(function(){ if(workspace.activeWindow === w) report(); }); } }); }\n'
             'workspace.windowActivated.connect(report); report(workspace.activeWindow);\n')
         try:
             self.script(self.name, script)
@@ -137,8 +153,11 @@ class KWinFocus:
         if sender != self.sender:
             invocation.return_dbus_error('org.emulation.NotKWin', 'Unexpected sender')
             return
-        self.current = values.unpack()
-        self.fresh.set()
+        if method == 'Geometry':
+            self.geometry = values.unpack()
+        else:
+            self.current = values.unpack()
+            self.fresh.set()
         invocation.return_value(None)
 
     def dbus(self, *args):
@@ -404,6 +423,17 @@ class Session:
             if len(pads) != 4 or any(p['vendor'] != VID for p in pads):
                 raise RuntimeError('As quatro portas SDL da sessão não foram enumeradas com isolamento.')
             self.manifest.update(status='ready', ports=[{'name': p['name'], 'guid': p['guid']} for p in pads])
+            self.feedback = None
+            try:
+                path = root / 'frontend/RetroFE/Tools/launchers/retrofe/session-feedback.py'
+                spec = importlib.util.spec_from_file_location('emulation_session_feedback', path)
+                feedback = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(feedback)
+                self.feedback = feedback.SessionFeedback(game=True)
+                self.manifest['feedback'] = 'ready'
+            except Exception as exc:
+                self.manifest['feedback_error'] = str(exc)
+                print('[CONTROLE] Avisos visuais indisponíveis: ' + str(exc), flush=True)
             self.save()
         except BaseException:
             self.close('preparation_failed')
@@ -497,11 +527,11 @@ class Session:
             self.source_signature=signature
             for row in rows:
                 if row['kind'] not in {'deck','external'} or row['path'] not in self.inputs:continue
-                matches=[p for p in mappings if p.get('path')==row['path']]
-                if not matches:
-                    matches=[p for p in mappings if (p['vendor'],p['product'])==(row['vendor'],row['product'])]
-                unique={json.dumps(p['mapping'],sort_keys=True):p['mapping'] for p in matches}
-                if len(unique)==1:self.source_maps[row['path']]=next(iter(unique.values()))
+                mapping = source_mapping(row, mappings)
+                if mapping:
+                    self.source_maps[row['path']] = mapping
+                else:
+                    self.source_maps.pop(row['path'], None)
             self.manifest['unmapped_controllers']=[r['name'] for r in rows if r['kind'] in {'deck','external'} and r['path'] not in self.source_maps]
             self.manifest['source_mappings']=[{'name':r['name'],'mapping':self.source_maps[r['path']]}
                 for r in rows if r['path'] in self.source_maps]
@@ -523,6 +553,9 @@ class Session:
             self.manifest['changes'].append(change)
             self.save()
         self.rows = available
+        if getattr(self, 'feedback', None):
+            self.feedback.set_players([available[p]['name'] for p in self.assigned],
+                                      identity=tuple(self.assigned))
 
     def forward(self, device, port):
         """Translate the whole current state after an event batch; writes are diffed."""
@@ -653,6 +686,8 @@ class Session:
             if self.exit_chords.setdefault(key, HeldChord()).update(held, focused, now):
                 self.exit_pending = self.focus.close_window(self.processes)
                 self.manifest['exit_requested'] = bool(self.exit_pending)
+                self.manifest['exit_input'] = {'kind': 'keyboard' if key == 'keyboard' else 'gamepad',
+                    'player': None if key == 'keyboard' else self.assigned.index(key) + 1}
                 self.save()
         if self.exit_pending and not any(chords.values()): self.dialog_armed = True
         # Keyboard fallback through the same stable pad, only while our game
@@ -693,7 +728,20 @@ class Session:
             self.write(0,e.EV_ABS,e.ABS_RZ,255 if e.KEY_3 in pressed else 0)
             v.syn()
 
+        if getattr(self, 'feedback', None):
+            try:
+                self.feedback.update(focused, self.focus.geometry, now)
+            except Exception as exc:
+                # A failed status layer must preserve the running game/input.
+                self.manifest['feedback_error'] = str(exc)
+                self.feedback.close()
+                self.feedback = None
+                self.save()
+
     def close(self, status='completed_with_validation_limits'):
+        if getattr(self, 'feedback', None):
+            self.feedback.close()
+            self.feedback = None
         self.stop_effects()
         for dev in self.inputs.values(): dev.close()
         for v in self.virtual: v.close()

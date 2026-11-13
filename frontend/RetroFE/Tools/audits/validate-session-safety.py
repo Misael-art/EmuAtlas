@@ -16,7 +16,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "Tools/launchers/retrofe"
@@ -56,6 +56,65 @@ class FakeSteam:
         self.current = dict(DESKTOP)
 
 class SafetyTests(unittest.TestCase):
+    def panel_instance(self, opened=False):
+        instance = panel.OptionsPanel.__new__(panel.OptionsPanel)
+        instance.opened = opened
+        instance.front_active = True
+        instance.busy = False
+        instance.closing = None
+        instance.ignore_until = 0
+        for name in ("show", "back", "confirm", "move"):
+            setattr(instance, name, Mock())
+        return instance
+
+    def test_native_start_raw_11_and_12_open_options(self):
+        for button in (11, 12):
+            instance = self.panel_instance()
+            tokens = [f"joyButton{button}", *panel.inputs.semantic_tokens({"start": f"b{button}"}, f"b{button}")]
+            instance.event("SDL gamepad", tokens, [])
+            instance.show.assert_called_once_with()
+
+    def test_raw_seven_right_shoulder_cannot_open_options(self):
+        instance = self.panel_instance()
+        instance.event("SDL pad", ["joyButton7", *panel.inputs.semantic_tokens({"rightshoulder":"b7"}, "b7")], [])
+        instance.show.assert_not_called()
+
+    def test_unmapped_pad_preserves_raw_start_fallback(self):
+        instance = self.panel_instance()
+        instance.event("SDL pad", ["joyButton7"], [])
+        instance.show.assert_called_once_with()
+
+    def test_mapped_confirm_back_and_dpad_are_logical(self):
+        for semantic, raw, action, args in [("a","b3","confirm",()), ("b","b4","back",()),
+                                             ("dpup","b16","move",(-1,)), ("dpdown","h0.4","move",(1,))]:
+            instance = self.panel_instance(True)
+            tokens = panel.inputs.semantic_tokens({semantic:raw}, raw)
+            instance.event("SDL pad", tokens, [])
+            getattr(instance, action).assert_called_once_with(*args)
+
+    def test_inverted_and_half_axis_directions_follow_sdl_mapping(self):
+        self.assertIn("gamepad:lefty+", panel.inputs.semantic_tokens({"lefty":"a2~"}, "a2", -1))
+        self.assertIn("gamepad:dpup", panel.inputs.semantic_tokens({"dpup":"-a3"}, "a3", -1))
+        instance = self.panel_instance(True)
+        instance.event("SDL pad", panel.inputs.semantic_tokens({"lefty":"a2~"}, "a2", -1), [])
+        instance.move.assert_called_once_with(1)
+
+    def test_controller_exit_still_requires_explicit_confirmation(self):
+        instance = self.panel_instance(True)
+        instance.root_path = ROOT
+        instance.screen = "exit"
+        instance.rows = instance.make_rows()
+        instance.index = 0
+        instance.log = Mock()
+        instance.close = Mock()
+        instance.confirm = panel.OptionsPanel.confirm.__get__(instance)
+        instance.confirm()
+        instance.close.assert_called_once_with()
+        instance.close.reset_mock()
+        instance.index = 1
+        instance.confirm()
+        instance.close.assert_called_once_with("confirm_exit")
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="retrofe-session-safety-")
         self.addCleanup(self.temp.cleanup)
@@ -127,15 +186,15 @@ class SafetyTests(unittest.TestCase):
         for theme in registry["themes"]:
             selected,_ = panel.navigation_contract(root,theme["id"])
             self.assertEqual(selected["id"],theme["id"])
-    def test_debug_names_session_options_without_false_engine_binding(self):
+    def test_debug_names_keyboard_options_without_false_engine_binding(self):
         debug=panel.inputs
         engine=debug.parse_controls(ROOT/"controls.conf")
         session=debug.parse_controls(ROOT/"controls.conf",include_session=True)
-        self.assertEqual(debug.resolve_actions(engine,["F10","joyButton7"]),[])
-        self.assertEqual(debug.resolve_actions(session,["F10","joyButton7"]),["optionsPanel"])
-    def test_indexed_start_conflict_rejected(self):
+        self.assertEqual(debug.resolve_actions(engine,["F10"]),[])
+        self.assertEqual(debug.resolve_actions(session,["F10"]),["optionsPanel"])
+    def test_keyboard_options_conflict_rejected(self):
         root,_ = self.fixture()
-        with (root/"controls.conf").open("a") as out:out.write("\nrandom = joy0Button7\n")
+        with (root/"controls.conf").open("a") as out:out.write("\nrandom = F10\n")
         with self.assertRaises(RuntimeError):panel.navigation_contract(root,"aura-memorias")
     def test_opening_key_cannot_immediately_close_new_panel(self):
         instance=panel.OptionsPanel.__new__(panel.OptionsPanel)

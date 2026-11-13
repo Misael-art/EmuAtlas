@@ -678,6 +678,10 @@
     {
       "source": "tools/roms/tests/test_input_recovery_unit.py",
       "target": "tools/roms/tests/test_input_recovery_unit.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/session-feedback.py",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/session-feedback.py"
     }
   ]
 }
