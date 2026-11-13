@@ -216,7 +216,8 @@ class LaunchEnvelopeTests(unittest.TestCase):
             result = child.wait()
             self.assertFalse(remaining())
             return result
-        with patch.object(Path, "read_text", return_value="I: Vendor=28de Product=1205"), \
+        with patch.dict(os.environ, {"RETROFE_INPUT_BACKEND": "steam"}), \
+             patch.object(Path, "read_text", return_value="I: Vendor=28de Product=1205"), \
              patch.object(steam.runpy, "run_path", return_value={"detect_session_mode": lambda: "desktop-kde"}), \
              patch.object(steam, "ensure_recovery_guard"), \
              patch.object(steam.steam_desktop_session, "snapshot", return_value={"owners": {"parent": {}}}), \

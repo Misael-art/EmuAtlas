@@ -674,6 +674,10 @@
     {
       "source": "tools/roms/tests/test_asset_catalog_policy.py",
       "target": "tools/roms/tests/test_asset_catalog_policy.py"
+    },
+    {
+      "source": "tools/roms/tests/test_input_recovery_unit.py",
+      "target": "tools/roms/tests/test_input_recovery_unit.py"
     }
   ]
 }

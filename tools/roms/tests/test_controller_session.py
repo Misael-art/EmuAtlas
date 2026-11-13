@@ -57,10 +57,40 @@ class RoutingTests(unittest.TestCase):
             d=Mock(path='test')
             d.capabilities.return_value={e.EV_KEY:[e.BTN_SOUTH,e.BTN_EAST,e.BTN_NORTH,e.BTN_WEST],
                 e.EV_ABS:[(e.ABS_X,AbsInfo(0,-32768,32767,0,0,0))]}
+            d.absinfo.return_value=AbsInfo(0,-32768,32767,0,0,0)
             d.active_keys.return_value=[active]
             s.forward(d,0)
             s.write.assert_any_call(0,e.EV_KEY,e.BTN_WEST,1)
             s.write.assert_any_call(0,e.EV_KEY,e.BTN_NORTH,0)
+
+    def test_live_axes_and_dpad_override_the_cached_opening_state(self):
+        from evdev import ecodes as e, AbsInfo
+        s = c.Session.__new__(c.Session)
+        s.e = e
+        s.source_maps = {'test': {'leftx': 'a0', 'lefty': 'a1', 'dpright': 'h0.2',
+                                  'dpleft': 'h0.8', 'dpup': 'h0.1', 'dpdown': 'h0.4'}}
+        s.virtual = [Mock()]
+        s.write = Mock()
+        d = Mock(path='test')
+        centered = AbsInfo(128, 0, 255, 0, 0, 0)
+        neutral_hat = AbsInfo(0, -1, 1, 0, 0, 0)
+        d.capabilities.return_value = {e.EV_ABS: [(e.ABS_X, centered), (e.ABS_Y, centered),
+                                                (e.ABS_HAT0X, neutral_hat), (e.ABS_HAT0Y, neutral_hat)]}
+        d.active_keys.return_value = []
+        live = {e.ABS_X: centered._replace(value=255), e.ABS_Y: centered._replace(value=0),
+                e.ABS_HAT0X: neutral_hat._replace(value=1), e.ABS_HAT0Y: neutral_hat._replace(value=-1)}
+        d.absinfo.side_effect = live.__getitem__
+        s.forward(d, 0)
+        s.write.assert_any_call(0, e.EV_ABS, e.ABS_X, 32767)
+        s.write.assert_any_call(0, e.EV_ABS, e.ABS_Y, -32767)
+        s.write.assert_any_call(0, e.EV_ABS, e.ABS_HAT0X, 1)
+        s.write.assert_any_call(0, e.EV_ABS, e.ABS_HAT0Y, -1)
+        s.write.reset_mock()
+        live.update({e.ABS_X: centered, e.ABS_Y: centered,
+                     e.ABS_HAT0X: neutral_hat, e.ABS_HAT0Y: neutral_hat})
+        s.forward(d, 0)
+        s.write.assert_any_call(0, e.EV_ABS, e.ABS_HAT0X, 0)
+        s.write.assert_any_call(0, e.EV_ABS, e.ABS_HAT0Y, 0)
 
     def test_handheld_deck_is_player_one(self):
         self.assertEqual(c.slots([device('b'),device('deck','deck'),device('a')],False), ['deck','a','b'])

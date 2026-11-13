@@ -532,7 +532,9 @@ class Session:
         keys=sorted(k for k in caps.get(e.EV_KEY,[]) if k>=e.BTN_MISC)
         active=set(device.active_keys())
         buttons={n for n,key in enumerate(keys) if key in active}
-        raw_axes={key:info for key,info in caps.get(e.EV_ABS,[])}
+        # capabilities() retains the values read when the device was opened.
+        # EVIOCGABS supplies the live state for sticks, triggers and d-pad hats.
+        raw_axes={key:device.absinfo(key) for key,_ in caps.get(e.EV_ABS,[])}
         axes={}
         for n,(code,info) in enumerate((k,v) for k,v in sorted(raw_axes.items()) if not e.ABS_HAT0X<=k<=e.ABS_HAT3Y):
             axes[n]=2*(info.value-info.min)/(info.max-info.min)-1 if info.max>info.min else 0

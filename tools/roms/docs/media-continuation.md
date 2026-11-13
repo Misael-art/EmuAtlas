@@ -1,5 +1,13 @@
 # Continuidade da organização de mídia
 
+## Entrada nativa dos frontends
+
+RetroFE e ES-DE abrem com teclado e gamepads nativos por padrão. O helper compartilhado `steam-input.py session-run` propaga `RETROFE_INPUT_BACKEND=native` aos jogos e conserva o roteador de controles existente para emuladores. O launcher RetroFE usa esse mesmo seletor e preserva as preferências de entrada do desktop no modo nativo.
+
+`RETROFE_INPUT_BACKEND=steam` seleciona a integração opcional. Nesse modo continuam os requisitos de conta autenticada, guardião, lease, troca de perfil e restauração. Um token Steam herdado sem seleção explícita conserva a sessão legada. O comando `steam-input.py input-backend` permite consultar a seleção sem abrir aplicativos. Valores desconhecidos são recusados antes da abertura.
+
+O roteador de jogos consulta `absinfo()` para obter o estado corrente dos analógicos, gatilhos e hats a cada lote de eventos. `capabilities()` identifica os códigos suportados e mantém valores capturados na abertura do dispositivo. As regressões usam estados diferentes para essas duas leituras e conferem movimento, direção e retorno do hat ao neutro.
+
 ## Avanço de baixo consumo
 
 `romtool.atomic_json` usa temporário exclusivo no diretório de destino, preserva modo e ACL de um arquivo regular existente, sincroniza os bytes e publica com substituição atômica. A ACL é aplicada antes da escrita dos dados temporários. Destinos que são links simbólicos exigem resolução pelo fluxo especializado. Em POSIX, sincroniza também toda a cadeia de diretórios, incluindo diretórios preparados pelo chamador. Erros de sincronização são propagados ao chamador. Uma falha depois da publicação exige consultar o destino e reconciliar o estado observado.
