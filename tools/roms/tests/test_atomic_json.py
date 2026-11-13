@@ -183,5 +183,17 @@ class LightweightArtifactRecordingTests(unittest.TestCase):
             self.assertEqual(events[-1]["event"], "project_artifacts_recorded")
 
 
+
+class AtomicBytesTests(unittest.TestCase):
+    def test_binary_payload_and_explicit_mode_are_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "payload.bin"
+            payload = b"\x00\xff\x80binary\n"
+            romtool.atomic_write_bytes(path, payload, 0o640)
+            self.assertEqual(path.read_bytes(), payload)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o640)
+            self.assertEqual(list(path.parent.glob(".romtool-*.tmp")), [])
+
+
 if __name__ == "__main__":
     unittest.main()

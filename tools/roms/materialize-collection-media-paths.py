@@ -67,25 +67,9 @@ def save_json_atomic(path: Path, data: Any) -> None:
 
 
 def write_bytes_atomic(path: Path, payload: bytes, mode: int | None = None) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    old_mode = mode
-    if old_mode is None and path.exists():
-        old_mode = stat.S_IMODE(path.stat().st_mode)
-    fd, name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-    try:
-        with os.fdopen(fd, "wb") as stream:
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
-        if old_mode is not None:
-            os.chmod(name, old_mode)
-        os.replace(name, path)
-    except Exception:
-        try:
-            os.unlink(name)
-        except FileNotFoundError:
-            pass
-        raise
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from tools.roms import romtool
+    romtool.atomic_write_bytes(path, payload, mode)
 
 
 def relative_to_root(path: Path) -> str:

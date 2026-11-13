@@ -112,3 +112,9 @@ Quando o perfil Linux declara formatos e suporte a diretórios para a plataforma
 Novos planos stray preservam o caminho físico relativo de cada origem em `rollback/originals/`. Fontes aninhadas e fontes na raiz podem compartilhar o mesmo basename canônico e continuam com destinos de rollback distintos. Os planos antigos conservam seu layout registrado.
 
 Uma aplicação parcial pode ser revertida quando os movimentos concluídos têm checkpoints e os metadados globais ainda coincidem integralmente com as preimagens. A reversão registra essas assinaturas esperadas, preserva cada payload e admite retomada. Movimentos sem checkpoint e alterações posteriores dos registros globais exigem reconciliação antes da reversão.
+
+## Persistência e política do catálogo de assets
+
+`romtool.atomic_write_bytes` compartilha com `atomic_json` a publicação durável de bytes, preservação de permissões e sincronização POSIX. Os materializadores de assets e caminhos de mídia reutilizam esse escritor para seus manifestos e metadados.
+
+O organizador de assets oferece `plan --refresh-catalog-policy --manifest <arquivo> --reason <evidência>`, seguido de apply/verify/rollback. A atualização reconcilia as raízes e o compartilhamento por toda a estrutura e projeta a contagem corrente do catálogo no mapa de mídia. Verifica a existência, o tipo físico e o tamanho dos payloads catalogados. Os SHA-256 dos metadados e do índice protegem a publicação e a reversão. A operação registra seu escopo de conferência, conserva o índice e admite retomar uma publicação parcial dos dois metadados.

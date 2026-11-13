@@ -210,16 +210,22 @@ def operation_dir(operation_id: str) -> Path:
 
 def atomic_json(path: Path, value: dict) -> None:
     """Publish complete JSON after syncing its bytes, then sync POSIX directories."""
-    payload = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
+    payload = (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    atomic_write_bytes(path, payload)
+
+
+def atomic_write_bytes(path: Path, payload: bytes, mode: int | None = None) -> None:
+    """Publish bytes with exclusive staging and durable POSIX directory entries."""
     missing_parents = []
     parent = path.parent
     while not parent.exists():
         missing_parents.append(parent)
         parent = parent.parent
     path.parent.mkdir(parents=True, exist_ok=True)
-    mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else None
+    if mode is None and path.exists():
+        mode = stat.S_IMODE(path.stat().st_mode)
     temp = path.with_name(f".romtool-{uuid.uuid4().hex}.tmp")
-    stream = temp.open("x", encoding="utf-8")
+    stream = temp.open("xb")
     try:
         with stream:
             stream.write(payload)

@@ -670,6 +670,10 @@
     {
       "source": "tools/roms/tests/test_launch_entries_projection.py",
       "target": "tools/roms/tests/test_launch_entries_projection.py"
+    },
+    {
+      "source": "tools/roms/tests/test_asset_catalog_policy.py",
+      "target": "tools/roms/tests/test_asset_catalog_policy.py"
     }
   ]
 }
