@@ -54,4 +54,5 @@ jobs:
           tools.roms.tests.test_game_maintenance_exclusion
           tools.roms.tests.test_launcher_archive_extraction
           tools.roms.tests.test_media_stray_promotion
+          tools.roms.tests.test_launch_subjects
           tools.roms.tests.test_emulator_library

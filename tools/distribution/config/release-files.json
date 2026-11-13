@@ -654,6 +654,10 @@
     {
       "source": "tools/roms/tests/test_media_stray_status.py",
       "target": "tools/roms/tests/test_media_stray_status.py"
+    },
+    {
+      "source": "tools/roms/tests/test_launch_subjects.py",
+      "target": "tools/roms/tests/test_launch_subjects.py"
     }
   ]
 }

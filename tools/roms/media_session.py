@@ -78,15 +78,51 @@ def clone(source, destination, writable=True):
     destination.chmod(stat.S_IMODE(source.stat().st_mode) | (stat.S_IWUSR if writable else 0))
 
 
+def _track_paths(directory):
+    """Find existing track members declared by valid CUE/GDI reference checks."""
+    try:
+        from . import romtool
+    except ImportError:
+        import romtool
+    tracks = set()
+    root = directory.resolve()
+    validators = {".cue": (romtool.verify_cue, "references"), ".gdi": (romtool.verify_gdi, "tracks")}
+    for current, dirs, files in os.walk(directory, followlinks=False):
+        parent = Path(current)
+        dirs[:] = [name for name in dirs if not (parent / name).is_symlink()]
+        for name in files:
+            descriptor = parent / name
+            validator = validators.get(descriptor.suffix.lower())
+            if validator is None or descriptor.is_symlink() or descriptor.stat().st_size > 1024 * 1024:
+                continue
+            check, key = validator
+            result = check(descriptor)
+            if result["status"] != "valid":
+                continue
+            for reference in result[key]:
+                target = Path(reference["name"])
+                if not target.is_absolute():
+                    target = descriptor.parent / target
+                target = Path(os.path.abspath(target))
+                if target.resolve().is_relative_to(root) and target.is_file():
+                    tracks.add(target)
+    return tracks
+
+
 def _rom_names(root, system):
-    """Exact physical paths only; never infer identity from a similar title."""
+    """Share the catalog-filtered physical-name index with stray promotion."""
+    try:
+        from . import media_stray
+    except ImportError:
+        import media_stray
+    root = Path(root).resolve()
     directory = root / "roms" / system
     names = {}
-    if directory.is_dir():
-        for current, dirs, files in os.walk(directory, followlinks=False):
-            for name in dirs + files:
-                path = Path(current) / name
-                names.setdefault(path.stem, set()).add(path.relative_to(directory).with_suffix("").as_posix())
+    for stem, values in media_stray._rom_stems(root, system, allow_unconfigured=True).items():
+        for value in values:
+            path = root / value
+            relative = path.relative_to(directory)
+            names.setdefault(stem, set()).add(relative.as_posix())
     return names
 
 
@@ -407,9 +443,14 @@ def reconcile(manifest, api):
             if parts[0] not in rom_names:rom_names[parts[0]]=_rom_names(api["PROJECT_ROOT"],parts[0])
             names = rom_names[parts[0]]
             matches = names.get(source.stem, set())
+            if len(matches) != 1:
+                raise ValueError("Mídia exige entrada local única; trilhas declaradas por CUE/GDI não são entradas de jogo")
             if len(parts) > 3:
                 rom_relative = Path(*parts[2:]).with_suffix('').as_posix()
-                if matches != {rom_relative}:
+                matched = Path(next(iter(matches)))
+                if not (api["PROJECT_ROOT"] / "roms" / parts[0] / matched).is_dir():
+                    matched = matched.with_suffix("")
+                if matched.as_posix() != rom_relative:
                     raise ValueError("Mídia aninhada sem ROM exata única; não achatar títulos ambíguos")
             destination = root / canonical_rel
             if any(p.is_symlink() for p in (root/parts[0],destination.parent)):
@@ -421,9 +462,6 @@ def reconcile(manifest, api):
                     raise ValueError("Mídia canônica mudou fora da sessão; preservar para reconciliação")
             elif os.path.lexists(destination):
                 raise ValueError("Destino novo apareceu fora da sessão")
-            else:
-                if len(matches) != 1:
-                    raise ValueError("Novo nome de mídia não corresponde a ROM/diretório de jogo local único")
             incoming_hash = api["sha256_file"](source)
             item.update(system_id=parts[0], media_type=media_type, incoming_sha256=incoming_hash,
                         incoming_bytes=source.stat().st_size, destination_relative=canonical_rel.as_posix(),

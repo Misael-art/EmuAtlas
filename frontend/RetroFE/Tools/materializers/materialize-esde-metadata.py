@@ -34,6 +34,8 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
 PROJECT = ROOT.parents[1]
+if str(PROJECT) not in sys.path:
+    sys.path.insert(0, str(PROJECT))
 PROFILE = ROOT / "Config/profiles/host-linux.json"
 GAMELISTS = PROJECT / "frontend/ES-DE/UserData/gamelists"
 HYPERLIST = ROOT / "meta/hyperlist"
@@ -77,8 +79,11 @@ def esde_entries(system, project=None, gamelists=None):
     project = PROJECT if project is None else Path(project)
     gamelists = GAMELISTS if gamelists is None else Path(gamelists)
     rom_root = (project / "roms" / system).resolve()
+    from tools.roms.media_session import _track_paths
+
+    tracks = _track_paths(rom_root)
     tree = ET.parse(gamelists / system / "gamelist.xml")
-    entries, banned, skipped = {}, set(), {"missing_item": 0, "outside_root": 0, "duplicate_basename": 0}
+    entries, banned, skipped = {}, set(), {"missing_item": 0, "outside_root": 0, "duplicate_basename": 0, "dependent_track": 0}
     for game in tree.getroot().iter("game"):
         raw = text(game, "path")
         if not raw:
@@ -89,6 +94,9 @@ def esde_entries(system, project=None, gamelists=None):
             continue
         if not item.exists():
             skipped["missing_item"] += 1
+            continue
+        if item in tracks:
+            skipped["dependent_track"] += 1
             continue
         key = item.stem if item.is_file() else item.name
         if key in entries or key in banned:

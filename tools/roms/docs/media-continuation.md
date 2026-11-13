@@ -6,7 +6,7 @@
 
 A implementação Windows sincroniza o arquivo e usa a substituição disponível nesse SO. A cobertura dessa escolha usa simulação em teste. A validação nativa de Windows e do volume compartilhado integra o aceite posterior.
 
-Temporários de chamadas sobrepostas têm nomes exclusivos. A coordenação lógica entre escritores continua a cargo dos locks e das precondições de cada operação. Os movimentos de payload, preimagens e checkpoints por item ainda precisam de sua própria sequência durável.
+Temporários de chamadas sobrepostas têm nomes exclusivos. A coordenação lógica entre escritores continua a cargo dos locks e das precondições de cada operação. O fluxo stray descrito abaixo também sincroniza movimentos de payload, preimagens e checkpoints por item.
 
 O registro de artefatos admite adiar a leitura integral do histórico quando o host estiver ocupado.
 
@@ -76,3 +76,13 @@ Apply e rollback mantêm checkpoints recuperáveis entre o rename e a atualizaç
 - Dados compartilhados de emuladores usam `emulator/data/`, com binários nas raízes próprias de Linux e Windows.
 
 Referências configuradas e links relativos precisam funcionar no volume escolhido. Toda mudança deve respeitar os planos especializados, a integridade das dependências e o rollback existente.
+
+## Entradas e trilhas dependentes
+
+A associação de mídia em sessões gerenciadas e a promoção stray compartilham o índice de entradas físicas filtrado pelas extensões do catálogo. Descritores CUE e GDI válidos fornecem as relações exatas com trilhas existentes dentro da plataforma. Essas trilhas saem dos candidatos de scraping, inclusive FILE WAVE, extensões em maiúsculas e arquivos em subpastas. Um BIN independente continua elegível segundo o catálogo.
+
+Arquivos distintos com o mesmo basename mantêm a ambiguidade, inclusive ZIP e CHD. Uma mídia já existente também passa pela verificação da entrada antes de receber um novo resultado de scraping. O merge de gamelists e a publicação de histórias ignoram trilhas declaradas, preservam registros pessoais existentes e registram as dependências recusadas. A projeção HyperList também exclui essas trilhas de novas publicações.
+
+Esse filtro protege a publicação pelos fluxos gerenciados. A seleção nativa de cada scraper e a apresentação dos frontends dependem das respectivas configurações e planos revisados. Um descritor com referências ausentes conserva seus candidatos para revisão. A resolução de dependências verifica caminhos e relações, enquanto a integridade integral e o funcionamento continuam sujeitos aos validadores e testes próprios.
+
+M3U é a extensão de playlist de múltiplos discos usada pelos runtimes compatíveis. A criação depende de identidade e ordem comprovadas, suporte do runtime e coordenação das referências. Os arquivos usam caminhos relativos aos discos e permanecem junto do conjunto.

@@ -160,20 +160,26 @@ PROMOTABLE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".mp4", ".pdf"}
 PROMOTE_ACTIONS = {"promote_to_canonical", "promote_as_alternate"}
 
 
-def _rom_stems(project: Path, system_id: str) -> dict[str, list[str]]:
+def _rom_stems(project: Path, system_id: str, *, allow_unconfigured: bool = False) -> dict[str, list[str]]:
+    project = Path(project).resolve()
     root = project / "roms" / system_id
     stems: dict[str, list[str]] = {}
     if root.is_symlink() or not root.is_dir():
         return stems
-    catalog = json.loads((project / "frontend/RetroFE/Config/platform-catalog.json").read_text())
+    catalog_path = project / "frontend/RetroFE/Config/platform-catalog.json"
+    catalog = json.loads(catalog_path.read_text()) if catalog_path.exists() or not allow_unconfigured else {}
     record = next((item for item in catalog.get("systems", []) if item.get("id") == system_id), {})
     extensions = {str(value).casefold().lstrip(".") for value in record.get("extensions", [])}
+    tracks = media_session._track_paths(root)
     for current, dirs, files in os.walk(root, followlinks=False):
         here = Path(current)
         dirs[:] = [name for name in dirs if not (here / name).is_symlink()]
         for name in files + dirs:
             path = here / name
-            if not path.is_dir() and path.suffix.casefold().lstrip(".") not in extensions:
+            if path in tracks:
+                continue
+            if (not path.is_dir() and path.suffix.casefold().lstrip(".") not in extensions
+                    and not (allow_unconfigured and not extensions)):
                 continue
             stem = path.stem if path.is_file() or path.is_symlink() else path.name
             stems.setdefault(stem, []).append(path.relative_to(project).as_posix())
@@ -205,7 +211,9 @@ def _promotion(project: Path, item: dict, api, stems_cache: dict, reserved: set[
     if source.suffix.lower() not in PROMOTABLE_EXTENSIONS:
         return {**item, "promotion_blocker": "extensão sem validação de decodificação configurada"}
     system_id = item["system_id"]
-    stems = stems_cache.setdefault(system_id, _rom_stems(project, system_id))
+    if system_id not in stems_cache:
+        stems_cache[system_id] = _rom_stems(project, system_id)
+    stems = stems_cache[system_id]
     matches = stems.get(source.stem, [])
     if item.get("variant_subdir"):
         scope_parent = project / "roms" / system_id / item["variant_subdir"]
