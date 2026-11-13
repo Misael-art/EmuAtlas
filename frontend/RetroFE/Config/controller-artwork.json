@@ -381,7 +381,7 @@
       "label": "HORI Fighting Stick Alpha",
       "brand": "HORI",
       "patterns": [
-        "hori.*(fighting[ _-]*stick|alpha|α)"
+        "hori.*(?:alpha|α)|fighting[ _-]*stick[ _-]*(?:alpha|α)"
       ],
       "image": {
         "path": "Assets/shared/images/controllers/artwork/arcade-controllers-atlas.png",

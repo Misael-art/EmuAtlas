@@ -145,8 +145,8 @@
     },
     {
       "target": "frontend/RetroFE/Config/controller-artwork.json",
-      "sha256": "07ddf0b7bfc4bacf8243822e7084a4307fb4548722a716ac4c56e146fb30dc05",
-      "size_bytes": 8838,
+      "sha256": "dca13f80fe31df2aa0ab2529b0c6afcbdec14050dce0441183c66dc64748c6ec",
+      "size_bytes": 8858,
       "mode": "0644"
     },
     {
@@ -943,8 +943,8 @@
     },
     {
       "target": "tools/roms/tests/test_controller_session.py",
-      "sha256": "2b59c66d812b56cc4fbb835ab8e2ec3e0a1e4b0f58be1692bf5bd6beecf8c955",
-      "size_bytes": 28183,
+      "sha256": "0fef14597c963310cc0e218a1bcd302297d9ea90f9fae3abd4d72d9c7b6d0143",
+      "size_bytes": 28420,
       "mode": "0644"
     },
     {

@@ -136,6 +136,8 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(feedback.controller_model({'name': 'Wireless Controller', 'vendor': 0x054c, 'product': 0x0ce6}, models), 'dualsense')
         self.assertEqual(feedback.controller_model({'name': 'Xbox 360', 'model_override': 'gamesir-t4-pro'}, models), 'gamesir-t4-pro')
         self.assertEqual(feedback.controller_model({'name': 'Unknown'}, models), 'default')
+        self.assertEqual(feedback.controller_model({'name': 'HORI Fighting Stick Mini'}, models), 'default')
+        self.assertEqual(feedback.controller_model({'name': 'HORI Fighting Stick Alpha'}, models), 'hori-fighting-stick-alpha')
 
 
 class AssignmentTests(unittest.TestCase):
