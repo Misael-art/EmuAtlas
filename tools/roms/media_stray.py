@@ -160,6 +160,15 @@ PROMOTABLE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".mp4", ".pdf"}
 PROMOTE_ACTIONS = {"promote_to_canonical", "promote_as_alternate"}
 
 
+def _runtime_records(project: Path, system_id: str) -> list[dict]:
+    profile_path = project / "frontend/RetroFE/Config/profiles/host-linux.json"
+    if not profile_path.is_file():
+        return []
+    profile = json.loads(profile_path.read_text())
+    return [item for section in ("systems", "collections")
+            for item in profile.get(section, {}).values() if item.get("rom_subdir") == system_id]
+
+
 def _rom_stems(project: Path, system_id: str, *, allow_unconfigured: bool = False) -> dict[str, list[str]]:
     project = Path(project).resolve()
     root = project / "roms" / system_id
@@ -172,22 +181,18 @@ def _rom_stems(project: Path, system_id: str, *, allow_unconfigured: bool = Fals
     extensions = {str(value).casefold().lstrip(".") for value in record.get("extensions", [])}
     allow_any_extensions = allow_unconfigured and not extensions
     include_directories = True
-    profile_path = project / "frontend/RetroFE/Config/profiles/host-linux.json"
-    if profile_path.is_file():
-        profile = json.loads(profile_path.read_text())
-        configured = [item for section in ("systems", "collections")
-                      for item in profile.get(section, {}).values() if item.get("rom_subdir") == system_id]
-        if configured:
-            runtime_extensions = set()
-            for item in configured:
-                values = item.get("extensions", [])
-                if isinstance(values, str):
-                    values = values.split(",")
-                runtime_extensions.update(str(value).strip().casefold().lstrip(".") for value in values if str(value).strip())
-            if runtime_extensions:
-                allow_any_extensions = False
-                extensions = extensions & runtime_extensions if extensions else runtime_extensions
-            include_directories = any(item.get("accepts_directories") is True for item in configured)
+    configured = _runtime_records(project, system_id)
+    if configured:
+        runtime_extensions = set()
+        for item in configured:
+            values = item.get("extensions", [])
+            if isinstance(values, str):
+                values = values.split(",")
+            runtime_extensions.update(str(value).strip().casefold().lstrip(".") for value in values if str(value).strip())
+        if runtime_extensions:
+            allow_any_extensions = False
+            extensions = extensions & runtime_extensions if extensions else runtime_extensions
+        include_directories = any(item.get("accepts_directories") is True for item in configured)
     tracks = media_session._track_paths(root, include_playlists=True)
     for current, dirs, files in os.walk(root, followlinks=False):
         here = Path(current)

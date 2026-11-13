@@ -553,14 +553,14 @@
     },
     {
       "target": "tools/roms/disc_sets.py",
-      "sha256": "cd9aff58aa78ab38161e0de1ed172ea04362b3471888b74b1d6209a56781cea1",
-      "size_bytes": 12831,
+      "sha256": "7c3bfc89a0fb008211b55c0f5dfb948cade22348d5771d12c3509f4bf105beb6",
+      "size_bytes": 18081,
       "mode": "0644"
     },
     {
       "target": "tools/roms/docs/media-continuation.md",
-      "sha256": "f1ff00dcef081bef11210a29a516dddba862f69504731328b60bd1d24aaab9b3",
-      "size_bytes": 13784,
+      "sha256": "3234ac4b9e9c66f86cd911e118c2682424fd08f6e585612510586bd09d7b9f71",
+      "size_bytes": 14767,
       "mode": "0644"
     },
     {
@@ -763,8 +763,8 @@
     },
     {
       "target": "tools/roms/media_stray.py",
-      "sha256": "0aff2d5f7e8148247b76241e07b9ee5faf7f765c2848559bed0c685b74fbd1da",
-      "size_bytes": 52268,
+      "sha256": "8f12b6c3f557dfdd30cc7cb319d766369cec554e635201d379122da2f110489f",
+      "size_bytes": 52345,
       "mode": "0644"
     },
     {
@@ -907,8 +907,8 @@
     },
     {
       "target": "tools/roms/tests/test_disc_sets.py",
-      "sha256": "b6dfb25f2eb7e829757a2a846482e2b49229a90862dee5a95fae9dfbc5793468",
-      "size_bytes": 7973,
+      "sha256": "d54973d888f0402869816900d00d64c5b35da746411ba5e46e2f70fd4cb5a2fa",
+      "size_bytes": 13418,
       "mode": "0644"
     },
     {

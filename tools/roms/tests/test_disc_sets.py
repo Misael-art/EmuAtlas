@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import patch
 
 from tools.roms import disc_sets, media_session, romtool
@@ -146,3 +147,111 @@ class DiscSetTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "já tem uma playlist"):
             disc_sets.apply(second, True, self.api)
         self.assertFalse((self.roms / "Another name.m3u").exists())
+
+    def configure_archive_runtime(self, core="puae_libretro.so", extensions="img,zip,m3u"):
+        profile = self.root / "frontend/RetroFE/Config/profiles/host-linux.json"
+        profile.parent.mkdir()
+        profile.write_text(json.dumps({"collections": {"Fixture": {"rom_subdir": "psx", "adapter": "retroarch",
+                                                                "core": core, "extensions": extensions}}}))
+        catalog = self.root / "frontend/RetroFE/Config/platform-catalog.json"
+        data = json.loads(catalog.read_text())
+        data["systems"][0]["extensions"].append("zip")
+        catalog.write_text(json.dumps(data))
+        return profile
+
+    def zipped_disc_request(self):
+        self.request["discs"][0]["path"] = "Game Disc 1.zip"
+        path = self.roms / "Game Disc 1.zip"
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("Game Disk 1.adf", b"floppy fixture bytes")
+            archive.writestr("README.txt", b"fixture documentation")
+        return path
+
+    def test_puae_zipped_floppy_is_a_supported_playlist_member(self):
+        self.configure_archive_runtime()
+        self.zipped_disc_request()
+        manifest = disc_sets.plan(self.request, self.api)
+        member = manifest["discs"][0]["archive_validation"]
+        self.assertEqual(member["member"], "Game Disk 1.adf")
+        self.assertEqual(member["validation_level"], "all_member_crc_and_selected_member_sha256")
+        self.assertEqual(disc_sets.apply(manifest, True, self.api)["status"], "verified")
+
+    def test_zip_runtime_capability_and_single_disk_are_required(self):
+        profile = self.configure_archive_runtime(core="px68k_libretro.so")
+        path = self.zipped_disc_request()
+        with self.assertRaisesRegex(ValueError, "suporte a ZIP"):
+            disc_sets.plan(self.request, self.api)
+        data = json.loads(profile.read_text())
+        data["collections"]["Fixture"]["core"] = "puae_libretro.so"
+        profile.write_text(json.dumps(data))
+        with zipfile.ZipFile(path, "a") as archive:
+            archive.writestr("Another disk.adf", b"other disk")
+        with self.assertRaisesRegex(ValueError, "exatamente uma"):
+            disc_sets.plan(self.request, self.api)
+
+    def test_profile_must_admit_m3u_before_publishing_a_set(self):
+        self.configure_archive_runtime(extensions="img,zip")
+        with self.assertRaisesRegex(ValueError, "perfil de execução"):
+            disc_sets.plan(self.request, self.api)
+
+    def test_runtime_capability_change_blocks_apply(self):
+        profile = self.configure_archive_runtime()
+        manifest = disc_sets.plan(self.request, self.api)
+        data = json.loads(profile.read_text())
+        data["collections"]["Fixture"]["extensions"] = "img,zip"
+        profile.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, "Capacidades de execução"):
+            disc_sets.apply(manifest, True, self.api)
+        self.assertFalse((self.roms / "Game.m3u").exists())
+
+    def test_unsafe_zip_member_is_preserved_without_extraction(self):
+        self.configure_archive_runtime()
+        path = self.zipped_disc_request()
+        with zipfile.ZipFile(path, "a") as archive:
+            archive.writestr("../unsafe.txt", b"fixture")
+        with self.assertRaisesRegex(ValueError, "caminho inseguro"):
+            disc_sets.plan(self.request, self.api)
+        self.assertFalse((self.roms / "Game.m3u").exists())
+
+    def test_empty_zipped_disk_is_preserved(self):
+        self.configure_archive_runtime()
+        self.request["discs"][0]["path"] = "Empty.zip"
+        with zipfile.ZipFile(self.roms / "Empty.zip", "w") as archive:
+            archive.writestr("Empty.adf", b"")
+        with self.assertRaisesRegex(ValueError, "não vazia"):
+            disc_sets.plan(self.request, self.api)
+
+    def test_zip_crc_failure_is_detected_before_plan(self):
+        self.configure_archive_runtime()
+        path = self.zipped_disc_request()
+        with zipfile.ZipFile(path) as archive:
+            member = archive.getinfo("Game Disk 1.adf")
+            offset = member.header_offset + 30 + len(member.filename.encode()) + len(member.extra)
+        payload = bytearray(path.read_bytes())
+        payload[offset] ^= 1
+        path.write_bytes(payload)
+        with self.assertRaisesRegex(ValueError, "CRC"):
+            disc_sets.plan(self.request, self.api)
+        self.assertEqual(path.read_bytes(), payload)
+
+    def test_case_colliding_archive_members_are_rejected(self):
+        self.configure_archive_runtime()
+        path = self.zipped_disc_request()
+        with zipfile.ZipFile(path, "a") as archive:
+            archive.writestr("readme.TXT", b"ambiguous documentation")
+        with self.assertRaisesRegex(ValueError, "ambíguos"):
+            disc_sets.plan(self.request, self.api)
+
+    def test_zip_changed_during_snapshot_is_rejected(self):
+        self.configure_archive_runtime()
+        path = self.zipped_disc_request()
+        original = self.api["path_snapshot"]
+        def changed(source, **kwargs):
+            snapshot = original(source, **kwargs)
+            if source == path:
+                with path.open("ab") as stream:
+                    stream.write(b"changed")
+            return snapshot
+        self.api["path_snapshot"] = changed
+        with self.assertRaisesRegex(ValueError, "hash físico"):
+            disc_sets.plan(self.request, self.api)

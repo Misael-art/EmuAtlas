@@ -4,8 +4,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
+import stat
+import zipfile
 import uuid
 
 
@@ -71,8 +73,74 @@ def _root(system, api):
     return root
 
 
+def _runtime_capabilities(project, system):
+    try:
+        from . import media_stray
+    except ImportError:
+        import media_stray
+    capabilities = []
+    for item in media_stray._runtime_records(project, system):
+        extensions = item.get("extensions", [])
+        if isinstance(extensions, str):
+            extensions = extensions.split(",")
+        capabilities.append({"adapter": item.get("adapter", ""), "core": item.get("core", ""),
+                             "extensions": sorted({str(value).strip().lower().lstrip(".") for value in extensions})})
+    return sorted(capabilities, key=lambda item: json.dumps(item, sort_keys=True))
+
+
+def _zip_disc(path):
+    try:
+        from . import variant_metadata
+    except ImportError:
+        import variant_metadata
+    disk_extensions = {".adf", ".adz", ".dms", ".fdi", ".ipf", ".raw"}
+    auxiliary_extensions = {".txt", ".md", ".nfo", ".pdf", ".png", ".jpg", ".jpeg"}
+    with zipfile.ZipFile(path) as archive:
+        entries = archive.infolist()
+        if len(entries) > 512 or sum(entry.file_size for entry in entries) > 512 * 1024 * 1024:
+            raise ValueError("ZIP excede os limites de revisão de um disco de disquete")
+        images = []
+        names = set()
+        for entry in entries:
+            member = PurePosixPath(entry.filename)
+            if (member.is_absolute() or ".." in member.parts or "\\" in entry.filename
+                    or entry.flag_bits & 1 or stat.S_ISLNK(entry.external_attr >> 16)):
+                raise ValueError("ZIP tem caminho inseguro, link ou membro criptografado")
+            normalized = member.as_posix().casefold()
+            if normalized in names:
+                raise ValueError("ZIP tem nomes de membros duplicados ou ambíguos no Windows")
+            names.add(normalized)
+            for part in member.parts:
+                issues = set(variant_metadata.portable_filename_issues(part))
+                if issues - {"retrofe_percent_token_requires_runtime_validation", "not_unicode_nfc"}:
+                    raise ValueError("Nome interno do ZIP incompatível com a biblioteca portátil")
+            if entry.is_dir():
+                continue
+            if member.suffix.lower() in disk_extensions:
+                images.append(entry)
+            elif (member.suffix.lower() not in auxiliary_extensions
+                    and member.name.casefold() not in {"readme", "license", "copying", ".ds_store"}):
+                raise ValueError("ZIP contém outro formato executável ou suporte não revisado")
+        if len(images) != 1 or images[0].file_size <= 0:
+            raise ValueError("Cada entrada ZIP da playlist exige exatamente uma imagem de disquete não vazia")
+        bad = archive.testzip()
+        if bad is not None:
+            raise ValueError("CRC de membro ZIP inválido: " + bad)
+        image = images[0]
+        digest = hashlib.sha256()
+        with archive.open(image) as stream:
+            while chunk := stream.read(1024 * 1024):
+                digest.update(chunk)
+        return {"member": image.filename, "size_bytes": image.file_size,
+                "crc32": f"{image.CRC:08x}", "sha256": digest.hexdigest(),
+                "validation_level": "all_member_crc_and_selected_member_sha256"}
+
+
 def _inputs(manifest, api):
     root = _root(manifest["system_id"], api)
+    if ("runtime_capabilities" in manifest and _runtime_capabilities(api["PROJECT_ROOT"], manifest["system_id"])
+            != manifest["runtime_capabilities"]):
+        raise ValueError("Capacidades de execução da plataforma mudaram desde o plano")
     for item in manifest["inputs"]:
         path = _path(root, item["path"])
         if (not path.is_file() or path.stat().st_size != item["size_bytes"]
@@ -113,17 +181,35 @@ def plan(request, api):
     extensions = {str(e).lower().lstrip(".") for e in system.get("extensions", [])}
     if "m3u" not in extensions:
         raise ValueError("O catálogo da plataforma não admite M3U")
+    capabilities = _runtime_capabilities(api["PROJECT_ROOT"], request["system_id"])
+    configured = [item for item in capabilities if "m3u" in item["extensions"]]
+    if capabilities and not configured:
+        raise ValueError("O perfil de execução da plataforma não admite M3U")
+    if configured:
+        extensions &= {extension for item in configured for extension in item["extensions"]}
+    zipped_floppies = any(item["adapter"] == "retroarch" and "zip" in item["extensions"] and Path(item["core"]).stem.lower() in
+                          {"puae_libretro", "puae2021_libretro"} for item in configured)
     tracks = api["media_session"]._track_paths(root)
-    paths, inputs = [], {}
+    paths, inputs, selected_discs = [], {}, []
     for number, item in enumerate(discs, 1):
         if type(item.get("disc_number")) is not int or item["disc_number"] != number or not item.get("identity_evidence"):
             raise ValueError("A ordem deve ser contínua e cada disco exige identidade comprovada")
         path = _path(root, item.get("path"))
         if (path in tracks or not path.is_file() or path.suffix.lower().lstrip(".") not in extensions
-                or path.suffix.lower() in {".m3u", ".zip", ".7z", ".rar"}):
+                or path.suffix.lower() in {".m3u", ".7z", ".rar"}):
             raise ValueError("O membro deve ser uma entrada direta suportada pelo catálogo")
         if item["path"].casefold() in {value.casefold() for value in paths} or item["path"].startswith("#"):
             raise ValueError("Disco duplicado ou nome interpretável como comentário M3U")
+        selected = dict(item)
+        if path.suffix.lower() == ".zip":
+            if not zipped_floppies:
+                raise ValueError("O runtime configurado não comprovou suporte a ZIP dentro de M3U")
+            before = path.stat()
+            selected["archive_validation"] = _zip_disc(path)
+            after = path.stat()
+            if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+                raise ValueError("ZIP mudou durante a validação")
+        selected_discs.append(selected)
         paths.append(item["path"])
         members = [path]
         if path.suffix.lower() in {".cue", ".gdi"}:
@@ -138,6 +224,11 @@ def plan(request, api):
             relative = member.relative_to(root).as_posix()
             if relative not in inputs:
                 snapshot = api["path_snapshot"](member, include_hash=True)
+                if member == path and path.suffix.lower() == ".zip":
+                    final = path.stat()
+                    if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
+                            final.st_dev, final.st_ino, final.st_size, final.st_mtime_ns, final.st_ctime_ns):
+                        raise ValueError("ZIP mudou antes do registro do hash físico")
                 if snapshot["kind"] != "file" or snapshot["size_bytes"] <= 0:
                     raise ValueError("Disco ou trilha vazia")
                 inputs[relative] = {"path": relative, "size_bytes": snapshot["size_bytes"], "sha256": snapshot["sha256"]}
@@ -148,7 +239,8 @@ def plan(request, api):
     manifest = {"schema_version": 1, "kind": "disc_set_playlist", "operation_id": operation_id,
                 "status": "prepared", "created_at": api["now"](), "history_index_refresh": "deferred",
                 "system_id": request["system_id"],
-                "playlist": filename, "discs": discs, "inputs": list(inputs.values()), "payload": payload,
+                "playlist": filename, "discs": selected_discs, "inputs": list(inputs.values()), "payload": payload,
+                "runtime_capabilities": capabilities,
                 "sha256": hashlib.sha256(payload.encode()).hexdigest(),
                 "identity_evidence": request["identity_evidence"], "runtime_evidence": request["runtime_evidence"],
                 "functional_validation": "native_launch_disc_swap_saves_and_return_pending",

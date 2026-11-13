@@ -118,3 +118,9 @@ Uma aplicação parcial pode ser revertida quando os movimentos concluídos têm
 `romtool.atomic_write_bytes` compartilha com `atomic_json` a publicação durável de bytes, preservação de permissões e sincronização POSIX. Os materializadores de assets e caminhos de mídia reutilizam esse escritor para seus manifestos e metadados.
 
 O organizador de assets oferece `plan --refresh-catalog-policy --manifest <arquivo> --reason <evidência>`, seguido de apply/verify/rollback. A atualização reconcilia as raízes e o compartilhamento por toda a estrutura e projeta a contagem corrente do catálogo no mapa de mídia. Verifica a existência, o tipo físico e o tamanho dos payloads catalogados. Os SHA-256 dos metadados e do índice protegem a publicação e a reversão. A operação registra seu escopo de conferência, conserva o índice e admite retomar uma publicação parcial dos dois metadados.
+
+## Disquetes ZIP e capacidade do runtime
+
+A criação de playlists confere as capacidades declaradas do perfil da plataforma e registra essas capacidades para a aplicação. Uma alteração relevante de formato ou runtime exige um plano atual. Plataformas configuradas precisam admitir M3U para publicar o conjunto.
+
+PUAE e PUAE2021 permitem referências ZIP na playlist quando o perfil declara os formatos envolvidos. O planejador verifica todos os CRCs, registra o SHA-256 da imagem interna e exige uma única imagem de disquete não vazia em cada ZIP selecionado. Documentação auxiliar permanece no archive. Limites de expansão, quantidade de membros, nomes portáteis, criptografia e links são conferidos antes da leitura integral. Esses checks comprovam a seleção e a integridade do contêiner. A identidade do jogo e o aceite funcional continuam vinculados às evidências da revisão e aos testes nativos. [Documentação PUAE](https://docs.libretro.com/library/puae/)
