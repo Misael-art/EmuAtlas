@@ -57,13 +57,19 @@ class BindingsTests(unittest.TestCase):
         pads = [{'index':0, 'mapping':{'start':'b6','back':'b4','a':'b0','b':'b1','dpup':'h0.1','lefty':'a1','leftstick':'b7'}},
                 {'index':1, 'mapping':{'start':'b11','back':'b10','a':'b0','b':'b1','dpup':'h0.1','lefty':'a1','leftstick':'b13'}}]
         after = controls.retrofe_controls(before, pads)
-        self.assertIn(b'favPlaylist = F,joy2Button6,joy3Button6,joy4Button6,joy5Button6,joy6Button6,joy7Button6,joy0Button4,joy1Button10', after)
+        self.assertIn(b'favPlaylist = F,joy2Button6,joy3Button6,joy4Button6,joy5Button6,joy6Button6,joy7Button6,joy8Button6,joy9Button6,joy0Button4,joy1Button10', after)
         self.assertIn(b'pageUp = A,joy0Button7,joy1Button13', after)
         self.assertIn(b'select = Return,joy0Button0,joy1Button0', after)
         self.assertIn(b'quit = Q\n', after)
         self.assertNotIn(b'joy0Button6', after)
         self.assertNotIn(b'joy1Button11', after)
         self.assertEqual(controls.retrofe_controls(after, pads), after)
+
+    def test_eighth_future_mobile_pad_can_navigate_with_deck_already_present(self):
+        deck = {'index':0, 'mapping':{'a':'b0','start':'b12'}}
+        data = controls.retrofe_controls(b'select = Return,joyButton0\n', [deck])
+        self.assertIn(b'joy8Button0', data)
+        self.assertNotIn(b'joy0Button12', data)
 
     def test_retrofe_projection_keeps_bom_crlf_keyboard_and_custom_actions(self):
         before = b'\xef\xbb\xbfselect = Return,joy0Button0\r\ncustom = F9\r\n# personal\r\n'

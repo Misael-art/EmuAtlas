@@ -589,8 +589,8 @@
     },
     {
       "target": "tools/roms/emulator_controls.py",
-      "sha256": "196e5f0d0b53c4bbfa7dc7df58c5adefe7b5370b9cbaaea8cb52bb4222aa42e0",
-      "size_bytes": 57151,
+      "sha256": "64bfeaada8fd48f941c7f99196be0c363de766858a0ca1ea217a6370e03eb06e",
+      "size_bytes": 57311,
       "mode": "0644"
     },
     {
@@ -793,8 +793,8 @@
     },
     {
       "target": "tools/roms/mobile-controller.css",
-      "sha256": "ae5c04eae5ef0e8030a24eb505ae7b649d5f4e5c337241e18144711d3572cd52",
-      "size_bytes": 8076,
+      "sha256": "988c5c7975dab05bf9cfd8817eddd7e051f881074e88b8b268279dbf2c08ca27",
+      "size_bytes": 9100,
       "mode": "0644"
     },
     {
@@ -955,8 +955,8 @@
     },
     {
       "target": "tools/roms/tests/test_emulator_controls.py",
-      "sha256": "883881f4555a8ad4c5881acecec1851b9c4158d15a2426af15ad00138d3b7c17",
-      "size_bytes": 18653,
+      "sha256": "9c6b97a35ecab065f744cf331917a2c661f867ed4eb2ed609369534fd2db5c72",
+      "size_bytes": 18999,
       "mode": "0644"
     },
     {

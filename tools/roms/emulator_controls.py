@@ -784,7 +784,9 @@ def retrofe_controls(data, pads, *, capacity=8):
         tokens = [v.strip() for v in match[4].split(',') if v.strip()]
         preserved = [v for v in tokens if not v.startswith('joy')]
         # Unknown controllers retain their existing raw bindings.
-        unmapped = set(range(capacity)) - {p['index'] for p in pads if p.get('mapping')}
+        # New mobile sources follow devices already enumerated by SDL.
+        existing_slots = max((p['index'] + 1 for p in pads), default=0)
+        unmapped = set(range(existing_slots + capacity)) - {p['index'] for p in pads if p.get('mapping')}
         for token in tokens:
             index = re.match(r'joy(\d+)', token)
             if index and int(index[1]) in unmapped and not token.endswith('Button7'):
