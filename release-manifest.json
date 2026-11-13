@@ -559,8 +559,8 @@
     },
     {
       "target": "tools/roms/docs/media-continuation.md",
-      "sha256": "bcd8ccf55b748d2167c336e1174387fea8577266bb6328cecbefa9312b93c40d",
-      "size_bytes": 15966,
+      "sha256": "1ec92484b53edb43b2b89224fe7a398bf22e3b52c23008e74439ee811ce57b97",
+      "size_bytes": 17107,
       "mode": "0644"
     },
     {
@@ -811,8 +811,8 @@
     },
     {
       "target": "tools/roms/romtool.py",
-      "sha256": "35b890bb919b939235c487cf88de319cc74a9d6bd6498e9de08de1c6aeae5bba",
-      "size_bytes": 473743,
+      "sha256": "34808e026e1b1a0dcd265fbb1d6115332804a7c90521f22858dcb182e0eb3f76",
+      "size_bytes": 478744,
       "mode": "0644"
     },
     {
@@ -895,8 +895,8 @@
     },
     {
       "target": "tools/roms/tests/test_atomic_json.py",
-      "sha256": "699ca01ab7f3c842c1c2a7213c22587448ddc2ce2841f8b3dbb7a7b03101b33c",
-      "size_bytes": 8958,
+      "sha256": "14c6ca8f971a1dfaa1add2eb5bc103aca584b9d36e9428a6443443fdb79c7f7c",
+      "size_bytes": 17360,
       "mode": "0644"
     },
     {

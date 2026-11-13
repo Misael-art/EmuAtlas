@@ -2,7 +2,7 @@
 
 ## Avanço de baixo consumo
 
-`romtool.atomic_json` usa temporário exclusivo no diretório de destino, preserva as permissões de um arquivo existente, sincroniza os bytes e publica com substituição atômica. Em POSIX, sincroniza também o diretório do arquivo e os vínculos de diretórios criados nessa chamada. Erros de sincronização são propagados ao chamador. Uma falha depois da publicação exige consultar o destino e reconciliar o estado observado.
+`romtool.atomic_json` usa temporário exclusivo no diretório de destino, preserva modo e ACL de um arquivo regular existente, sincroniza os bytes e publica com substituição atômica. A ACL é aplicada antes da escrita dos dados temporários. Destinos que são links simbólicos exigem resolução pelo fluxo especializado. Em POSIX, sincroniza também toda a cadeia de diretórios, incluindo diretórios preparados pelo chamador. Erros de sincronização são propagados ao chamador. Uma falha depois da publicação exige consultar o destino e reconciliar o estado observado.
 
 A implementação Windows sincroniza o arquivo e usa a substituição disponível nesse SO. A cobertura dessa escolha usa simulação em teste. A validação nativa de Windows e do volume compartilhado integra o aceite posterior.
 
@@ -25,6 +25,10 @@ python3 tools/roms/romtool.py history
 ```
 
 A opção padrão de `record-artifacts` mantém a reconstrução imediata do índice.
+
+O registro permanece em `recording` até a publicação durável do manifesto e dos diários. Uma falha identifica o ID na mensagem. `record-artifacts --operation-id <id>` retoma esse mesmo registro com os argumentos originais e confere hashes, finalidade e conteúdo do manifesto existente antes da conclusão. Alterações dos artefatos exigem revisão da evidência. Cada retomada fica registrada no diário da mesma operação.
+
+No Linux, a substituição preserva as ACLs de acesso POSIX/NFSv4 suportadas pelo filesystem e remove ACLs herdadas do temporário quando o arquivo original carece delas. No Windows, o escritor copia a DACL e sua política de herança para o temporário, confere os bytes da DACL e recusa divergências antes da escrita. As chamadas Windows têm fixtures de contrato; seu aceite nativo integra a validação do volume escolhido. [API de segurança Windows](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-getfilesecurityw)
 
 ## Testes pequenos
 

@@ -7,6 +7,7 @@ import csv
 import datetime as dt
 import concurrent.futures
 import contextlib
+import errno
 from functools import lru_cache
 import hashlib
 import json
@@ -214,35 +215,108 @@ def atomic_json(path: Path, value: dict) -> None:
     atomic_write_bytes(path, payload)
 
 
+def sync_directory_chain(directory: Path) -> None:
+    """Persist directory entries, including directories created by the caller."""
+    if os.name == "nt":
+        return
+    directory = directory.absolute()
+    for current in (directory, *directory.parents):
+        descriptor = os.open(current, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+
+def _copy_windows_acl(source: Path, destination: Path) -> None:
+    """Copy and verify DACL bytes and inheritance before writing staged data."""
+    import ctypes
+    from ctypes import wintypes
+    api = ctypes.WinDLL("advapi32", use_last_error=True)
+    get_security = api.GetFileSecurityW
+    get_security.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p,
+                             wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    get_security.restype = wintypes.BOOL
+    set_security = api.SetFileSecurityW
+    set_security.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p]
+    set_security.restype = wintypes.BOOL
+
+    def descriptor(path):
+        size = wintypes.DWORD()
+        get_security(str(path), 4, None, 0, ctypes.byref(size))
+        if not size.value:
+            raise ctypes.WinError(ctypes.get_last_error())
+        buffer = ctypes.create_string_buffer(size.value)
+        if not get_security(str(path), 4, buffer, size.value, ctypes.byref(size)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        raw = buffer.raw
+        if len(raw) < 20:
+            raise OSError("Descritor de acesso Windows incompleto")
+        control = struct.unpack_from("<H", raw, 2)[0]
+        offset = struct.unpack_from("<L", raw, 16)[0]
+        acl = b""
+        if offset:
+            if offset < 20 or offset + 8 > len(raw):
+                raise OSError("Offset de DACL Windows inválido")
+            length = struct.unpack_from("<H", raw, offset + 2)[0]
+            if length < 8 or offset + length > len(raw):
+                raise OSError("DACL Windows incompleta")
+            acl = raw[offset:offset + length]
+        return buffer, (control & 0x1004, acl)
+
+    security, expected = descriptor(source)
+    inheritance = 0x80000000 if expected[0] & 0x1000 else 0x20000000
+    if not set_security(str(destination), 4 | inheritance, security):
+        raise ctypes.WinError(ctypes.get_last_error())
+    if descriptor(destination)[1] != expected:
+        raise OSError("DACL Windows diverge da origem; publicação recusada")
+
+
+def _copy_replacement_acl(source: Path, destination: Path) -> None:
+    if sys.platform == "win32":
+        _copy_windows_acl(source, destination)
+    elif sys.platform.startswith("linux"):
+        for name in ("system.posix_acl_access", "system.nfs4_acl"):
+            try:
+                value = os.getxattr(source, name, follow_symlinks=False)
+            except OSError as exc:
+                if exc.errno not in {errno.ENODATA, errno.ENOTSUP}:
+                    raise
+                try:
+                    os.removexattr(destination, name, follow_symlinks=False)
+                except OSError as absent:
+                    if absent.errno not in {errno.ENODATA, errno.ENOTSUP}:
+                        raise
+            else:
+                os.setxattr(destination, name, value, follow_symlinks=False)
+                if os.getxattr(destination, name, follow_symlinks=False) != value:
+                    raise OSError("ACL diverge da origem; publicação recusada")
+
+
 def atomic_write_bytes(path: Path, payload: bytes, mode: int | None = None) -> None:
     """Publish bytes with exclusive staging and durable POSIX directory entries."""
-    missing_parents = []
-    parent = path.parent
-    while not parent.exists():
-        missing_parents.append(parent)
-        parent = parent.parent
+    try:
+        previous = path.lstat()
+    except FileNotFoundError:
+        previous = None
+    if previous is not None and not stat.S_ISREG(previous.st_mode):
+        raise ValueError(f"Destino de publicação precisa ser arquivo regular: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    if mode is None and path.exists():
-        mode = stat.S_IMODE(path.stat().st_mode)
+    if mode is None and previous is not None:
+        mode = stat.S_IMODE(previous.st_mode)
     temp = path.with_name(f".romtool-{uuid.uuid4().hex}.tmp")
     stream = temp.open("xb")
     try:
         with stream:
-            stream.write(payload)
-            stream.flush()
+            if previous is not None:
+                _copy_replacement_acl(path, temp)
             if mode is not None:
                 os.chmod(temp, mode)
+            stream.write(payload)
+            stream.flush()
             os.fsync(stream.fileno())
         os.replace(temp, path)
-        if os.name != "nt":
-            directories = [path.parent]
-            directories.extend(parent.parent for parent in missing_parents)
-            for directory in directories:
-                descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
-                try:
-                    os.fsync(descriptor)
-                finally:
-                    os.close(descriptor)
+        sync_directory_chain(path.parent)
     finally:
         temp.unlink(missing_ok=True)
 
@@ -263,6 +337,7 @@ def append_event(operation_id: str, event: str, **values) -> None:
             stream.write(line)
             stream.flush()
             os.fsync(stream.fileno())
+        sync_directory_chain(path.parent)
 
 
 def path_snapshot(path: Path, include_hash: bool = True, allow_leaf_symlink: bool = False) -> dict:
@@ -5598,24 +5673,49 @@ def command_record_artifacts(args) -> dict:
             "size_bytes": st.st_size,
             "sha256": sha256_file(path),
         })
-    operation_id = f"artifacts-{dt.datetime.now().strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    resume_id = getattr(args, "operation_id", None)
+    operation_id = resume_id or f"artifacts-{dt.datetime.now().strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    if not operation_id.startswith("artifacts-"):
+        raise ValueError("A retomada exige o ID artifacts- informado pela gravação anterior")
     opdir = operation_dir(operation_id)
-    opdir.mkdir(parents=True, exist_ok=False)
+    reject_symlink_components(opdir)
+    opdir.mkdir(parents=True, exist_ok=bool(resume_id))
     manifest = {
         "schema_version": "1.0", "operation_id": operation_id, "kind": "change",
-        "title": args.change_type, "created_at": now(), "completed_at": now(),
-        "status": "completed", "read_only": True, "project_files_changed": True,
+        "title": args.change_type, "created_at": now(),
+        "status": "recording", "read_only": True, "project_files_changed": True,
         "reason": args.reason, "items": artifacts,
         "details": {"change_type": args.change_type, "artifact_count": len(artifacts)},
     }
     defer_history_index = getattr(args, "defer_history_index", False)
+    manifest_path = opdir / "manifest.json"
+    if resume_id and manifest_path.exists():
+        reject_symlink_components(manifest_path)
+        previous = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if (previous.get("kind") != "change" or previous.get("operation_id") != operation_id
+                or previous.get("items") != artifacts or previous.get("title") != args.change_type
+                or previous.get("reason") != args.reason):
+            raise ValueError("Artefatos ou finalidade divergem do registro interrompido; origem preservada")
+        manifest = previous
+        manifest["record_resume_count"] = manifest.get("record_resume_count", 0) + 1
+        manifest["status"] = "recording"
     if defer_history_index:
         manifest["history_index_refresh"] = "deferred"
-    atomic_json(opdir / "manifest.json", manifest)
-    append_event(operation_id, "project_artifacts_recorded", action=args.change_type,
-                 status="completed", details={"reason": args.reason, "artifacts": artifacts})
-    if not defer_history_index:
-        rebuild_history_index()
+    else:
+        manifest.pop("history_index_refresh", None)
+    try:
+        atomic_json(manifest_path, manifest)
+        append_event(operation_id, "project_artifacts_record_resumed" if resume_id else "project_artifacts_recorded",
+                     action=args.change_type, status="completed",
+                     details={"reason": args.reason, "artifacts": artifacts})
+        manifest["status"] = "completed"
+        manifest["completed_at"] = now()
+        atomic_json(manifest_path, manifest)
+        if not defer_history_index:
+            rebuild_history_index()
+    except OSError as exc:
+        raise OSError(f"Registro {operation_id} interrompido; consulte manifesto/diários e retome "
+                      f"com record-artifacts --operation-id {operation_id} e os mesmos argumentos: {exc}") from exc
     return manifest
 
 
@@ -7066,6 +7166,7 @@ def build_parser() -> argparse.ArgumentParser:
     artifacts.add_argument("--change-type", required=True)
     artifacts.add_argument("--reason", required=True)
     artifacts.add_argument("--artifacts-json", required=True)
+    artifacts.add_argument("--operation-id", help="retoma o mesmo registro interrompido, conferindo artefatos e finalidade")
     artifacts.add_argument("--defer-history-index", action="store_true",
                            help="registra artefatos e diário agora; adia a reconstrução integral para history")
     steam_shortcuts_parser = commands.add_parser(
