@@ -559,8 +559,8 @@
     },
     {
       "target": "tools/roms/docs/media-continuation.md",
-      "sha256": "3234ac4b9e9c66f86cd911e118c2682424fd08f6e585612510586bd09d7b9f71",
-      "size_bytes": 14767,
+      "sha256": "3babb860575172c344f2a90cb106fb31c28984d82cd64a056ea97d76ad4ec01f",
+      "size_bytes": 15192,
       "mode": "0644"
     },
     {
