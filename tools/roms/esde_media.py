@@ -888,6 +888,16 @@ ALIAS_OPERATION_PREFIX = "esde-media-aliases-"
 ALIAS_KIND = "esde_media_aliases"
 
 
+def _sync_alias_directory(directory: Path) -> None:
+    if os.name == "nt":
+        return
+    fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def _alias_rows(media_root: Path) -> list[dict]:
     """Expected ES-DE aliases for every canonical category; paths relative to media_root."""
     rows = []
@@ -954,7 +964,7 @@ def command_aliases_apply(args, api: dict) -> dict:
     if not getattr(args, "apply", False):
         raise ValueError("Use --apply para criar os aliases revisados.")
     manifest, path = _alias_operation(args, api)
-    if manifest.get("status") not in {"prepared", "apply_interrupted"}:
+    if manifest.get("status") not in {"prepared", "applying", "apply_interrupted"}:
         raise ValueError(f"A operação não está preparada: {manifest.get('status')}")
     if any(row["status"] == "blocked_existing_path" for row in manifest["items"]):
         raise ValueError("O plano tem aliases bloqueados; resolva-os e gere outro plano")
@@ -977,8 +987,15 @@ def command_aliases_apply(args, api: dict) -> dict:
             if not target.is_dir() or target.is_symlink():
                 raise ValueError(f"Categoria canônica ausente ou symlink: {target}")
             if os.path.lexists(alias):
-                raise FileExistsError(f"Alias ocupado desde o plano; nada sobrescrito: {alias}")
-            os.symlink(row["target"], alias, target_is_directory=True)
+                if not (row.get("creation_intent") and alias.is_symlink()
+                        and os.readlink(alias) == row["target"]
+                        and alias.resolve(strict=True) == target.resolve(strict=True)):
+                    raise FileExistsError(f"Alias ocupado desde o plano; nada sobrescrito: {alias}")
+            else:
+                row["creation_intent"] = True
+                api["atomic_json"](path, manifest)
+                os.symlink(row["target"], alias, target_is_directory=True)
+            _sync_alias_directory(alias.parent)
             row["status"] = "created_by_operation"
             api["atomic_json"](path, manifest)
             api["append_event"](manifest["operation_id"], "esde_media_type_alias_created", action="relative_directory_symlink",
@@ -1001,6 +1018,8 @@ def command_aliases_verify(args, api: dict) -> dict:
     failed = []
     for row in manifest["items"]:
         if row["status"] not in {"created_by_operation", "existing_managed"}:
+            if manifest["status"] != "rolled_back":
+                failed.append(row["path_relative"])
             continue
         alias = media_root / row["path_relative"]
         if not (alias.is_symlink() and os.readlink(alias) == row["target"] and alias.resolve(strict=True) == (alias.parent / row["target"]).resolve(strict=True)):
@@ -1022,16 +1041,34 @@ def command_aliases_rollback(args, api: dict) -> dict:
     if _running_frontends(api):
         raise RuntimeError("Feche os frontends antes de reverter")
     media_root = (api["PROJECT_ROOT"].resolve(strict=True) / manifest["media_root_relative"]).resolve(strict=True)
+    if media_root != api["MEDIA_DEST_ROOT"].resolve(strict=True):
+        raise ValueError("A raiz de mídia mudou desde o plano")
     for row in manifest["items"]:
+        alias = media_root / row["path_relative"]
+        if row["status"] == "planned_create" and row.get("creation_intent") and os.path.lexists(alias):
+            if not (alias.is_symlink() and os.readlink(alias) == row["target"]
+                    and alias.resolve(strict=True) == (alias.parent / row["target"]).resolve(strict=True)):
+                raise RuntimeError(f"Alias interrompido diverge da intenção; rollback recusado: {alias}")
+            row["status"] = "created_by_operation"
         if row["status"] != "created_by_operation":
             continue
-        alias = media_root / row["path_relative"]
+        _no_symlink_components(alias.parent, media_root)
+        if row.get("rollback_intent") and not os.path.lexists(alias):
+            continue
         if not alias.is_symlink() or os.readlink(alias) != row["target"]:
             raise RuntimeError(f"Alias alterado depois da operação; rollback recusado: {alias}")
+    manifest["status"] = "rolling_back"
+    api["atomic_json"](path, manifest)
     for row in manifest["items"]:
         if row["status"] == "created_by_operation":
-            (media_root / row["path_relative"]).unlink()
+            alias = media_root / row["path_relative"]
+            row["rollback_intent"] = True
+            api["atomic_json"](path, manifest)
+            if os.path.lexists(alias):
+                alias.unlink()
+            _sync_alias_directory(alias.parent)
             row["status"] = "rolled_back"
+            api["atomic_json"](path, manifest)
     manifest["status"] = "rolled_back"
     manifest["rolled_back_at"] = api["now"]()
     api["atomic_json"](path, manifest)

@@ -559,8 +559,8 @@
     },
     {
       "target": "tools/roms/docs/media-continuation.md",
-      "sha256": "3babb860575172c344f2a90cb106fb31c28984d82cd64a056ea97d76ad4ec01f",
-      "size_bytes": 15192,
+      "sha256": "bcd8ccf55b748d2167c336e1174387fea8577266bb6328cecbefa9312b93c40d",
+      "size_bytes": 15966,
       "mode": "0644"
     },
     {
@@ -583,8 +583,8 @@
     },
     {
       "target": "tools/roms/esde_media.py",
-      "sha256": "39b1f3b366de9322a2f4ba5897774d33689a79cb3c96b0a3aacef80caa46a534",
-      "size_bytes": 66494,
+      "sha256": "b870a7913bda55f4d8add4caeb9a9419e9cefd4855dc9757baffecf0e2244d4b",
+      "size_bytes": 68281,
       "mode": "0644"
     },
     {
@@ -937,8 +937,8 @@
     },
     {
       "target": "tools/roms/tests/test_esde_validate_contract.py",
-      "sha256": "f2408ebc3bcff23ceebe6a269c7bd7ae724f8a860e68a04a3bcb82b177bb6ea4",
-      "size_bytes": 5483,
+      "sha256": "fdd4a3030ab47476b9ae1f266510a4eec3093a51ea313302a14fb616fbd45dd0",
+      "size_bytes": 9234,
       "mode": "0644"
     },
     {

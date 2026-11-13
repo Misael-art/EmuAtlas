@@ -126,3 +126,9 @@ A criação de playlists confere as capacidades declaradas do perfil da platafor
 PUAE e PUAE2021 permitem referências ZIP na playlist quando o perfil declara os formatos envolvidos. O planejador verifica todos os CRCs, registra o SHA-256 da imagem interna e exige uma única imagem de disquete não vazia em cada ZIP selecionado. Documentação auxiliar permanece no archive. Limites de expansão, quantidade de membros, nomes portáteis, criptografia e links são conferidos antes da leitura integral. Esses checks comprovam a seleção e a integridade do contêiner. A identidade do jogo e o aceite funcional continuam vinculados às evidências da revisão e aos testes nativos. [Documentação PUAE](https://docs.libretro.com/library/puae/)
 
 O plano recusa membros com nomes duplicados ou equivalentes sem distinção de maiúsculas e confere a estabilidade do ZIP até o registro do hash físico. O suporte ZIP precisa pertencer ao mesmo runtime que admite M3U. Os discos originais e a documentação interna permanecem preservados.
+
+## Aliases de categorias ES-DE
+
+Categorias canônicas criadas por uma promoção podem exigir novos aliases do ES-DE. Executar `romtool media esde validate` após o lote identifica essa necessidade. O fluxo `media esde aliases plan|apply|verify|rollback` cria os links relativos para as categorias físicas existentes e registra cada alteração.
+
+A criação registra uma intenção durável antes do link e sincroniza seu diretório em POSIX antes do checkpoint. A retomada de `applying` aceita somente o link que corresponde à intenção registrada. A reversão confere a propriedade dos links, registra a intenção antes de remover cada alias e admite retomar após uma interrupção. Links ocupados por mudanças externas permanecem protegidos pelas precondições.
