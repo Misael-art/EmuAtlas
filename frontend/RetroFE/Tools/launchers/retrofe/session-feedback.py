@@ -5,8 +5,11 @@ from __future__ import annotations
 import ctypes
 import ctypes.util
 import json
+import io
 from pathlib import Path
+import queue
 import re
+import threading
 import time
 import tkinter as tk
 from tkinter import font as tkfont
@@ -21,8 +24,8 @@ SECONDARY = "#b6b3b0"
 MUTED = "#85858d"
 
 
-def player_rows(names, keyboard=True):
-    rows = [(f"P{n + 1}", names[n] if n < len(names) and names[n] else "Sem controle") for n in range(4)]
+def player_rows(names, keyboard=True, capacity=8):
+    rows = [(f"P{n + 1}", names[n] if n < len(names) and names[n] else "Sem controle") for n in range(capacity)]
     if not any(names) and keyboard:
         rows[0] = ("P1", "Teclado")
     return rows
@@ -38,6 +41,8 @@ def controller_model(row, models):
     override = row.get("model_override")
     if override in models:
         return override
+    if row.get('mobile') and 'mobile' in models:
+        return 'mobile'
     name = row.get("name", "").casefold()
     for key, model in models.items():
         if any(re.search(pattern, name) for pattern in model.get("patterns", [])):
@@ -48,7 +53,7 @@ def controller_model(row, models):
     for key, model in models.items():
         if pair in model.get("usb_ids", []):
             return key
-    return "generic"
+    return "default" if "default" in models else "generic"
 
 
 def rounded(canvas, bounds, radius, **options):
@@ -71,19 +76,28 @@ class SessionFeedback:
     through its callbacks, and the UI displays the acknowledged assignment.
     """
     def __init__(self, master=None, *, game=False, accent=GOLD, root=None,
-                 on_assign=None, on_identify=None):
+                 on_assign=None, on_identify=None, on_add=None):
         self.owns_master = master is None
         self.master = master or tk.Tk(className="EmulationFeedback")
         if self.owns_master:
             self.master.withdraw()
         self.frontend = Path(root) / "frontend/RetroFE" if root else Path(__file__).resolve().parents[3]
         registry = self.frontend / "Config/controller-artwork.json"
-        self.models = json.loads(registry.read_text())["models"] if registry.exists() else {
+        config = json.loads(registry.read_text()) if registry.exists() else {}
+        self.capacity = config.get('player_capacity', 8)
+        self.models = config["models"] if registry.exists() else {
             "generic": {"label": "Controle genérico", "image": {}}}
         self.game = game
         self.accent = accent
         self.on_assign, self.on_identify = on_assign, on_identify
-        self.devices, self.ports, self.names = {}, [None] * 4, []
+        self.on_add = on_add
+        self.pairing = None
+        self.pairing_busy = False
+        self.pairing_cancelled = False
+        self.pairing_results = queue.Queue()
+        self.qr_image = None
+        self.address_index = 0
+        self.devices, self.ports, self.names = {}, [None] * self.capacity, []
         self.keyboard = True
         self.signature = None
         self.pending = True
@@ -172,7 +186,8 @@ class SessionFeedback:
             return
         self.signature = signature
         self.devices = {row["controller_id"]: row for row in rows}
-        self.ports = (list(ports) + [None] * 4)[:4]
+        capacity = getattr(self, 'capacity', 8)
+        self.ports = (list(ports) + [None] * capacity)[:capacity]
         self.names = [self.devices[key]["name"] if key in self.devices else None for key in self.ports]
         self.keyboard = keyboard
         if getattr(self, "drag", None) and self.drag["id"] not in self.devices:
@@ -186,6 +201,7 @@ class SessionFeedback:
         self.drawn = None
 
     def show_players(self):
+        self.pairing = None
         self.pending = True
         self.drawn = None
 
@@ -255,10 +271,16 @@ class SessionFeedback:
         title_y = round(38*s)
         instruction_y = title_y + self.title_font.metrics("linespace") + round(8*s)
         extras = [key for key in self.devices if key not in self.ports]
-        row_count = 4 + len(extras)
+        row_count = len(self.ports) + len(extras)
+        pairing = getattr(self, 'pairing', None)
         self.header_height = instruction_y + self.small_font.metrics("linespace") + round(18*s)
+        self.add_bounds = None
+        if not self.picker and not pairing:
+            top = self.header_height
+            self.add_bounds = (26*s, top, cw-26*s, top+32*s)
+            self.header_height += round(44*s)
         footer_height = round(38 * s)
-        content_height = round(440 * s) if self.picker else row_count * self.row_height
+        content_height = round((410 if pairing else 440) * s) if pairing or self.picker else row_count * self.row_height
         body_height = min(content_height, round(height * .82) - self.header_height - footer_height)
         self.toast_height = th = self.header_height + body_height + footer_height
         hh = round((88 if self.game else 70) * s)
@@ -272,13 +294,17 @@ class SessionFeedback:
         c.create_line(28*s, 1, cw-28*s, 1, fill=self.accent, width=1)
         c.create_text(26*s, 20*s, anchor="nw", text="EM JOGO" if self.game else "PRÓXIMO JOGO",
                       fill=GOLD, font=("Noto Sans", -max(9, round(10*s))))
-        c.create_text(26*s, title_y, anchor="nw", text="Modelo do controle" if self.picker else "Controles",
+        c.create_text(26*s, title_y, anchor="nw", text="Adicionar controle" if pairing else "Modelo do controle" if self.picker else "Controles",
                       fill=TEXT, font=self.title_font, tags="heading")
-        c.create_text(26*s, instruction_y, anchor="nw", text="Escolha a representação do seu controle" if self.picker else "Arraste um controle para trocar de jogador",
+        c.create_text(26*s, instruction_y, anchor="nw", text="Escaneie com seu celular ou tablet" if pairing else "Escolha a representação do seu controle" if self.picker else "Arraste um controle para trocar de jogador",
                       fill=SECONDARY, font=self.small_font, tags="instruction")
-        c.create_text(cw-29*s, 28*s, text="‹" if self.picker else "×", fill=SECONDARY,
+        c.create_text(cw-29*s, 28*s, text="‹" if self.picker or pairing else "×", fill=SECONDARY,
                       font=("Noto Sans", -round(26*s)))
-        footer = "Role para ver outros modelos" if self.picker else self.notice or "Clique em Modelo para identificar seu controle"
+        if self.add_bounds:
+            rounded(c, self.add_bounds, 9*s, fill="#25221e", outline="#61513c", width=1)
+            c.create_text(cw/2, self.add_bounds[1]+16*s, text="Preparando conexão…" if self.pairing_busy else "＋  Adicionar celular ou tablet",
+                          fill=GOLD, font=self.small_font)
+        footer = "QR Code temporário · mesma rede local" if pairing else "Role para ver outros modelos" if self.picker else self.notice or f"P1–P{self.capacity} · role para ver todos os jogadores"
         c.create_text(26*s, th-19*s, anchor="w", text=self.fitted(footer, self.small_font, cw-52*s),
                       fill=GOLD if self.notice else MUTED, font=self.small_font)
         self.draw_body()
@@ -320,6 +346,9 @@ class SessionFeedback:
         c.delete("all")
         self.targets = []
         self.model_targets = []
+        if getattr(self, 'pairing', None):
+            self.draw_pairing()
+            return
         if self.picker:
             keys = sorted(self.models, key=lambda key: self.models[key]["label"])
             tw, rh = bw / 3, 110*s
@@ -357,11 +386,13 @@ class SessionFeedback:
                 c.create_oval(46*s, top+8*s, 156*s, top+65*s, fill="#25272d", outline="#303239")
                 if not moving:
                     self.draw_icon(c, model, 102*s, top+36*s, 108*s, 64*s)
-                label = device.get("name", "Controle") if model == "generic" else self.models[model]["label"]
+                label = device.get('display_name', device.get("name", "Controle")) if model in {"generic", "default", "mobile"} else self.models[model]["label"]
                 c.create_text(164*s, top+24*s, anchor="w", text=self.fitted(label, self.name_font, bw-180*s),
                               fill=TEXT, font=self.name_font)
-                bus = {3: "USB", 5: "Bluetooth"}.get(device.get("bus"), "Conectado")
+                bus = "Celular / tablet · rede local" if device.get('mobile') else {3: "USB", 5: "Bluetooth"}.get(device.get("bus"), "Conectado")
                 detail = bus if device.get("routable", True) else "Mapeamento pendente"
+                if device.get('mobile') and not device.get('online', True):
+                    detail = 'Reconectando · comandos liberados'
                 c.create_text(164*s, top+48*s, anchor="w", text=detail, fill=MUTED, font=self.small_font)
                 model_bounds = (bw-75*s, top+37*s, bw-12*s, top+61*s)
                 rounded(c, model_bounds, 7*s, fill="#25231f", outline="#504638", width=1)
@@ -395,7 +426,7 @@ class SessionFeedback:
 
     def pointer_down(self, event):
         self.toast_started = time.monotonic()
-        if self.picker:
+        if self.picker or getattr(self, 'pairing', None):
             return
         row = self.target_at(event.x, event.y)
         if not row:
@@ -456,6 +487,12 @@ class SessionFeedback:
         self.drawn = None
 
     def pointer_up(self, event):
+        if getattr(self, 'pairing', None):
+            if self.contains(self.address_bounds, event.x, self.body.canvasy(event.y)):
+                self.address_index = (self.address_index+1) % len(self.pairing['urls'])
+                self.qr_image = None
+                self.drawn = None
+            return
         if self.picker:
             if time.monotonic() < getattr(self, "ignore_click_until", 0):
                 return
@@ -497,18 +534,88 @@ class SessionFeedback:
         self.drawn = None
 
     def header_click(self, event):
+        if self.contains(getattr(self, 'add_bounds', None), event.x, event.y):
+            self.add_mobile()
+            return
         if event.x > self.card_width-60*self.scale and event.y < 60*self.scale:
-            if self.picker:
+            if self.picker or getattr(self, 'pairing', None):
                 self.picker = None
+                self.pairing = None
+                self.qr_image = None
                 self.body.yview_moveto(0)
                 self.drawn = None
             else:
+                if self.pairing_busy:
+                    self.pairing_cancelled = True
                 self.selected = self.drag = None
                 self.toast_started = time.monotonic()-TOAST_SECONDS
                 self.toast.withdraw()
 
+    def add_mobile(self):
+        if self.pairing_busy:
+            return
+        self.pairing_busy = True
+        self.pairing_cancelled = False
+        self.notice = ''
+        self.selected = self.drag = self.press = self.picker = None
+        self.drawn = None
+        def prepare():
+            try:
+                if not self.on_add:
+                    raise RuntimeError('Adicionar controle indisponível nesta sessão.')
+                result = self.on_add()
+            except Exception as exc:
+                result = {'error': str(exc)}
+            self.pairing_results.put(result)
+        threading.Thread(target=prepare, daemon=True).start()
+
+    def draw_pairing(self):
+        from PIL import Image, ImageTk
+        from mobile_controller import qr_png
+        c, s, bw = self.body, self.scale, self.body_width
+        url = self.pairing['urls'][self.address_index]
+        if self.qr_image is None:
+            with Image.open(io.BytesIO(qr_png(url))) as image:
+                modules = image.width // 6
+                side = modules * max(1, int(220*s/modules))
+                rendered = image.resize((side, side), Image.Resampling.NEAREST)
+                self.qr_image = ImageTk.PhotoImage(rendered, master=self.master)
+        c.create_image(bw/2, 126*s, image=self.qr_image)
+        c.create_text(bw/2, 255*s, text='1  Abra a câmera e escaneie o código', fill=TEXT, font=self.small_font)
+        c.create_text(bw/2, 281*s, text='2  Conecte e escolha seu jogador', fill=SECONDARY, font=self.small_font)
+        address = url.split('/#')[0]
+        self.address_bounds = (16*s, 305*s, bw-16*s, 348*s)
+        rounded(c, self.address_bounds, 9*s, fill=CARD, outline='#504638', width=1)
+        c.create_text(bw/2, 326*s, text=address, fill=GOLD, font=self.small_font)
+        if len(self.pairing['urls']) > 1:
+            c.create_text(bw/2, 370*s, text='Clique no endereço para trocar a interface de rede', fill=MUTED, font=self.small_font)
+        c.configure(scrollregion=(0, 0, bw, 398*s))
+
     def update(self, focused, geometry, now=None):
         now = time.monotonic() if now is None else now
+        results = getattr(self, 'pairing_results', None)
+        if results is not None:
+            try:
+                result = results.get_nowait()
+                self.pairing_busy = False
+                if self.pairing_cancelled:
+                    self.drawn = None
+                elif 'error' in result:
+                    self.notice = result['error']
+                else:
+                    self.pairing = result
+                    self.address_index = 0
+                    self.qr_image = None
+                    self.body.yview_moveto(0)
+                if not self.pairing_cancelled:
+                    self.pending = True
+                self.drawn = None
+            except queue.Empty:
+                pass
+        if getattr(self, 'pairing', None) and now >= self.pairing['expires_at']:
+            self.pairing = None
+            self.notice = 'QR Code expirou. Clique em Adicionar para gerar outro.'
+            self.drawn = None
         if not focused or not geometry or min(geometry[2:]) < 200:
             self.hide()
             self.focused = False
@@ -534,7 +641,7 @@ class SessionFeedback:
                 self.draw_body()
             pointer = self.toast.winfo_pointerxy()
             hovered = self.toast.winfo_viewable() and self.toast.winfo_rootx() <= pointer[0] <= self.toast.winfo_rootx()+self.toast.winfo_width() and self.toast.winfo_rooty() <= pointer[1] <= self.toast.winfo_rooty()+self.toast.winfo_height()
-            if hovered or self.drag or self.selected or self.picker:
+            if hovered or self.drag or self.selected or self.picker or getattr(self, 'pairing', None) or (getattr(self, 'pairing_busy', False) and not self.pairing_cancelled):
                 self.toast_started = now - .3
             self.hint.deiconify()
             self.hint.attributes("-alpha", .95)

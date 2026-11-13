@@ -80,6 +80,16 @@ def digest(data):
     return hashlib.sha256(data).hexdigest() if data is not None else None
 
 
+def routed_players(pads):
+    expected = int(os.environ.get('EMULATION_PLAYER_CAPACITY', '4'))
+    selected = [p for p in pads if p['name'].startswith('Emulation P')]
+    by_name = {p['name']: p for p in selected}
+    names = [f'Emulation P{n+1}' for n in range(expected)]
+    if len(selected) != expected or len(by_name) != expected or any(name not in by_name for name in names):
+        raise RuntimeError('Portas virtuais da sessão indisponíveis durante a preparação')
+    return [by_name[name] for name in names]
+
+
 def target(root, relative):
     # Host profiles express shared paths relative to frontend/RetroFE. Normalize
     # only this declared prefix; arbitrary traversal remains forbidden.
@@ -424,7 +434,8 @@ def proposals(root, *, pad=None, system_id=None, frontends=True, pads=None, rout
         values.update({f"input_player1_{key}_axis": f'"{value}"' for key, value in RA_AXES.items()})
         if routed:
             values["input_menu_toggle_gamepad_combo"] = '"0"'
-            for n, player in enumerate(pads[:4], 1):
+            values['input_max_users'] = json.dumps(str(len(pads)))
+            for n, player in enumerate(pads, 1):
                 values[f"input_player{n}_joypad_index"] = json.dumps(str(player["index"]))
                 values[f"input_player{n}_reserved_device"] = json.dumps(player['name'])
                 values[f"input_player{n}_device_reservation_type"] = '"2"'
@@ -455,7 +466,7 @@ def proposals(root, *, pad=None, system_id=None, frontends=True, pads=None, rout
             if not p.exists() or p.read_bytes() in {data, prior_bytes(root, p)}:
                 add(relative, data, "Autoconfig SDL2 pelo nome e VID/PID observados para reconhecer o controle no RetroArch")
             if routed:
-                for n,player in enumerate(pads[1:4],2):
+                for n,player in enumerate(pads[1:],2):
                     settings.update(input_device=player['name'], input_vendor_id=str(player['vendor']),input_product_id=str(player['product']))
                     data = ''.join(f'{key} = {json.dumps(value)}\n' for key,value in settings.items()).encode()
                     relative = userdata / f'autoconfig/sdl2/emulation-player{n}.cfg'
@@ -575,7 +586,7 @@ def proposals(root, *, pad=None, system_id=None, frontends=True, pads=None, rout
         if routed:
             data = before or b""
             settings = data.decode('utf-8-sig')
-            for n, player in enumerate(pads[:4], 1):
+            for n, player in enumerate(pads[:7], 1):
                 heading = f"Player {n} Input:"
                 block = re.search(r"(?m)^"+re.escape(heading)+r"\s*\n((?:[ \t]+[^\n]*\n|\n)*)", settings)
                 if block:
@@ -587,7 +598,7 @@ def proposals(root, *, pad=None, system_id=None, frontends=True, pads=None, rout
                 else:
                     settings += '\n'+heading+'\n  Handler: SDL\n  Device: '+json.dumps(player['name']+' 1')+'\n'
             results[:] = [r for r in results if r['path'] != str(relative)]
-            add(relative, settings.encode(), "Associar quatro portas SDL RPCS3 estáveis, preservando os demais campos")
+            add(relative, settings.encode(), "Associar portas SDL RPCS3 estáveis, preservando os demais campos")
     if system_id in (None, 'xbox') and pad:
         relative = HOST / '../../emulator/data/xemu/xemu.toml'
         p = target(root, relative)
@@ -616,7 +627,7 @@ def proposals(root, *, pad=None, system_id=None, frontends=True, pads=None, rout
             config.optionxform=str
             config.read_string(original.decode('utf-8-sig'))
             values={}
-            for n,player in enumerate(pads[:4]):
+            for n,player in enumerate(pads[:8]):
                 prefix=f'player_{n}_'
                 # Eden/Eglantine GetGUID explicitly clears SDL's controller
                 # name CRC (bytes 2..3). A full SDL GUID silently never matches.
@@ -726,7 +737,7 @@ def coverage(root):
     return rows
 
 
-def retrofe_controls(data, pads):
+def retrofe_controls(data, pads, *, capacity=8):
     """Project logical SDL controls while preserving keyboard and custom actions."""
     actions = {'up': [('dpup', 0), ('lefty', -1)], 'down': [('dpdown', 0), ('lefty', 1)],
                'left': [('dpleft', 0), ('leftx', -1)], 'right': [('dpright', 0), ('leftx', 1)],
@@ -773,7 +784,7 @@ def retrofe_controls(data, pads):
         tokens = [v.strip() for v in match[4].split(',') if v.strip()]
         preserved = [v for v in tokens if not v.startswith('joy')]
         # Unknown controllers retain their existing raw bindings.
-        unmapped = set(range(4)) - {p['index'] for p in pads if p.get('mapping')}
+        unmapped = set(range(capacity)) - {p['index'] for p in pads if p.get('mapping')}
         for token in tokens:
             index = re.match(r'joy(\d+)', token)
             if index and int(index[1]) in unmapped and not token.endswith('Button7'):
@@ -802,9 +813,10 @@ def retrofe_controls(data, pads):
 
 def prepare_retrofe(root):
     """Prepare only the closed frontend's native controls through its plan log."""
+    from controller_session import player_capacity
     pads = gamepads()
     path = target(root, HOST / 'controls.conf')
-    if retrofe_controls(path.read_bytes(), pads) == path.read_bytes():
+    if retrofe_controls(path.read_bytes(), pads, capacity=player_capacity(root)) == path.read_bytes():
         return {'status':'configuration_verified', 'items':0}
     manifest = plan(root, retrofe_only=True)
     return execute(root, manifest['operation_id'], 'apply', runtime=True, frontend_startup=True)
@@ -814,14 +826,13 @@ def plan(root, *, system_id=None, frontends=True, retrofe_only=False):
     pads = runtime_gamepads(root,system_id)
     routed = os.environ.get('EMULATION_ROUTED_CONTROLS') == '1'
     if routed:
-        pads = sorted((p for p in pads if p['name'].startswith('Emulation P')), key=lambda p:p['name'])
-        if len(pads) != 4:
-            raise RuntimeError('Roteamento exige quatro portas virtuais confirmadas')
+        pads = routed_players(pads)
     pad = pads[0] if pads and (routed or len(pads) == 1) else None
     if retrofe_only:
+        from controller_session import player_capacity
         path = target(root, HOST / 'controls.conf')
         before = path.read_bytes()
-        after = retrofe_controls(before, pads)
+        after = retrofe_controls(before, pads, capacity=player_capacity(root))
         items = [] if before == after else [{'path':str(HOST / 'controls.conf'), 'before':before,
             'after':after, 'reason':'Start reservado e ações lógicas pelo mapping SDL observado'}]
     else:
@@ -939,9 +950,7 @@ def prepare_runtime(root, system_id, *, require_gamepad=False):
         print("[CONTROLE] Vários controles disponíveis; seleção existente de jogador preservada.")
         return
     if routed:
-        pads = sorted((p for p in pads if p['name'].startswith('Emulation P')), key=lambda p:p['name'])
-        if len(pads) != 4:
-            raise RuntimeError('Portas virtuais indisponíveis durante a preparação')
+        pads = routed_players(pads)
     changes = proposals(root, pad=pads[0], pads=pads, routed=routed, system_id=system_id, frontends=False)
     if changes:
         profile = json.loads((root / PROFILE).read_text())

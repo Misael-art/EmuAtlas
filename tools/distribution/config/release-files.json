@@ -686,6 +686,30 @@
     {
       "source": "frontend/RetroFE/Config/controller-artwork.json",
       "target": "frontend/RetroFE/Config/controller-artwork.json"
+    },
+    {
+      "source": "tools/roms/mobile_controller.py",
+      "target": "tools/roms/mobile_controller.py"
+    },
+    {
+      "source": "tools/roms/mobile-controller.html",
+      "target": "tools/roms/mobile-controller.html"
+    },
+    {
+      "source": "tools/roms/mobile-controller.css",
+      "target": "tools/roms/mobile-controller.css"
+    },
+    {
+      "source": "tools/roms/mobile-controller.js",
+      "target": "tools/roms/mobile-controller.js"
+    },
+    {
+      "source": "tools/roms/tests/test_mobile_controller.py",
+      "target": "tools/roms/tests/test_mobile_controller.py"
+    },
+    {
+      "source": "docs/business/assets/branding/controller-mobile.svg",
+      "target": "docs/business/assets/branding/controller-mobile.svg"
     }
   ]
 }

@@ -57,7 +57,8 @@
           "wine",
           "python-evdev",
           "python-gobject",
-          "squashfs-tools"
+          "squashfs-tools",
+          "qrencode"
         ],
         "apt-get": [
           "flatpak",
@@ -104,7 +105,8 @@
           "zstd",
           "python3-evdev",
           "python3-gi",
-          "squashfs-tools"
+          "squashfs-tools",
+          "qrencode"
         ],
         "dnf": [
           "flatpak",
@@ -149,7 +151,9 @@
           "libnotify",
           "wine",
           "zstd",
-          "squashfs-tools"
+          "squashfs-tools",
+          "qrencode",
+          "python3-evdev"
         ]
       }
     },

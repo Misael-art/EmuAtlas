@@ -38,6 +38,14 @@ A portabilidade da estrutura não torna Qt, Vulkan, Steam, drivers ou firmware i
 
 O RocketLauncher está cadastrado como alternativa ao launcher host dos frontends. A instalação local contém PE32 Windows e plugin RetroFE; os caminhos Windows antigos e a compatibilidade com o host Linux ainda exigem validação. ES-DE, Pegasus e Quiver não recebem suporte presumido pela presença do pacote. O cadastro protege suas referências sem trocar os perfis ativos, acrescentar componente ao instalador ou criar outra biblioteca. Quando o pacote local estiver instalado, seu README registra os detalhes e a proveniência; esse conteúdo não integra a exportação pública.
 
+## Entrada móvel de sessão
+
+O painel compartilhado usa o mapeamento visual `frontend/RetroFE/Config/controller-artwork.json`, com `player_capacity=8` como padrão. O arquivo único de preferências em UserData conserva a ordem e as escolhas visuais. A leitura amplia preferências antigas de quatro portas em memória.
+
+`tools/roms/mobile_controller.py` atende os três arquivos explícitos da página responsiva por HTTP na rede local. A ação Adicionar inicia um processo por raiz/sessão do usuário, com descritor e segredo administrativos privados em XDG_RUNTIME_DIR. O QR Code carrega um convite de dois minutos no fragmento do endereço. Cada navegador recebe um token independente. As mensagens contêm snapshots completos e sequenciados, e o host neutraliza a origem após 750 ms sem atualização.
+
+O processo cria origens evdev/uinput próprias. O roteador existente aplica a atribuição às portas virtuais estáveis. Frontend e jogo mantêm leases locais e informam foco, preservando o pareamento durante o lançamento. Solicitações de jogador vindas da página são confirmadas pelo consumidor focado através da mesma gravação durável usada pelo arraste. A ausência de consumidores encerra o serviço e remove os dispositivos. O backend de entrada atual usa Linux/KDE. O navegador do celular ou tablet consome apenas HTML, CSS e JavaScript locais.
+
 ## Reuso e dívida técnica
 
 Não há segundo organizador: inventário, planos, conversão, mídia e rollback continuam nas ferramentas existentes. A nova camada trata instalação/distribuição: install.sh → setup.py → receitas e adaptadores existentes. Algumas ferramentas ainda usam o diretório histórico `outputs/roms-consolidacao-2026-10-24` e esperam catálogos/arte/templates de uma instalação RetroFE completa. Preservar essa compatibilidade nesta prévia; uma migração de estado exige projeto e testes próprios.

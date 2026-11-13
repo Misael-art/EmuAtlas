@@ -16,6 +16,7 @@
 <p>
   <a href="#instalar">Começar</a> &nbsp;·&nbsp;
   <a href="#ecossistema">Ecossistema</a> &nbsp;·&nbsp;
+  <a href="#controles-e-jogadores">Controles e jogadores</a> &nbsp;·&nbsp;
   <a href="#estrutura">Estrutura</a> &nbsp;·&nbsp;
   <a href="#estado-do-projeto">Estado do projeto</a> &nbsp;·&nbsp;
   <a href="#guias">Documentação</a>
@@ -30,6 +31,31 @@ Bibliotecas de emulação crescem. Jogos, artes, versões, ferramentas e configu
 | 🧩 Um ecossistema | 🗂️ Uma organização | 🔎 Um histórico |
 | :--- | :--- | :--- |
 | Frontends, emuladores, núcleos e ferramentas conectados por receitas. | ROMs, mídias, BIOS, saves e configurações com destinos definidos. | Planos, hashes, logs e resultados por componente. |
+
+O projeto também prepara a entrada nativa de teclado e gamepads, a atribuição de jogadores e os controles virtuais pelo navegador do celular ou tablet. Steam permanece uma integração opcional.
+
+## Controles e jogadores
+
+<img src="docs/business/assets/branding/controller-mobile.svg" alt="Celular com botões virtuais conectado à atribuição de jogadores do EmuAtlas" width="1040" />
+
+| Quero usar… | Como funciona |
+| :--- | :--- |
+| **Teclado ou gamepad** | Entrada nativa e painel de controles integrado à sessão. |
+| **Um controle específico** | Representações de GameSir, 8BitDo, Xbox, PlayStation, Logitech e Switch. **Modelo** permite corrigir a identificação visual. |
+| **Um arcade de luta** | Ilustrações de 8BitDo Arcade Stick, HORI Fighting Stick Alpha e Razer Kitsune. |
+| **Um modelo desconhecido** | O arquivo canônico `default.png` fornece a representação padrão. |
+| **Outra ordem de jogadores** | Arraste o controle até o jogador desejado. Posições ocupadas trocam os dois controles. A ordem fica salva. |
+| **Celular ou tablet** | Abra **Controles → ＋ Adicionar celular ou tablet**, escaneie o QR Code na mesma rede local e toque em **Conectar controle**. Escolha o jogador na página ou no painel do host. |
+
+### Controle móvel
+
+A página responsiva oferece direcional, dois analógicos, A/B/X/Y, ombros, gatilhos, Select, Start e L3/R3. Cada navegador é um controle independente. O padrão é **oito controles móveis e oito posições de jogador**, com capacidade ajustável para a próxima sessão em `frontend/RetroFE/Config/controller-artwork.json`, no campo `player_capacity`. A quantidade efetiva de jogadores acompanha o suporte do jogo e do emulador.
+
+O telefone continua conectado durante a passagem do frontend para o jogo. O comando **Select + Start por dois segundos** solicita a saída normal da janela do jogo. A legenda persistente e o botão **Controles** mantêm essas ações acessíveis. O serviço começa ao adicionar um controle e encerra com suas sessões consumidoras. Convites expiram em dois minutos. Uma nova sessão do host exige novo pareamento móvel. Perda de conexão por 750 ms libera os comandos e exige soltura antes de retomar.
+
+O backend de dispositivos virtuais desta entrega usa **Linux/KDE e evdev/uinput**. A página pode ser aberta em navegadores móveis atuais, em retrato ou paisagem. O roteamento HTTP até oito portas virtuais foi ensaiado localmente, incluindo neutralização após falha de rede. A aceitação com oito telefones/tablets físicos, a latência da rede Wi-Fi e o backend de entrada nativo Windows permanecem pendentes.
+
+As ilustrações de controles pertencem ao acervo canônico da instalação. A exportação pública contém o código, o mapeamento e a ilustração documental desta seção. As dependências do host incluem `qrencode`, evdev e Pillow, preparados pelo fluxo de instalação existente.
 
 > [!IMPORTANT]
 > **Prévia de engenharia.** A automação está implementada; a instalação integral em máquina limpa e a aceitação física de gameplay/controles ainda precisam de validação. As permissões de distribuição de cada componente seguem em revisão.

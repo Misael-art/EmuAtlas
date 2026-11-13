@@ -24,7 +24,7 @@
         <rect width="185" height="45" rx="11" fill="#111f32" stroke="#25384b"/>
         <rect x="200" width="158" height="45" rx="11" fill="#111f32" stroke="#25384b"/>
         <rect x="373" width="156" height="45" rx="11" fill="#111f32" stroke="#25384b"/>
-        <text x="19" y="29" fill="#d3e1ed" font-size="16"><tspan fill="#83f6d5" font-weight="700">59</tspan> componentes</text>
+        <text x="19" y="29" fill="#d3e1ed" font-size="16"><tspan fill="#83f6d5" font-weight="700">62</tspan> componentes</text>
         <text x="220" y="29" fill="#d3e1ed" font-size="16"><tspan fill="#83f6d5" font-weight="700">24</tspan> núcleos</text>
         <text x="394" y="29" fill="#d3e1ed" font-size="16"><tspan fill="#83f6d5" font-weight="700">3</tspan> frontends</text>
       </g>

@@ -20,7 +20,7 @@ from workspace import HERE, SOURCE_ROOT, read, root_path, safe_path, digest
 
 FORBIDDEN = {"roms", "bios", "saves", "media", "UserData", "emulator", "quarantine", "outputs", "work", "runtimes", "vendor", "skraper", "Assets", "Manifests", "__pycache__", ".git"}
 # Documentation SVGs are reviewed text sources, included only by the explicit allowlist.
-EXTENSIONS = {".py", ".sh", ".json", ".md", ".js", ".html", ".yml", ".txt", ".svg"}
+EXTENSIONS = {".py", ".sh", ".json", ".md", ".js", ".html", ".css", ".yml", ".txt", ".svg"}
 CODE_EXCEPTIONS = {"tools/roms/skraper/launch.sh", "emulator/linux/eden-nx2/eden-nx2-launch", "emulator/launch.sh", "emulator/launch.cmd", "emulator/README.md"}
 
 

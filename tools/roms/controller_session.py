@@ -1,6 +1,6 @@
 """Session-only input routing. No grabs, global remaps, services or key logs.
 
-The Steam lease stays with steam-input.py. Four stable SDL pads let native
+The Steam lease stays with steam-input.py. Stable SDL pads let native
 emulators keep their port assignments while physical controllers hotplug.
 """
 from __future__ import annotations
@@ -19,9 +19,18 @@ import time
 import uuid
 
 VID = 0x1209
-PRODUCTS = tuple(0xE101 + i for i in range(4))
+DEFAULT_PLAYERS = 8
+PRODUCTS = tuple(0xE101 + i for i in range(DEFAULT_PLAYERS))
 EXIT_SECONDS = 2.0
 ORDER_PATH = Path('frontend/RetroFE/UserData/retrofe/controller-order.json')
+
+
+def player_capacity(root):
+    config = Path(root) / 'frontend/RetroFE/Config/controller-artwork.json'
+    value = json.loads(config.read_text()).get('player_capacity', DEFAULT_PLAYERS) if config.exists() else DEFAULT_PLAYERS
+    if type(value) is not int or not 1 <= value <= 128:
+        raise ValueError('Capacidade de jogadores inválida no mapeamento dos controles.')
+    return value
 
 
 def device_key(row):
@@ -43,11 +52,13 @@ def load_preferences(root):
             or value['revision'] < 0 or not isinstance(value.get('models', {}), dict)):
         raise ValueError('Preferências de controles inválidas.')
     if ports is not None:
-        if not isinstance(ports, list) or len(ports) != 4:
-            raise ValueError('A ordem precisa conter quatro portas.')
+        capacity = player_capacity(root)
+        if not isinstance(ports, list) or not 1 <= len(ports) <= capacity:
+            raise ValueError('A ordem excede a capacidade configurada de jogadores.')
         keys = [key for key in ports if key is not None]
         if any(not isinstance(key, str) or not 1 <= len(key) <= 128 for key in keys) or len(set(keys)) != len(keys):
             raise ValueError('Identidade duplicada ou inválida na ordem dos controles.')
+        value['slots'] = ports + [None] * (capacity-len(ports))
     models = value.get('models', {})
     if any(not isinstance(k, str) or not isinstance(v, str) or len(k) > 128 or len(v) > 128 for k, v in models.items()):
         raise ValueError('Identificação visual de controle inválida.')
@@ -103,14 +114,15 @@ def save_preferences(root, value, expected_revision):
 
 
 def assign_player(root, devices, assigned, source_id, player, revision):
-    if type(player) is not int or not 0 <= player < 4:
+    capacity = player_capacity(root)
+    if type(player) is not int or not 0 <= player < capacity:
         raise ValueError('Jogador de destino inválido.')
     available = {device_key(row): row for row in devices if row.get('routable', True)}
     if source_id not in available:
         raise ValueError('O controle foi desconectado ou está sem mapeamento seguro.')
     by_path = {row['path']: key for key, row in available.items()}
     ports = [by_path.get(path) for path in assigned]
-    ports = (ports + [None] * 4)[:4]
+    ports = (ports + [None] * capacity)[:capacity]
     source = ports.index(source_id) if source_id in ports else None
     if source == player:
         return load_preferences(root)
@@ -128,11 +140,11 @@ def identify_controller(root, source_id, model, revision):
     return save_preferences(root, {**prefs, 'models': models}, revision)
 
 
-def slots(devices, docked, previous=(), preferred=None):
-    """Deck is P1 handheld; external pads fill dock ports in connection order.
+def slots(devices, docked, previous=(), preferred=None, capacity=DEFAULT_PLAYERS):
+    """Use explicit ports when present, preserving holes and surviving identities.
 
-    Compact disconnected ports; preserve surviving controllers' relative order.
-    The built-in pad is intentionally excluded in dock mode.
+    Automatic handheld order starts with Deck. Automatic dock order uses external
+    pads. An explicit preference can place the built-in pad in either mode.
     """
     external = [d for d in devices if d['kind'] == 'external']
     order = {key: i for i, key in enumerate(previous)}
@@ -141,16 +153,19 @@ def slots(devices, docked, previous=(), preferred=None):
     chosen = external if docked else builtins[:1] + external
     if preferred is not None:
         available = {device_key(d): d['path'] for d in devices if d['kind'] in {'deck', 'external'}}
-        selected = [available.get(key) for key in preferred]
+        selected = [available.get(key) for key in preferred] + [None] * (capacity-len(preferred))
         remaining = [d['path'] for d in chosen if d['path'] not in selected]
         for n, path in enumerate(selected):
             if path is None and remaining:
                 selected[n] = remaining.pop(0)
         return selected
-    return [d['path'] for d in chosen[:4]]
+    return [d['path'] for d in chosen[:capacity]]
 
 
 def source_mapping(row, pads):
+    from mobile_controller import REMOTE_PRODUCT, RAW_MAPPING
+    if row.get('vendor') == VID and row.get('product') == REMOTE_PRODUCT and row.get('mobile'):
+        return dict(RAW_MAPPING)
     matches = [p for p in pads if p.get('path') == row['path']]
     if not matches:
         matches = [p for p in pads if (p.get('vendor'), p.get('product')) == (row['vendor'], row['product'])]
@@ -335,7 +350,7 @@ def input_inventory():
     for path in sorted(evdev.list_devices()):
         try:
             with closing(evdev.InputDevice(path)) as dev:
-                if dev.info.vendor == VID and dev.info.product in (*PRODUCTS, 0xE1FF):
+                if dev.info.vendor == VID and 0xE101 <= dev.info.product <= 0xE1FF:
                     continue
                 caps = dev.capabilities()
                 keys = caps.get(e.EV_KEY, [])
@@ -351,6 +366,7 @@ def input_inventory():
                 identifier = f'{dev.info.vendor:04x}:{dev.info.product:04x}:{dev.uniq or dev.phys or path}'
                 rows.append({'path': path, 'name': dev.name, 'vendor': dev.info.vendor,
                              'product': dev.info.product, 'kind': kind, 'bus': dev.info.bustype,
+                             'mobile': dev.info.vendor == VID and dev.info.product == 0xE201 and (dev.phys or '').startswith('emuatlas/mobile/'),
                              'device_cookie': os.fstat(dev.fd).st_ino,
                              'controller_id': hashlib.sha256(identifier.encode()).hexdigest()})
         except (OSError, PermissionError):
@@ -370,7 +386,7 @@ def dock_mode(output):
     return False
 
 
-def virtual_mappings():
+def virtual_mappings(products=PRODUCTS):
     """Read actual SDL GUIDs even before these new pads have a mapping."""
     import ctypes
     import ctypes.util
@@ -386,7 +402,7 @@ def virtual_mappings():
     result = []
     try:
         for i in range(sdl.SDL_NumJoysticks()):
-            if sdl.SDL_JoystickGetDeviceVendor(i) != VID or sdl.SDL_JoystickGetDeviceProduct(i) not in PRODUCTS:
+            if sdl.SDL_JoystickGetDeviceVendor(i) != VID or sdl.SDL_JoystickGetDeviceProduct(i) not in products:
                 continue
             value = ctypes.create_string_buffer(33)
             sdl.SDL_JoystickGetGUIDString(sdl.SDL_JoystickGetDeviceGUID(i), value, 33)
@@ -451,7 +467,8 @@ def diagnose(root):
             'kwin_available':bool(output),
             'backend': 'KWin + evdev/uinput, sessão somente', 'error': error,
             'exit': {'gamepad': 'Back/Select + Start', 'keyboard': 'Ctrl + Shift + F10', 'hold_seconds': 2},
-            'policy': {'handheld': 'Deck P1; externos P2-P4', 'dock': 'externos P1-P4; teclado sem externo',
+            'policy': {'handheld': 'Deck P1; externos nas portas seguintes', 'dock': 'externos por ordem; teclado sem externo',
+                       'player_capacity': player_capacity(root), 'mobile_controllers': 'QR Code de sessão, rede local',
                        'hotplug': True, 'manual_player_order': True, 'occupied_target': 'swap',
                        'manual_overrides_automatic': True, 'preference_file': str(ORDER_PATH),
                        'exclusive_grabs': False}, 'coverage': coverage(root),
@@ -473,9 +490,13 @@ class Session:
         self.source_signature = None
         self.preferences = {'schema': 1, 'revision': 0, 'slots': None, 'models': {}}
         self.wait_for_release = set()
-        self.output_state = [{}, {}, {}, {}]
-        self.effects = [{}, {}, {}, {}]
-        self.forwarded_effects = [{}, {}, {}, {}]
+        self.capacity = player_capacity(root)
+        self.products = tuple(0xE101+n for n in range(self.capacity))
+        self.output_state = [{} for _ in self.products]
+        self.effects = [{} for _ in self.products]
+        self.forwarded_effects = [{} for _ in self.products]
+        from mobile_controller import Client
+        self.mobile = Client(root)
         self.processes, self.exit_chords = OwnedProcesses(), {}
         self.last_scan = 0
         self.last_process_scan = 0
@@ -510,21 +531,22 @@ class Session:
             capabilities = {e.EV_KEY: self.buttons,
                 e.EV_FF: [e.FF_RUMBLE],
                 e.EV_ABS: [(code, evdev.AbsInfo(0 if bounds[0] < 0 else bounds[0], *bounds, 0, 0, 0)) for code, bounds in axes]}
-            for n, product in enumerate(PRODUCTS):
+            for n, product in enumerate(self.products):
                 self.virtual.append(evdev.UInput(capabilities, name=f'Emulation P{n+1}', vendor=VID,
                     product=product, version=1, bustype=e.BUS_USB, phys=f'emulation/player/{n+1}', max_effects=16))
             self.dialog_keyboard = evdev.UInput({e.EV_KEY:[e.KEY_ENTER,e.KEY_ESC,e.KEY_LEFT,e.KEY_RIGHT,e.KEY_UP,e.KEY_DOWN]},
                 name='Emulation Session Dialog',vendor=VID,product=0xE1FF,phys='emulation/dialog')
             self.env = os.environ.copy()
-            self.env['SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT'] = ','.join(f'0x{VID:04x}/0x{p:04x}' for p in PRODUCTS)
+            self.env['SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT'] = ','.join(f'0x{VID:04x}/0x{p:04x}' for p in self.products)
             self.env['SDL_JOYSTICK_HIDAPI'] = '0'
             self.env['EMULATION_ROUTED_CONTROLS'] = '1'
+            self.env['EMULATION_PLAYER_CAPACITY'] = str(self.capacity)
             # Linux evdev button order is A,B,X,Y,LB,RB,Back,Start,Guide,LS,RS.
             from emulator_controls import gamepads
             deadline = time.monotonic()+4
             while True:
-                mappings = virtual_mappings()
-                if len(mappings) == 4 or time.monotonic() >= deadline: break
+                mappings = virtual_mappings(self.products)
+                if len(mappings) == self.capacity or time.monotonic() >= deadline: break
                 time.sleep(.1)
             self.env['SDL_GAMECONTROLLERCONFIG'] = '\n'.join(filter(None, [self.env.get('SDL_GAMECONTROLLERCONFIG', ''), *mappings]))
             keys = ['SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT', 'SDL_GAMECONTROLLERCONFIG', 'SDL_JOYSTICK_HIDAPI']
@@ -534,15 +556,15 @@ class Session:
                 deadline = time.monotonic()+4
                 while True:
                     pads = gamepads()
-                    if len(pads) == 4 or time.monotonic() >= deadline:
+                    if len(pads) == self.capacity or time.monotonic() >= deadline:
                         break
                     time.sleep(.1)
             finally:
                 for key,value in old.items():
                     if value is None: os.environ.pop(key,None)
                     else: os.environ[key] = value
-            if len(pads) != 4 or any(p['vendor'] != VID for p in pads):
-                raise RuntimeError('As quatro portas SDL da sessão não foram enumeradas com isolamento.')
+            if len(pads) != self.capacity or any(p['vendor'] != VID for p in pads):
+                raise RuntimeError('As portas SDL da sessão não foram enumeradas com isolamento.')
             self.manifest.update(status='ready', ports=[{'name': p['name'], 'guid': p['guid']} for p in pads])
             self.feedback = None
             try:
@@ -551,7 +573,7 @@ class Session:
                 feedback = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(feedback)
                 self.feedback = feedback.SessionFeedback(game=True, root=root,
-                    on_assign=self.reassign, on_identify=self.identify)
+                    on_assign=self.reassign, on_identify=self.identify, on_add=self.mobile.pairing)
                 self.manifest['feedback'] = 'ready'
             except Exception as exc:
                 self.manifest['feedback_error'] = str(exc)
@@ -566,7 +588,10 @@ class Session:
         romtool.write_manifest(self.manifest)
 
     def controller_rows(self):
+        mobile = {r['controller_id']: r for r in getattr(getattr(self, 'mobile', None), 'clients', [])}
         return [{**row, 'controller_id': device_key(row), 'routable': row['path'] in self.source_maps,
+                 'display_name': mobile.get(device_key(row), {}).get('name', row['name']),
+                 'online': mobile.get(device_key(row), {}).get('online', True),
                  'model_override': self.preferences['models'].get(device_key(row))}
                 for row in self.rows.values() if row['kind'] in {'deck', 'external'}]
 
@@ -691,10 +716,10 @@ class Session:
                 self.manifest['controller_order_error'] = message
                 self.save()
         new = slots([r for r in rows if r['path'] in self.inputs and r['path'] in self.source_maps],
-                    docked, self.assigned, self.preferences['slots'])
+                    docked, self.assigned, self.preferences['slots'], getattr(self, 'capacity', DEFAULT_PLAYERS))
         if new != self.assigned or docked != self.manifest.get('docked') or replaced.intersection(new):
             self.stop_effects()
-            for n in range(4): self.neutral(n)
+            for n in range(len(self.virtual)): self.neutral(n)
             self.assigned = new
             self.wait_for_release = {path for path in new if path}
             self.keyboard_down.clear()
@@ -805,7 +830,7 @@ class Session:
         self.last_tick = now
         if not focused and self.last_focus:
             self.stop_effects()
-            for n in range(4): self.neutral(n)
+            for n in range(len(self.virtual)): self.neutral(n)
             self.keyboard_down.clear()
             self.keyboard_state.clear()
             self.dialog_down.clear()
@@ -818,6 +843,10 @@ class Session:
         if now-self.last_scan > 1:
             self.scan(dock_mode(self.focus.current[3]) if focused else self.manifest.get('docked', False))
             self.last_scan = now
+        if getattr(self, 'mobile', None):
+            players = {device_key(self.rows[path]): n for n, path in enumerate(self.assigned)
+                       if path and path in self.rows}
+            self.mobile.sync(focused, players, self.reassign)
         ready, _, _ = select.select([*self.inputs.values(),*self.virtual], [], [], .02)
         for dev in ready:
             if dev in self.virtual:
@@ -911,6 +940,8 @@ class Session:
                 self.save()
 
     def close(self, status='completed_with_validation_limits'):
+        if getattr(self, 'mobile', None):
+            self.mobile.close()
         if getattr(self, 'feedback', None):
             self.feedback.close()
             self.feedback = None
@@ -926,7 +957,8 @@ class Session:
         import romtool
         romtool.append_event(self.operation_id, 'controller_session_closed', status=status,
             details={'system_id': self.system_id, 'physical_gameplay_verified': False})
-        romtool.rebuild_history_index()
+        # The durable manifest/journal are authoritative. Rebuilding the aggregate
+        # history cache belongs to maintenance, outside the input/exit lifecycle.
 
 
 def run(root, system_id, command, env, attach=None, remaining=None, owned_children=None):

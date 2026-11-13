@@ -26,12 +26,38 @@ def load(name, path):
 
 
 class BindingsTests(unittest.TestCase):
+    def test_eight_routed_ports_are_ordered_and_missing_or_duplicate_ports_fail(self):
+        pads = [{'name':f'Emulation P{n+1}', 'index':n} for n in range(8)]
+        with patch.dict(os.environ, {'EMULATION_PLAYER_CAPACITY':'8'}):
+            self.assertEqual(controls.routed_players(list(reversed(pads))), pads)
+            for invalid in (pads[:-1], pads + [pads[0]]):
+                with self.assertRaises(RuntimeError):
+                    controls.routed_players(invalid)
+
+    def test_retroarch_configures_the_eighth_port_and_keeps_console_capacity_local(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            profile = root / controls.PROFILE
+            profile.parent.mkdir(parents=True)
+            profile.write_text(json.dumps({'collections':{'sms':{'rom_subdir':'sms','adapter':'retroarch'}},
+                'retroarch':{'config_path':'UserData/retroarch/retroarch.cfg','userdata_root':'UserData/retroarch'}}))
+            config = root / controls.HOST / 'UserData/retroarch/retroarch.cfg'
+            config.parent.mkdir(parents=True)
+            config.write_text('# personal settings\n')
+            pads = [{'name':f'Emulation P{n+1}', 'index':n, 'vendor':0x1209, 'product':0xE101+n} for n in range(8)]
+            with patch.object(controls, 'prior_bytes', return_value=None):
+                changes = controls.proposals(root, pad=pads[0], pads=pads, routed=True, system_id='sms', frontends=False)
+            data = next(item['after'] for item in changes if item['path'].endswith('retroarch.cfg'))
+            self.assertIn(b'input_player8_joypad_index = "7"', data)
+            self.assertIn(b'input_max_users = "8"', data)
+            self.assertTrue(any(item['path'].endswith('emulation-player8.cfg') for item in changes))
+
     def test_retrofe_reserves_real_start_and_maps_each_pad_independently(self):
         before = b'up = Up,joy0Hat0Up\nselect = Return,joy0Button0\nback = Escape,joy0Button1\nfavPlaylist = F,joyButton6\npageUp = A,joy0Button9\nquit = Q\n'
         pads = [{'index':0, 'mapping':{'start':'b6','back':'b4','a':'b0','b':'b1','dpup':'h0.1','lefty':'a1','leftstick':'b7'}},
                 {'index':1, 'mapping':{'start':'b11','back':'b10','a':'b0','b':'b1','dpup':'h0.1','lefty':'a1','leftstick':'b13'}}]
         after = controls.retrofe_controls(before, pads)
-        self.assertIn(b'favPlaylist = F,joy2Button6,joy3Button6,joy0Button4,joy1Button10', after)
+        self.assertIn(b'favPlaylist = F,joy2Button6,joy3Button6,joy4Button6,joy5Button6,joy6Button6,joy7Button6,joy0Button4,joy1Button10', after)
         self.assertIn(b'pageUp = A,joy0Button7,joy1Button13', after)
         self.assertIn(b'select = Return,joy0Button0,joy1Button0', after)
         self.assertIn(b'quit = Q\n', after)

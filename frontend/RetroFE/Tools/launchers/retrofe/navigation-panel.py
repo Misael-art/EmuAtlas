@@ -170,13 +170,15 @@ class OptionsPanel:
         self.drawn = None
         self.last_window_check = 0.0
         self.front_active = False
+        self.routing = controller_backend(self.root_path)
+        from mobile_controller import Client
+        self.mobile = Client(self.root_path.parents[1])
         self.feedback = feedback.SessionFeedback(self.window, root=self.root_path.parents[1],
-            on_assign=self.reassign_player, on_identify=self.identify_controller)
+            on_assign=self.reassign_player, on_identify=self.identify_controller, on_add=self.mobile.pairing)
         self.player_order = []
         self.player_devices = []
         self.preferences = {"schema": 1, "revision": 0, "slots": None, "models": {}}
         self.last_player_scan = 0.0
-        self.routing = controller_backend(self.root_path)
         self.window.after(30, self.tick)
         self.log("ready", options_key=OPTIONS_KEY, options_button=OPTIONS_BUTTON)
 
@@ -186,15 +188,19 @@ class OptionsPanel:
             self.preferences = self.routing.load_preferences(self.root_path.parents[1])
         except (ValueError, OSError) as exc:
             self.feedback.notice = str(exc)
+        mobile = {r['controller_id']: r for r in self.mobile.clients}
         self.player_devices = [{**row,
             "controller_id": self.routing.device_key(row),
+            "display_name": mobile.get(self.routing.device_key(row), {}).get('name', row['name']),
+            "online": mobile.get(self.routing.device_key(row), {}).get('online', True),
             "routable": bool(self.routing.source_mapping(row, self.sdl.devices.values())),
             "model_override": self.preferences["models"].get(self.routing.device_key(row))}
             for row in rows if row["kind"] in {"deck", "external"}]
         mapped = [row for row in self.player_devices if row["routable"]]
         output = windows.active_output_name()
         self.player_order = self.routing.slots(mapped, self.routing.dock_mode(output),
-                                               self.player_order, self.preferences["slots"])
+                                               self.player_order, self.preferences["slots"],
+                                               self.routing.player_capacity(self.root_path.parents[1]))
         available = {row["path"]: row for row in rows}
         self.feedback.set_devices(self.player_devices,
             [self.routing.device_key(available[path]) if path else None for path in self.player_order],
@@ -526,6 +532,9 @@ class OptionsPanel:
             self.window.quit()
             return
         self.sdl.poll(self.event if (self.opened or self.front_active) else None, {})
+        players = {self.routing.device_key(row): n for n, path in enumerate(self.player_order)
+                   for row in self.player_devices if row['path'] == path}
+        self.mobile.sync(self.opened or self.front_active, players, self.reassign_player)
         if now - self.last_player_scan > 1:
             self.last_player_scan = now
             self.refresh_players()
@@ -602,6 +611,7 @@ def main():
         if args.ready_file:
             args.ready_file.unlink(missing_ok=True)
         panel.keyboard.close()
+        panel.mobile.close()
         panel.sdl.close()
         panel.feedback.close()
         panel.window.destroy()

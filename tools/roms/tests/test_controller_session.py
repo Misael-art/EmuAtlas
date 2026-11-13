@@ -36,9 +36,9 @@ class FeedbackTests(unittest.TestCase):
         hud.draw_body = Mock()
         return hud
 
-    def test_four_slots_and_keyboard_fallback_are_explicit(self):
+    def test_eight_slots_and_keyboard_fallback_are_explicit(self):
         self.assertEqual(feedback.player_rows(['Deck','GameSir']),
-                         [('P1','Deck'),('P2','GameSir'),('P3','Sem controle'),('P4','Sem controle')])
+                         [('P1','Deck'),('P2','GameSir')] + [(f'P{n}', 'Sem controle') for n in range(3, 9)])
         self.assertEqual(feedback.player_rows([])[0], ('P1','Teclado'))
         self.assertEqual(feedback.player_rows([], False)[0], ('P1','Sem controle'))
 
@@ -135,7 +135,7 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(feedback.controller_model({'name': '8BitDo Ultimate 2C Wireless'}, models), '8bitdo-ultimate-2c')
         self.assertEqual(feedback.controller_model({'name': 'Wireless Controller', 'vendor': 0x054c, 'product': 0x0ce6}, models), 'dualsense')
         self.assertEqual(feedback.controller_model({'name': 'Xbox 360', 'model_override': 'gamesir-t4-pro'}, models), 'gamesir-t4-pro')
-        self.assertEqual(feedback.controller_model({'name': 'Unknown'}, models), 'generic')
+        self.assertEqual(feedback.controller_model({'name': 'Unknown'}, models), 'default')
 
 
 class AssignmentTests(unittest.TestCase):
@@ -157,19 +157,19 @@ class AssignmentTests(unittest.TestCase):
 
     def test_one_player_can_move_to_p3_and_keep_p1_empty_after_reload(self):
         prefs = c.assign_player(self.root, self.devices[:1], ['event1'], 'pad-a', 2, 0)
-        self.assertEqual(prefs['slots'], [None, None, 'pad-a', None])
+        self.assertEqual(prefs['slots'], [None, None, 'pad-a'] + [None]*5)
         self.assertEqual(c.load_preferences(self.root), prefs)
-        self.assertEqual(c.slots(self.devices[:1], True, preferred=prefs['slots']), [None, None, 'event1', None])
+        self.assertEqual(c.slots(self.devices[:1], True, preferred=prefs['slots']), [None, None, 'event1'] + [None]*5)
 
     def test_occupied_target_swaps_players_and_disconnect_preserves_surviving_port(self):
         prefs = c.assign_player(self.root, self.devices, ['event1', 'event2'], 'pad-a', 1, 0)
-        self.assertEqual(prefs['slots'], ['pad-b', 'pad-a', None, None])
-        self.assertEqual(c.slots(self.devices[:1], True, preferred=prefs['slots']), [None, 'event1', None, None])
+        self.assertEqual(prefs['slots'], ['pad-b', 'pad-a'] + [None]*6)
+        self.assertEqual(c.slots(self.devices[:1], True, preferred=prefs['slots']), [None, 'event1'] + [None]*6)
 
     def test_reconnected_device_uses_stable_identity_and_new_device_fills_free_port(self):
         prefs = c.assign_player(self.root, self.devices[:1], ['event1'], 'pad-a', 2, 0)
         current = [{**self.devices[0], 'path': 'event9'}, self.devices[1]]
-        self.assertEqual(c.slots(current, True, preferred=prefs['slots']), ['event2', None, 'event9', None])
+        self.assertEqual(c.slots(current, True, preferred=prefs['slots']), ['event2', None, 'event9'] + [None]*5)
 
     def test_disconnected_or_unmapped_source_cannot_change_preferences(self):
         for rows in [[], [{**self.devices[0], 'routable': False}]]:
@@ -199,6 +199,8 @@ class AssignmentTests(unittest.TestCase):
         session.source_maps = {'event1': {'a': 'b0'}}
         session.source_signature = (('event1', 'external', 'pad-a', None),)
         session.assigned = ['event1']
+        session.virtual = [Mock() for _ in range(8)]
+        session.capacity = 8
         session.deck_identity = None
         session.keyboard_down = {1}
         session.keyboard_state = {'event1': {1}}
@@ -211,8 +213,8 @@ class AssignmentTests(unittest.TestCase):
         session.feedback = None
         with patch.object(c, 'input_inventory', return_value=self.devices[:1]):
             session.scan(True)
-        self.assertEqual(session.assigned, [None, None, 'event1', None])
-        self.assertEqual(session.neutral.call_args_list, [unittest.mock.call(n) for n in range(4)])
+        self.assertEqual(session.assigned, [None, None, 'event1'] + [None]*5)
+        self.assertEqual(session.neutral.call_args_list, [unittest.mock.call(n) for n in range(8)])
         session.forward.assert_called_once_with(session.inputs['event1'], 2)
         self.assertEqual(session.manifest['changes'][0]['players'], [{'player': 3, 'name': 'A'}])
         self.assertFalse(session.keyboard_down)
@@ -229,8 +231,29 @@ class AssignmentTests(unittest.TestCase):
             session.scan(True)
         old_device.close.assert_called_once()
         session.forward.assert_called_once_with(new_device, 2)
-        self.assertEqual(session.neutral.call_count, 4)
-        self.assertEqual(session.assigned, [None, None, 'event1', None])
+        self.assertEqual(session.neutral.call_count, 8)
+        self.assertEqual(session.assigned, [None, None, 'event1'] + [None]*5)
+
+    def test_legacy_four_slot_preferences_expand_without_rewriting_the_file(self):
+        path = self.root / c.ORDER_PATH
+        path.parent.mkdir(parents=True)
+        value = {'schema': 1, 'revision': 4, 'slots': ['pad-a', None, None, 'pad-b'], 'models': {}}
+        before = json.dumps(value).encode()
+        path.write_bytes(before)
+        loaded = c.load_preferences(self.root)
+        self.assertEqual(loaded['slots'], value['slots'] + [None]*4)
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_controller_can_be_assigned_to_eighth_player(self):
+        prefs = c.assign_player(self.root, self.devices[:1], ['event1'], 'pad-a', 7, 0)
+        self.assertEqual(prefs['slots'], [None]*7 + ['pad-a'])
+        self.assertEqual(c.slots(self.devices[:1], True, preferred=prefs['slots']), [None]*7 + ['event1'])
+
+    def test_mobile_source_uses_its_documented_raw_mapping(self):
+        from mobile_controller import REMOTE_PRODUCT, RAW_MAPPING
+        row = {'vendor': c.VID, 'product': REMOTE_PRODUCT, 'path': 'mobile-event', 'mobile': True}
+        self.assertEqual(c.source_mapping(row, []), RAW_MAPPING)
+        self.assertIsNone(c.source_mapping({**row, 'mobile': False}, []))
 
     def test_journal_failure_restores_existing_configuration(self):
         c.assign_player(self.root, self.devices, ['event1', 'event2'], 'pad-a', 2, 0)
@@ -396,9 +419,9 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(c.slots([],True), [])
         self.assertEqual(c.slots([device('new')],True), ['new'])
 
-    def test_reconnect_fills_four_native_ports_in_stable_order(self):
+    def test_reconnect_preserves_order_and_expands_to_eight_native_ports(self):
         previous = ['b','a','c','d']
-        self.assertEqual(c.slots([device(x) for x in ['a','b','c','d','e']],True,previous),previous)
+        self.assertEqual(c.slots([device(x) for x in ['a','b','c','d','e']],True,previous),previous + ['e'])
         self.assertEqual(c.slots([device(x) for x in ['a','c','d','e']],True,previous),['a','c','d','e'])
 
     def test_keyboards_and_ambiguous_virtual_pads_are_not_players(self):

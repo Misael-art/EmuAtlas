@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "default": "generic",
+  "default": "default",
   "models": {
     "gamesir-t4-pro": {
       "label": "GameSir T4 Pro",
@@ -226,28 +226,6 @@
       },
       "brand": "Nintendo"
     },
-    "generic": {
-      "label": "Controle genérico",
-      "patterns": [],
-      "image": {
-        "path": "Assets/shared/images/controllers/artwork/gamepads-gamesir-8bitdo-logitech-atlas.png",
-        "grid": [
-          3,
-          3
-        ],
-        "cell": [
-          2,
-          2
-        ],
-        "region": [
-          0,
-          42,
-          418,
-          352
-        ]
-      },
-      "brand": "Controle"
-    },
     "xbox-series": {
       "label": "Xbox Series",
       "patterns": [
@@ -371,11 +349,90 @@
         "path": "Assets/shared/images/controllers/platforms/sony-playstation-3.png"
       },
       "brand": "Sony"
+    },
+    "default": {
+      "label": "Controle padrão",
+      "brand": "",
+      "patterns": [],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/default.png"
+      }
+    },
+    "8bitdo-arcade-stick": {
+      "label": "8BitDo Arcade Stick",
+      "brand": "8BitDo",
+      "patterns": [
+        "8bitdo.*arcade[ _-]*stick"
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/arcade-controllers-atlas.png",
+        "grid": [
+          1,
+          3
+        ],
+        "cell": [
+          0,
+          0
+        ]
+      },
+      "source": "https://www.8bitdo.com/arcade-stick/"
+    },
+    "hori-fighting-stick-alpha": {
+      "label": "HORI Fighting Stick Alpha",
+      "brand": "HORI",
+      "patterns": [
+        "hori.*(fighting[ _-]*stick|alpha|α)"
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/arcade-controllers-atlas.png",
+        "grid": [
+          1,
+          3
+        ],
+        "cell": [
+          0,
+          1
+        ]
+      },
+      "source": "https://stores.horiusa.com/SPF-037U"
+    },
+    "razer-kitsune": {
+      "label": "Razer Kitsune",
+      "brand": "Razer",
+      "patterns": [
+        "razer.*kitsune|kitsune"
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/arcade-controllers-atlas.png",
+        "grid": [
+          1,
+          3
+        ],
+        "cell": [
+          0,
+          2
+        ]
+      },
+      "source": "https://www.razer.com/console-controllers/razer-kitsune"
+    },
+    "mobile": {
+      "label": "Celular ou tablet",
+      "brand": "EmuAtlas",
+      "patterns": [
+        "emuatlas[ _-]*mobile"
+      ],
+      "image": {
+        "path": "Assets/shared/images/devices/full-setups/android-aura-new-device.png"
+      }
     }
   },
   "identity_sources": [
     "https://github.com/libsdl-org/SDL/blob/main/src/joystick/usb_ids.h",
     "https://github.com/libsdl-org/SDL/blob/main/src/joystick/controller_list.h",
-    "https://support.logi.com/hc/en-in/articles/360023467133-Logitech-Gamepad-F310-Technical-Specifications"
-  ]
+    "https://support.logi.com/hc/en-in/articles/360023467133-Logitech-Gamepad-F310-Technical-Specifications",
+    "https://www.8bitdo.com/arcade-stick/",
+    "https://stores.horiusa.com/SPF-037U",
+    "https://www.razer.com/console-controllers/razer-kitsune"
+  ],
+  "player_capacity": 8
 }
