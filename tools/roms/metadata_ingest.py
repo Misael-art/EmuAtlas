@@ -164,12 +164,12 @@ def _file_record(project: Path, path: Path, before: bytes | None, after: bytes, 
     }
 
 
-def _declared_tracks(rom_root: Path):
+def _declared_dependencies(rom_root: Path):
     try:
         from . import media_session
     except ImportError:
         import media_session
-    return media_session._track_paths(rom_root)
+    return media_session._track_paths(rom_root, include_playlists=True)
 
 
 def merge_gamelist_bytes(canonical: bytes | None, incoming: bytes, rom_root: Path):
@@ -190,7 +190,7 @@ def merge_gamelist_bytes(canonical: bytes | None, incoming: bytes, rom_root: Pat
             report["error"] = f"gamelist canônica inválida; preservada: {exc}"
             return None, report
         existing = {_path_key(_text(game, "path")): game for game in root.iter("game") if _text(game, "path")}
-    tracks = _declared_tracks(rom_root)
+    tracks = _declared_dependencies(rom_root)
     report["excluded_dependencies"] = []
     for game in list(incoming_root.iter("game")):
         resolved = resolve_rom(rom_root, _text(game, "path"))
@@ -254,7 +254,7 @@ def publish_stories(project: Path, system_id: str, gamelist: Path, provider: str
         records["notes"].append({"system_id": system_id, "status": "gamelist_invalida", "error": str(exc)})
         return
     grouped = {}
-    tracks = _declared_tracks(rom_root)
+    tracks = _declared_dependencies(rom_root)
     for game in root.iter("game"):
         raw = _text(game, "path")
         resolved = resolve_rom(rom_root, raw)
@@ -265,7 +265,7 @@ def publish_stories(project: Path, system_id: str, gamelist: Path, provider: str
             records["notes"].append({"system_id": system_id, "status": "rom_ausente", "path": raw})
             continue
         if resolved.absolute() in tracks:
-            records["notes"].append({"system_id": system_id, "status": "trilha_dependente_preservada", "path": raw})
+            records["notes"].append({"system_id": system_id, "status": "dependencia_de_descritor_preservada", "path": raw})
             continue
         grouped.setdefault(resolved.stem, []).append((game, resolved))
     for stem, items in grouped.items():

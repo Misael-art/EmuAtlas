@@ -658,6 +658,18 @@
     {
       "source": "tools/roms/tests/test_launch_subjects.py",
       "target": "tools/roms/tests/test_launch_subjects.py"
+    },
+    {
+      "source": "tools/roms/disc_sets.py",
+      "target": "tools/roms/disc_sets.py"
+    },
+    {
+      "source": "tools/roms/tests/test_disc_sets.py",
+      "target": "tools/roms/tests/test_disc_sets.py"
+    },
+    {
+      "source": "tools/roms/tests/test_launch_entries_projection.py",
+      "target": "tools/roms/tests/test_launch_entries_projection.py"
     }
   ]
 }

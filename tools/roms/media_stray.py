@@ -170,16 +170,34 @@ def _rom_stems(project: Path, system_id: str, *, allow_unconfigured: bool = Fals
     catalog = json.loads(catalog_path.read_text()) if catalog_path.exists() or not allow_unconfigured else {}
     record = next((item for item in catalog.get("systems", []) if item.get("id") == system_id), {})
     extensions = {str(value).casefold().lstrip(".") for value in record.get("extensions", [])}
-    tracks = media_session._track_paths(root)
+    allow_any_extensions = allow_unconfigured and not extensions
+    include_directories = True
+    profile_path = project / "frontend/RetroFE/Config/profiles/host-linux.json"
+    if profile_path.is_file():
+        profile = json.loads(profile_path.read_text())
+        configured = [item for section in ("systems", "collections")
+                      for item in profile.get(section, {}).values() if item.get("rom_subdir") == system_id]
+        if configured:
+            runtime_extensions = set()
+            for item in configured:
+                values = item.get("extensions", [])
+                if isinstance(values, str):
+                    values = values.split(",")
+                runtime_extensions.update(str(value).strip().casefold().lstrip(".") for value in values if str(value).strip())
+            if runtime_extensions:
+                allow_any_extensions = False
+                extensions = extensions & runtime_extensions if extensions else runtime_extensions
+            include_directories = any(item.get("accepts_directories") is True for item in configured)
+    tracks = media_session._track_paths(root, include_playlists=True)
     for current, dirs, files in os.walk(root, followlinks=False):
         here = Path(current)
         dirs[:] = [name for name in dirs if not (here / name).is_symlink()]
         for name in files + dirs:
             path = here / name
-            if path in tracks:
+            if path in tracks or (path.is_dir() and not include_directories):
                 continue
             if (not path.is_dir() and path.suffix.casefold().lstrip(".") not in extensions
-                    and not (allow_unconfigured and not extensions)):
+                    and not allow_any_extensions):
                 continue
             stem = path.stem if path.is_file() or path.is_symlink() else path.name
             stems.setdefault(stem, []).append(path.relative_to(project).as_posix())
@@ -383,6 +401,7 @@ def plan(api, promote: bool = False, system_id: str | None = None, nested_varian
     manifest = {
         "schema_version": 1, "operation_id": operation_id, "kind": "media_stray",
         "created_at": api["now"](), "status": "prepared", "read_only": True,
+        "quarantine_layout": "source_relative",
         "source_root": "roms/media", "canonical_root": "media", "promote": promote, "scope_system_id": system_id, "nested_variants": nested_variants,
         "reviewed_create_categories": sorted(reviewed_categories), "created_category_directories": [],
         "nested_game_paths": nested_game_paths,
@@ -480,6 +499,13 @@ def _path_kind(project: Path, relative: str | None) -> str:
     return "other"
 
 
+def _quarantine_destination(operation, manifest, item):
+    relative = item["relative_path"]
+    if manifest.get("quarantine_layout") == "source_relative":
+        relative = Path(item["project_relative"]).relative_to("roms/media")
+    return operation / "rollback/originals" / relative
+
+
 def status(operation_id: str, api) -> dict:
     """Inspect recorded paths and local events without reading media payloads."""
     manifest, manifest_path = _load(api, operation_id)
@@ -500,7 +526,7 @@ def status(operation_id: str, api) -> dict:
         if action in PROMOTE_ACTIONS | {"promoted"}:
             paths["destination"] = (item.get("destination_relative"), "regular" if moved else "missing")
         elif action in {QUARANTINE_ACTION, "quarantined"}:
-            rollback = operation.relative_to(project) / "rollback/originals" / item["relative_path"]
+            rollback = _quarantine_destination(operation, manifest, item).relative_to(project)
             paths["destination"] = (item.get("rollback_relative", rollback.as_posix()), "regular" if moved else "missing")
             paths["canonical"] = (item.get("canonical_relative"), "regular")
         diagnosis = {"relative_path": item["relative_path"], "action": action, "paths": {}, "issues": []}
@@ -666,7 +692,6 @@ def apply(operation_id: str, confirmed: bool, api) -> dict:
         raise ValueError(f"Plano não aplicável: {manifest['status']}")
     project = Path(api["PROJECT_ROOT"])
     operation = Path(api["operation_dir"](operation_id))
-    rollback_root = operation / "rollback" / "originals"
     running = []
     for probe in ("retrofe_processes_running", "esde_processes_running"):
         if api.get(probe):
@@ -717,7 +742,7 @@ def apply(operation_id: str, confirmed: bool, api) -> dict:
             continue
         source = project / item["project_relative"]
         canonical = project / item["canonical_relative"]
-        destination = rollback_root / item["relative_path"]
+        destination = _quarantine_destination(operation, manifest, item)
         recovering = not os.path.lexists(source) and item.get("move_intent", {}).get("destination") == destination.relative_to(project).as_posix()
         if os.path.lexists(destination) and not recovering:
             raise ValueError(f"Rollback já contém {item['relative_path']}")
@@ -789,24 +814,39 @@ def rollback(operation_id: str, confirmed: bool, api) -> dict:
     if not confirmed:
         raise ValueError("Rollback exige --rollback")
     manifest, _path = _load(api, operation_id)
-    if manifest["status"] not in {"completed_verified", "rolling_back"}:
-        raise ValueError("Rollback exige operação verificada")
+    partial = manifest["status"] == "applying" and not manifest.get("metadata_after_sha256")
+    if manifest["status"] not in {"completed_verified", "rolling_back"} and not partial:
+        raise ValueError("Rollback exige operação verificada ou aplicação parcial comprovada")
     project = Path(api["PROJECT_ROOT"])
     output = Path(api.get("OUTPUT_ROOT", ""))
     operation = Path(api["operation_dir"](operation_id))
     snapshots = [name for name in ("catalogo-arquivos.csv", "pendencias-integridade-dependencias.csv", "estado-final-verificacao.json")
                  if (operation / "rollback" / name).is_file()]
-    if snapshots and not manifest.get("metadata_after_sha256"):
+    expected_metadata = manifest.get("rollback_metadata_expected_sha256") or manifest.get("metadata_after_sha256")
+    if partial:
+        expected_metadata = manifest.get("metadata_before_sha256")
+        for item in manifest["items"]:
+            if item["action"] in PROMOTE_ACTIONS | {QUARANTINE_ACTION} and item.get("move_intent"):
+                if not os.path.lexists(project / item["project_relative"]):
+                    raise ValueError("Movimento sem checkpoint exige reconciliação antes do rollback parcial")
+    if snapshots and not expected_metadata:
         raise ValueError("Rollback de metadados legado exige reconciliação das pós-imagens")
+    running = []
+    for probe in ("retrofe_processes_running", "esde_processes_running"):
+        if api.get(probe):
+            running += list(api[probe]() or [])
+    if running:
+        raise RuntimeError("Feche RetroFE/ES-DE antes de reverter mídia")
     for name in snapshots:
         if _sha256(operation / "rollback" / name) != manifest["metadata_before_sha256"][name]:
             raise ValueError(f"Preimagem de metadados mudou: {name}")
         current = _sha256(output / name)
-        allowed = {manifest["metadata_after_sha256"][name]}
+        allowed = {expected_metadata[name]}
         if manifest["status"] == "rolling_back":
             allowed.add(manifest["metadata_before_sha256"][name])
         if current not in allowed:
             raise ValueError(f"Metadados posteriores precisam ser preservados: {name}")
+    manifest["rollback_metadata_expected_sha256"] = expected_metadata
     manifest["status"] = "rolling_back"
     manifest["rollback_intent"] = True
     _save(api, manifest)

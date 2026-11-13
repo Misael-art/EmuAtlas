@@ -1,6 +1,8 @@
 """Shared name resolution excludes declared tracks and preserves physical ambiguity."""
 import json
 from pathlib import Path
+from unittest.mock import patch
+from contextlib import ExitStack
 import tempfile
 import unittest
 
@@ -17,7 +19,7 @@ class LaunchSubjectTests(unittest.TestCase):
         config = self.root / "frontend/RetroFE/Config"
         config.mkdir(parents=True)
         (config / "platform-catalog.json").write_text(json.dumps({"systems": [
-            {"id": "test", "extensions": ["cue", "gdi", "bin", "wav", "raw", "chd", "zip"]}]}))
+            {"id": "test", "extensions": ["cue", "gdi", "bin", "wav", "raw", "chd", "zip", "img", "m3u"]}]}))
 
     def test_cue_binary_and_wave_tracks_are_excluded_in_both_callers(self):
         for name in ["Game Track 1.bin", "Game Track 2.wav"]:
@@ -95,3 +97,81 @@ class LaunchSubjectTests(unittest.TestCase):
         entries, skipped = metadata_ingest._materializer().esde_entries("test", self.root, gamelists)
         self.assertEqual(set(entries), {"Game"})
         self.assertEqual(skipped["dependent_track"], 1)
+
+    def test_multiple_rekeys_can_share_one_verified_existing_payload(self):
+        media = self.root / "media/test/cover-front"
+        media.mkdir(parents=True)
+        (media / "Game.png").write_bytes(b"exact same content")
+        actions = []
+        for name in ["Track 1.png", "Track 2.png"]:
+            source = media / name
+            source.write_bytes(b"exact same content")
+            actions.append({"action": "media_rekey_link", "source": str(source),
+                            "destination": str(media / "Game.png"), "system_id": "test",
+                            "media_type": "cover-front", "game_title_hint": "Game",
+                            "reuses_existing_payload": True, "classification": "media",
+                            "item_identity": "Game", "reason": "reviewed fixture",
+                            "reference_check": "preserved_by_relative_symlink",
+                            "validation_result": "fixture_bytes", "dependency_check": "fixture"})
+        request = self.root / "request.json"
+        request.write_text(json.dumps({"actions": actions}))
+        with ExitStack() as stack:
+            for key, value in {"PROJECT_ROOT": self.root, "MEDIA_DEST_ROOT": self.root / "media",
+                               "OPS_ROOT": self.root / "outputs/operations"}.items():
+                stack.enter_context(patch.object(romtool, key, value))
+            stack.enter_context(patch.object(romtool, "load_policy", return_value={}))
+            stack.enter_context(patch.object(romtool, "ensure_allowed"))
+            stack.enter_context(patch.object(romtool, "append_event"))
+            stack.enter_context(patch.object(romtool, "supersede_prior_plans", return_value=[]))
+            stack.enter_context(patch.object(romtool, "rebuild_history_index"))
+            manifest = romtool.plan_actions(request)
+        self.assertEqual(len(manifest["items"]), 2)
+        self.assertTrue(all(i["media"]["reuses_existing_payload"] for i in manifest["items"]))
+        self.assertTrue(all((media / name).is_file() for name in ["Track 1.png", "Track 2.png"]))
+
+    def test_playlist_is_the_media_subject_for_its_discs(self):
+        for name in ["Game Disc 1.img", "Game Disc 2.img"]:
+            (self.roms / name).write_bytes(b"fixture")
+        (self.roms / "Game.m3u").write_text("Game Disc 1.img\nGame Disc 2.img\n")
+        self.assertEqual(media_session._rom_names(self.root, "test"), {"Game": {"Game.m3u"}})
+        self.assertEqual(media_session._track_paths(self.roms), set())
+
+    def test_recursive_playlist_members_remain_for_review(self):
+        (self.roms / "Game.img").write_bytes(b"fixture")
+        (self.roms / "Game.m3u").write_text("Nested.m3u\nGame.img\n")
+        (self.roms / "Nested.m3u").write_text("Game.m3u\n")
+        self.assertEqual(set(media_session._rom_names(self.root, "test")), {"Game", "Nested"})
+        self.assertEqual(len(media_session._rom_names(self.root, "test")["Game"]), 2)
+
+    def test_descriptor_outside_platform_does_not_suppress_local_candidates(self):
+        (self.roms / "Game.bin").write_bytes(b"fixture")
+        (self.roms.parent / "Outside.bin").write_bytes(b"fixture")
+        (self.roms / "Game.cue").write_text('FILE "Game.bin" BINARY\nFILE "../Outside.bin" BINARY\n')
+        self.assertEqual(media_session._track_paths(self.roms), set())
+
+    def test_configured_runtime_filters_archives_and_container_directories(self):
+        profiles = self.root / "frontend/RetroFE/Config/profiles"
+        profiles.mkdir()
+        (profiles / "host-linux.json").write_text(json.dumps({"collections": {"Test": {
+            "rom_subdir": "test", "extensions": "cue,bin,img,m3u"}}}))
+        (self.roms / "Game").mkdir()
+        (self.roms / "Game/Game.cue").write_text('FILE "Track.bin" BINARY\n')
+        (self.roms / "Game/Track.bin").write_bytes(b"fixture")
+        (self.roms / "Game.zip").write_bytes(b"archive fixture")
+        self.assertEqual(media_session._rom_names(self.root, "test"), {"Game": {"Game/Game.cue"}})
+
+    def test_explicitly_supported_directory_remains_a_subject(self):
+        profiles = self.root / "frontend/RetroFE/Config/profiles"
+        profiles.mkdir()
+        (profiles / "host-linux.json").write_text(json.dumps({"collections": {"Test": {
+            "rom_subdir": "test", "extensions": "img", "accepts_directories": True}}}))
+        (self.roms / "Game.v1.0").mkdir()
+        self.assertEqual(media_session._rom_names(self.root, "test"), {"Game.v1.0": {"Game.v1.0"}})
+
+    def test_disjoint_runtime_extensions_do_not_enable_unconfigured_fallback(self):
+        profiles = self.root / "frontend/RetroFE/Config/profiles"
+        profiles.mkdir()
+        (profiles / "host-linux.json").write_text(json.dumps({"collections": {"Test": {
+            "rom_subdir": "test", "extensions": "unknown"}}}))
+        (self.roms / "Game.bin").write_bytes(b"fixture")
+        self.assertEqual(media_session._rom_names(self.root, "test"), {})

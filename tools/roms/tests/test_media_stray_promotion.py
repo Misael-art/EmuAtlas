@@ -266,5 +266,46 @@ class PromotionTests(unittest.TestCase):
         self.assertEqual(media_stray.verify(nested["operation_id"], self.api)["status"], "verified")
 
 
+
+    def test_partial_apply_can_restore_checkpointed_items_before_metadata_publication(self):
+        state = self.p / "outputs/estado-final-verificacao.json"
+        state.parent.mkdir(exist_ok=True)
+        state.write_text('{}')
+        result = media_stray.plan(self.api, promote=True)
+        original = media_stray._durable_move
+        count = []
+        def fail_second(*args, **kwargs):
+            count.append(True)
+            if len(count) == 2:
+                raise OSError("stop before second move")
+            return original(*args, **kwargs)
+        with patch.object(media_stray, "_durable_move", side_effect=fail_second):
+            with self.assertRaises(OSError):
+                media_stray.apply(result["operation_id"], True, self.api)
+        restored = media_stray.rollback(result["operation_id"], True, self.api)
+        self.assertEqual(restored["status"], "rolled_back")
+        self.assertTrue((self.p / "roms/media/nes/screenshot/Absent Game.png").is_file())
+        self.assertEqual(state.read_text(), '{}')
+
+    def test_flattened_sources_have_distinct_reversible_quarantine_paths(self):
+        source = self.p / "roms/media/nes/screenshot/Dup Game.png"
+        nested = source.parent / "a" / source.name
+        nested.parent.mkdir()
+        shutil.copyfile(source, nested)
+        shutil.copyfile(source, self.p / "media/nes/screenshot/Dup Game.png")
+        (self.p / "roms/nes/a/Dup Game.zip").write_bytes(b"rom")
+        result = media_stray.plan(self.api, promote=True, nested_game_paths=True)
+        manifest = json.loads(Path(result["manifest"]).read_text())
+        selected = [i for i in manifest["items"] if i["action"] == media_stray.QUARANTINE_ACTION and Path(i["project_relative"]).name == source.name]
+        self.assertEqual(len(selected), 2)
+        destinations = [media_stray._quarantine_destination(self.p / "outputs/ops" / result["operation_id"], manifest, i) for i in selected]
+        self.assertEqual(len(set(destinations)), 2)
+        media_stray.apply(result["operation_id"], True, self.api)
+        self.assertTrue(all(p.is_file() for p in destinations))
+        media_stray.rollback(result["operation_id"], True, self.api)
+        self.assertTrue(source.is_file())
+        self.assertTrue(nested.is_file())
+
+
 if __name__ == "__main__":
     unittest.main()

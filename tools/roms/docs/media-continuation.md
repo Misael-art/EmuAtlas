@@ -79,10 +79,36 @@ Referências configuradas e links relativos precisam funcionar no volume escolhi
 
 ## Entradas e trilhas dependentes
 
-A associação de mídia em sessões gerenciadas e a promoção stray compartilham o índice de entradas físicas filtrado pelas extensões do catálogo. Descritores CUE e GDI válidos fornecem as relações exatas com trilhas existentes dentro da plataforma. Essas trilhas saem dos candidatos de scraping, inclusive FILE WAVE, extensões em maiúsculas e arquivos em subpastas. Um BIN independente continua elegível segundo o catálogo.
+A associação de mídia em sessões gerenciadas e a promoção stray compartilham o índice de entradas físicas filtrado pelas extensões do catálogo. Descritores CUE, GDI e M3U válidos fornecem as relações exatas com trilhas existentes dentro da plataforma. Essas trilhas saem dos candidatos de scraping, inclusive FILE WAVE, extensões em maiúsculas e arquivos em subpastas. Um BIN independente continua elegível segundo o catálogo.
 
 Arquivos distintos com o mesmo basename mantêm a ambiguidade, inclusive ZIP e CHD. Uma mídia já existente também passa pela verificação da entrada antes de receber um novo resultado de scraping. O merge de gamelists e a publicação de histórias ignoram trilhas declaradas, preservam registros pessoais existentes e registram as dependências recusadas. A projeção HyperList também exclui essas trilhas de novas publicações.
 
 Esse filtro protege a publicação pelos fluxos gerenciados. A seleção nativa de cada scraper e a apresentação dos frontends dependem das respectivas configurações e planos revisados. Um descritor com referências ausentes conserva seus candidatos para revisão. A resolução de dependências verifica caminhos e relações, enquanto a integridade integral e o funcionamento continuam sujeitos aos validadores e testes próprios.
 
 M3U é a extensão de playlist de múltiplos discos usada pelos runtimes compatíveis. A criação depende de identidade e ordem comprovadas, suporte do runtime e coordenação das referências. Os arquivos usam caminhos relativos aos discos e permanecem junto do conjunto.
+
+## Playlists de conjuntos selecionados
+
+`romtool discs plan --file <pedido.json>` gera a playlist a partir dos discos explicitamente identificados e numerados no pedido. O documento declara `system_id`, `playlist`, `disc_count`, `identity_evidence`, `runtime_evidence` e uma lista `discs` com `path`, `disc_number` e `identity_evidence` por membro. Os caminhos são relativos à pasta da plataforma. A ferramenta confere o catálogo, recusa nomes incompatíveis com Windows, arquivos repetidos, trilhas dependentes, archives e descritores incompletos, e registra os SHA-256 integrais dos discos e das dependências CUE/GDI.
+
+A aplicação exige `romtool discs apply --operation-id <id> --apply`. A publicação mantém os discos nos caminhos existentes, cria o M3U sem sobrescrever arquivos e sincroniza os bytes e o diretório. A retomada confirma o payload e os arquivos do plano. `romtool discs verify --operation-id <id>` revalida hashes e referências. `romtool discs rollback --operation-id <id> --rollback` preserva a playlist em `rollback-playlist.m3u` na operação, com checkpoint de reversão recuperável.
+
+O plano registra a evidência de identidade fornecida na revisão. Hashes e referências confirmam a seleção e sua estabilidade. O aceite funcional exige lançamento, troca de disco, saves e retorno observados no runtime. A publicação do descritor conserva as configurações de frontend e os cartões de memória, que seguem seus próprios planos.
+
+Uma playlist M3U local com referências válidas passa a ser a entrada de associação de mídia e metadados. Seus discos e trilhas ficam classificados como dependências nos fluxos gerenciados. Playlists recursivas e relações que escapam da plataforma permanecem para revisão.
+
+## Projeção das entradas nos frontends
+
+O materializador existente oferece `entries-plan --system-id <id> --manifest <arquivo>`, seguido de `apply --manifest <arquivo> --apply`, `verify` e `rollback --rollback`. O plano usa relações locais CUE/GDI/M3U, registra os descritores e os metadados físicos dos arquivos, preserva preimagens de configuração e confere as coleções que apontam à plataforma canônica.
+
+No ES-DE, dependências recebem `hidden`, `nomultiscrape` e `nogamecount`. O plano define `ShowHiddenGames=false` e `ScraperRespectExclusions=true` para a apresentação e o scraping respeitarem esses campos. O formato fragmentado nativo de es_settings.xml é preservado pelo helper existente, inclusive comentários. Novas entradas M3U reutilizam somente os campos descritivos do primeiro disco. Favoritos e estatísticas permanecem nos registros originais.
+
+No RetroFE, as dependências entram em `exclude.txt` e `exclude_all.txt` nas coleções cuja raiz física foi comprovada. Um basename compartilhado com uma entrada independente fica preservado e consta no resumo. O launcher precisa selecionar a extensão do descritor nesse caso. O plano preserva as extensões configuradas, as ROMs, os arquivos de mídia e os dados de usuário. Ambos os frontends precisam estar fechados para aplicar ou reverter.
+
+Quando o perfil Linux declara formatos e suporte a diretórios para a plataforma, a associação de mídia considera essas capacidades junto do catálogo. Pastas contêiner e archives sem suporte no perfil seguem como dependências ou fontes de revisão. Instalações anteriores sem esse perfil conservam a resolução legada.
+
+## Origens achatadas e reversão parcial
+
+Novos planos stray preservam o caminho físico relativo de cada origem em `rollback/originals/`. Fontes aninhadas e fontes na raiz podem compartilhar o mesmo basename canônico e continuam com destinos de rollback distintos. Os planos antigos conservam seu layout registrado.
+
+Uma aplicação parcial pode ser revertida quando os movimentos concluídos têm checkpoints e os metadados globais ainda coincidem integralmente com as preimagens. A reversão registra essas assinaturas esperadas, preserva cada payload e admite retomada. Movimentos sem checkpoint e alterações posteriores dos registros globais exigem reconciliação antes da reversão.

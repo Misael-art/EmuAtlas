@@ -623,6 +623,16 @@ def planned_target(manifest: dict, item: dict) -> Path:
         allowed = {"../pegasus-frontend/game_dirs.txt", "../pegasus-frontend/metafiles/canonical-media.metadata.pegasus.txt"}
         if item["path"] not in allowed:
             raise ValueError("Destino fora da allowlist Pegasus")
+    elif manifest.get("consumer") == "launch_entries":
+        system = manifest.get("system_id", "")
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", system):
+            raise ValueError("Plataforma inválida no plano de entradas")
+        allowed = {f"../ES-DE/UserData/gamelists/{system}/gamelist.xml", "../ES-DE/UserData/settings/es_settings.xml"}
+        for settings in _entry_collections(system):
+            for name in ("exclude.txt", "exclude_all.txt"):
+                allowed.add(relative_to_root(settings.parent / name))
+        if item["path"] not in allowed:
+            raise ValueError("Destino fora da allowlist de entradas dos frontends")
     elif Path(item["path"]).is_absolute() or ".." in Path(item["path"]).parts:
         raise ValueError("Destino fora da raiz RetroFE")
     target = ROOT / item["path"]
@@ -635,6 +645,13 @@ def planned_target(manifest: dict, item: dict) -> Path:
 
 
 def validate_consumer_references(manifest: dict) -> None:
+    if manifest.get("consumer") == "launch_entries":
+        if _entry_snapshot(manifest["system_id"]) != manifest["entry_snapshot"]:
+            raise ValueError("Descritores ou arquivos da plataforma mudaram desde o plano de entradas")
+        for item in manifest["collection_inputs"]:
+            settings = ROOT / item["path"]
+            if settings.is_symlink() or sha256_bytes(settings.read_bytes()) != item["sha256"]:
+                raise ValueError("A configuração da coleção mudou desde o plano de entradas")
     for item in manifest.get("reference_files", []):
         relative = Path(item["project_path"])
         if relative.is_absolute() or ".." in relative.parts:
@@ -652,6 +669,158 @@ def validate_consumer_references(manifest: dict) -> None:
         source = PROJECT_ROOT / relative
         if source.is_symlink() or not source.is_file() or sha256_bytes(source.read_bytes()) != item["sha256"]:
             raise ValueError(f"Metadados de origem mudaram desde o plano: {relative}")
+
+
+def _entry_collections(system):
+    expected = (PROJECT_ROOT / "roms" / system).resolve()
+    global_config = ROOT / "settings.conf"
+    global_values = parse_properties(global_config.read_text()) if global_config.is_file() else {}
+    raw_base = global_values.get("baseitempath", "")
+    base = (ROOT / raw_base).resolve() if raw_base else None
+    found = []
+    for settings in sorted((ROOT / "collections").glob("*/settings.conf")):
+        if settings.is_symlink() or settings.parent.is_symlink():
+            continue
+        values = parse_properties(settings.read_text())
+        raw = values.get("list.path", "").replace("\\", "/")
+        if "%BASE_ITEM_PATH%" in raw:
+            if base is None:
+                continue
+            raw = raw.replace("%BASE_ITEM_PATH%", str(base))
+        raw = raw.replace("%ITEM_COLLECTION_NAME%", settings.parent.name)
+        if raw and (ROOT / raw).resolve() == expected:
+            found.append(settings)
+    return found
+
+
+def _entry_snapshot(system):
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", system):
+        raise ValueError("Plataforma inválida")
+    root = PROJECT_ROOT / "roms" / system
+    if root.is_symlink() or not root.is_dir():
+        raise ValueError("Pasta canônica da plataforma ausente")
+    rows = []
+    for current, directories, files in os.walk(root, followlinks=False):
+        parent = Path(current)
+        directories[:] = [name for name in directories if not (parent / name).is_symlink()]
+        for name in sorted(files):
+            path = parent / name
+            if path.is_symlink():
+                continue
+            info = path.stat()
+            row = {"path": path.relative_to(root).as_posix(), "size": info.st_size,
+                   "mtime_ns": info.st_mtime_ns, "ctime_ns": info.st_ctime_ns, "inode": info.st_ino}
+            if path.suffix.lower() in {".cue", ".gdi", ".m3u"}:
+                if info.st_size > 1024 * 1024:
+                    raise ValueError("Descritor acima do limite de leitura")
+                row["sha256"] = sha256_bytes(path.read_bytes())
+            rows.append(row)
+    return sorted(rows, key=lambda row: row["path"])
+
+
+def make_launch_entries_plan(path, system):
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import media_session
+    import romtool
+    if path.exists():
+        raise FileExistsError("Manifesto existente preservado")
+    snapshot = _entry_snapshot(system)
+    root = PROJECT_ROOT / "roms" / system
+    dependencies = media_session._track_paths(root, include_playlists=True)
+    relative_dependencies = {p.relative_to(root).as_posix() for p in dependencies}
+    gamelist = PROJECT_ROOT / "frontend/ES-DE/UserData/gamelists" / system / "gamelist.xml"
+    settings_xml = PROJECT_ROOT / "frontend/ES-DE/UserData/settings/es_settings.xml"
+    for configuration in (gamelist, settings_xml, ROOT / "settings.conf"):
+        romtool.reject_symlink_components(configuration)
+    files = []
+    def proposal(target, after):
+        exists = target.exists()
+        if target.is_symlink():
+            raise ValueError("Configuração por symlink preservada")
+        before = target.read_bytes() if exists else b""
+        if before != after:
+            files.append({"path": Path(os.path.relpath(target, ROOT)).as_posix(), "before_exists": exists,
+                          "before_sha256": sha256_bytes(before), "after_sha256": sha256_bytes(after),
+                          "before_base64": base64.b64encode(before).decode(), "after_base64": base64.b64encode(after).decode(),
+                          "mode": stat.S_IMODE(target.stat().st_mode) if exists else 0o644})
+    xml = ET.fromstring(gamelist.read_bytes(), parser=ET.XMLParser(target=ET.TreeBuilder(insert_comments=True)))
+    if xml.tag != "gameList":
+        raise ValueError("Gamelist exige o elemento gameList do ES-DE")
+    games = {}
+    for game in xml.findall("game"):
+        key = (game.findtext("path") or "").replace("\\", "/").removeprefix("./")
+        if key in games:
+            raise ValueError("Gamelist tem caminhos duplicados; reconciliar antes de projetar entradas")
+        games[key] = game
+    for relative in sorted(relative_dependencies):
+        game = games.get(relative)
+        if game is None:
+            game = ET.SubElement(xml, "game")
+            ET.SubElement(game, "path").text = "./" + relative
+        for tag in ("hidden", "nomultiscrape", "nogamecount"):
+            node = game.find(tag)
+            if node is None:
+                node = ET.SubElement(game, tag)
+            node.text = "true"
+    added = []
+    descriptive = {"name", "desc", "rating", "releasedate", "developer", "publisher", "genre", "players", "region", "lang"}
+    for row in snapshot:
+        descriptor = root / row["path"]
+        if descriptor.suffix.lower() != ".m3u" or row["path"] in games or descriptor in dependencies:
+            continue
+        check = romtool.verify_m3u(descriptor)
+        if check["status"] != "valid":
+            continue
+        members = [descriptor.parent / ref["name"] for ref in check["references"]]
+        if any(not member.resolve().is_relative_to(root.resolve()) or member.suffix.lower() == ".m3u" for member in members):
+            continue
+        first = members[0]
+        source = games.get(first.relative_to(root).as_posix())
+        game = ET.SubElement(xml, "game")
+        ET.SubElement(game, "path").text = "./" + row["path"]
+        if source is not None:
+            for child in source:
+                if child.tag in descriptive:
+                    node = ET.SubElement(game, child.tag, child.attrib)
+                    node.text = child.text
+        if game.find("name") is None:
+            ET.SubElement(game, "name").text = descriptor.stem
+        added.append(row["path"])
+    proposal(gamelist, ET.tostring(xml, encoding="utf-8", xml_declaration=True))
+    helper = media_session._helper({"PROJECT_ROOT": PROJECT_ROOT})
+    config_text = settings_xml.read_text()
+    for key, value in {"ShowHiddenGames": "false", "ScraperRespectExclusions": "true"}.items():
+        if len(helper.setting_entries(config_text, key, "bool")) != 1:
+            raise ValueError("Configuração ES-DE ambígua ou incompleta para " + key)
+        config_text, _ = helper.updated_setting_text(config_text, key, value, "bool")
+    proposal(settings_xml, config_text.encode())
+    independent_stems = {Path(row["path"]).stem for row in snapshot if row["path"] not in relative_dependencies}
+    excluded = sorted({p.stem for p in dependencies if p.stem not in independent_stems})
+    retained = sorted({p.stem for p in dependencies if p.stem in independent_stems})
+    collections = _entry_collections(system)
+    global_config = ROOT / "settings.conf"
+    collection_inputs = ([{"path": "settings.conf", "sha256": sha256_bytes(global_config.read_bytes())}]
+                         if global_config.is_file() else [])
+    for settings in collections:
+        collection_inputs.append({"path": relative_to_root(settings), "sha256": sha256_bytes(settings.read_bytes())})
+        for name in ("exclude.txt", "exclude_all.txt"):
+            target = settings.parent / name
+            text = target.read_text() if target.exists() else ""
+            present = {line.strip() for line in text.splitlines() if line.strip() and not line.startswith("#")}
+            missing = [stem for stem in excluded if stem not in present]
+            if missing:
+                proposal(target, (text.rstrip() + ("\n" if text.strip() else "") + "\n".join(missing) + "\n").encode())
+    manifest = {"schema_version": 1, "operation": "retrofe_collection_media_path_migration", "mode": "consumer",
+                "consumer": "launch_entries", "system_id": system, "status": "prepared",
+                "created_at": datetime.now().astimezone().isoformat(timespec="seconds"), "files": files,
+                "entry_snapshot": snapshot, "collection_inputs": collection_inputs,
+                "summary": {"dependencies_hidden_esde": len(dependencies), "playlist_entries_added": len(added),
+                            "retrofe_excluded_basenames": len(excluded), "retrofe_collections": len(collections),
+                            "files": len(files), "shared_basenames_retained": retained},
+                "presentation_policy": "M3U usa metadados descritivos do primeiro disco. Estatísticas e favoritos originais permanecem nos registros existentes.",
+                "permanent_deletion": False, "payload_copies": 0}
+    save_json_atomic(path, manifest)
+    return manifest
 
 
 def make_pegasus_plan(path: Path) -> dict[str, Any]:
@@ -760,7 +929,16 @@ def pegasus_processes() -> list[int]:
     return found
 
 
+def check_entry_frontend(manifest):
+    if manifest.get("consumer") == "launch_entries":
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import romtool
+        if romtool.esde_processes_running():
+            raise RuntimeError("Feche ES-DE normalmente antes de alterar suas entradas")
+
+
 def apply_plan(path: Path, manifest: dict[str, Any]) -> None:
+    check_entry_frontend(manifest)
     processes = retrofe_processes()
     if processes:
         raise RuntimeError(f"RetroFE está aberto; não alterei settings.conf: {processes}")
@@ -894,6 +1072,7 @@ def verify_plan(path: Path, manifest: dict[str, Any], media_map: dict[str, Any])
 
 
 def rollback_plan(path: Path, manifest: dict[str, Any]) -> None:
+    check_entry_frontend(manifest)
     processes = retrofe_processes()
     if processes:
         raise RuntimeError(f"RetroFE está aberto; não alterei settings.conf: {processes}")
@@ -1349,6 +1528,9 @@ def main() -> int:
     subparsers.add_parser('check-runtime',help='verifica configuração de mídia sem gravar')
     runtime_parser=subparsers.add_parser('runtime-plan',help='prepara plano revisável de apontamentos e aliases por título exato')
     runtime_parser.add_argument('--manifest',type=Path)
+    entries_parser = subparsers.add_parser("entries-plan", help="projeta entradas CUE/GDI/M3U e exclui dependências dos menus e scraping")
+    entries_parser.add_argument("--system-id", required=True)
+    entries_parser.add_argument("--manifest", type=Path, required=True)
     consumer_parser = subparsers.add_parser("consumer-plan", help="projeta fontes e mídia canônicas em consumidores com adaptador explícito")
     consumer_parser.add_argument("--frontend", choices=("pegasus",), required=True)
     consumer_parser.add_argument("--manifest", type=Path, required=True)
@@ -1372,6 +1554,10 @@ def main() -> int:
         if args.command == 'launch-runtime':
             return launch_runtime(args.launcher_arguments)
         media_map = load_json(MEDIA_MAP_PATH)
+        if args.command == "entries-plan":
+            result = make_launch_entries_plan(args.manifest, args.system_id)
+            print(json.dumps({"manifest": str(args.manifest), "status": result["status"], "summary": result["summary"]}, ensure_ascii=False, indent=2))
+            return 0
         if args.command == "consumer-plan":
             result = make_pegasus_plan(args.manifest)
             print(json.dumps({"manifest": str(args.manifest), "status": result["status"], "summary": result["summary"]}, ensure_ascii=False, indent=2))

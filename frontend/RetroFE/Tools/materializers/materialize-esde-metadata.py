@@ -81,7 +81,7 @@ def esde_entries(system, project=None, gamelists=None):
     rom_root = (project / "roms" / system).resolve()
     from tools.roms.media_session import _track_paths
 
-    tracks = _track_paths(rom_root)
+    tracks = _track_paths(rom_root, include_playlists=True)
     tree = ET.parse(gamelists / system / "gamelist.xml")
     entries, banned, skipped = {}, set(), {"missing_item": 0, "outside_root": 0, "duplicate_basename": 0, "dependent_track": 0}
     for game in tree.getroot().iter("game"):

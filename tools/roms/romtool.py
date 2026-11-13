@@ -2877,7 +2877,7 @@ def plan_actions(plan_path: Path) -> dict:
                     raise ValueError(f"Payload planejado para rekey não confere em hash/título: {destination}")
                 if payload_key in planned_media_payloads and not (reuses_existing or reuses_planned):
                     raise ValueError(f"Payload canônico rekey do mesmo título já aparece no plano: {source}")
-                if str(destination) in planned_media_targets and not reuses_planned:
+                if str(destination) in planned_media_targets and not (reuses_existing or reuses_planned):
                     raise ValueError(f"Destino canônico aparece mais de uma vez no plano: {destination}")
                 if reuses_existing:
                     if not destination.is_file() or destination.is_symlink() or sha256_file(destination) != pre["sha256"]:
@@ -6980,6 +6980,15 @@ def build_parser() -> argparse.ArgumentParser:
                                            help="classifica conteúdo de uma listagem já salva sem reler archives")
     archive_classify.add_argument("--operation-id", required=True,
                                   help="operação verify concluída que contém archive-members.jsonl")
+    discs = commands.add_parser("discs", help="playlists M3U de conjuntos identificados e ordenados")
+    discs_commands = discs.add_subparsers(dest="discs_command", required=True)
+    discs_plan = discs_commands.add_parser("plan")
+    discs_plan.add_argument("--file", required=True)
+    for action in ("apply", "verify", "rollback"):
+        command = discs_commands.add_parser(action)
+        command.add_argument("--operation-id", required=True)
+        if action in {"apply", "rollback"}:
+            command.add_argument("--" + action, action="store_true")
     plan = commands.add_parser("plan", help="pré-valida um plano JSON; não altera a biblioteca")
     plan.add_argument("--file", required=True)
     apply = commands.add_parser("apply", help="executa um plano preparado; exige --apply")
@@ -7338,6 +7347,12 @@ def main(argv: list[str] | None = None) -> int:
                     result = storage_dedupe.dispatch(args, globals())
             else:
                 result = storage_dedupe.dispatch(args, globals())
+        elif args.command == "discs":
+            if __package__:
+                from . import disc_sets
+            else:
+                import disc_sets
+            result = disc_sets.dispatch(args, globals())
         elif args.command == "inventory":
             result = run_inventory([Path(x) for x in args.root], Path(args.out), args.hash)
         elif args.command == "verify":

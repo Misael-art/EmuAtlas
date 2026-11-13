@@ -78,8 +78,8 @@ def clone(source, destination, writable=True):
     destination.chmod(stat.S_IMODE(source.stat().st_mode) | (stat.S_IWUSR if writable else 0))
 
 
-def _track_paths(directory):
-    """Find existing track members declared by valid CUE/GDI reference checks."""
+def _track_paths(directory, *, include_playlists=False):
+    """Find local members declared by valid disc descriptors and optional M3U sets."""
     try:
         from . import romtool
     except ImportError:
@@ -87,6 +87,8 @@ def _track_paths(directory):
     tracks = set()
     root = directory.resolve()
     validators = {".cue": (romtool.verify_cue, "references"), ".gdi": (romtool.verify_gdi, "tracks")}
+    if include_playlists:
+        validators[".m3u"] = (romtool.verify_m3u, "references")
     for current, dirs, files in os.walk(directory, followlinks=False):
         parent = Path(current)
         dirs[:] = [name for name in dirs if not (parent / name).is_symlink()]
@@ -99,13 +101,17 @@ def _track_paths(directory):
             result = check(descriptor)
             if result["status"] != "valid":
                 continue
+            targets = []
             for reference in result[key]:
                 target = Path(reference["name"])
                 if not target.is_absolute():
                     target = descriptor.parent / target
-                target = Path(os.path.abspath(target))
-                if target.resolve().is_relative_to(root) and target.is_file():
-                    tracks.add(target)
+                targets.append(Path(os.path.abspath(target)))
+            if any(not target.resolve().is_relative_to(root) or not target.is_file() for target in targets):
+                continue
+            if descriptor.suffix.lower() == ".m3u" and any(target.suffix.lower() == ".m3u" for target in targets):
+                continue
+            tracks.update(targets)
     return tracks
 
 
@@ -444,7 +450,7 @@ def reconcile(manifest, api):
             names = rom_names[parts[0]]
             matches = names.get(source.stem, set())
             if len(matches) != 1:
-                raise ValueError("Mídia exige entrada local única; trilhas declaradas por CUE/GDI não são entradas de jogo")
+                raise ValueError("Mídia exige entrada local única; dependências declaradas por CUE/GDI/M3U não são entradas de jogo")
             if len(parts) > 3:
                 rom_relative = Path(*parts[2:]).with_suffix('').as_posix()
                 matched = Path(next(iter(matches)))
