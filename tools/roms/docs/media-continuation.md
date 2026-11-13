@@ -47,6 +47,14 @@ O diagnóstico compara a presença esperada de origem, destino de promoção/qua
 
 `media stray apply` consulta o diário antes de calcular hashes, criar preimagens ou alterar o manifesto. Um registro de conclusão incompatível com o manifesto impede a reaplicação e orienta a consulta de status. A reconciliação precisa preservar os eventos originais e confirmar os bytes e os registros globais. Depois deve ser preparado um plano atual, respeitando os fingerprints das ferramentas e as demais precondições existentes.
 
+## Checkpoints de movimentos e reversão
+
+O fluxo stray grava a intenção de cada movimento antes do rename, sincroniza os diretórios envolvidos e persiste o resultado de cada item. Uma retomada aceita um destino já presente somente quando a origem está ausente, a intenção registrada coincide com ambos os caminhos e o SHA-256 do destino corresponde ao plano. A conclusão depende da verificação integral dos itens e da publicação durável dos registros correntes.
+
+As preimagens de catálogo, pendências e estado usam cópias CoW quando disponíveis, com cópia de metadados como alternativa nos sistemas de arquivos que exigirem esse procedimento. São registradas assinaturas anteriores e posteriores. A reversão confere essas assinaturas antes de mover payloads e preserva alterações posteriores para reconciliação. Operações legadas que carecem de pós-imagens suficientes exigem reconstruir essa evidência antes de restaurar metadados globais.
+
+Apply e rollback mantêm checkpoints recuperáveis entre o rename e a atualização do item. A publicação repetida dos registros de uma mesma operação mantém uma única entrada corrente de catálogo para cada origem selecionada.
+
 ## Sequência da próxima tarefa
 
 1. Ler as instruções do projeto e a evidência local da interrupção. Medir recursos e identificar outras cargas antes de executar verificações ou aplicar planos.

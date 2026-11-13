@@ -76,6 +76,63 @@ class PromotionTests(unittest.TestCase):
             media_stray.apply(result["operation_id"], True, self.api)
         self.assertTrue((self.p / "roms/media/nes/screenshot/Absent Game.png").is_file())
 
+    def test_apply_resumes_a_rename_before_its_item_checkpoint(self):
+        result = media_stray.plan(self.api, promote=True)
+        original = os.rename
+        interrupted = []
+
+        def cut(source, destination):
+            original(source, destination)
+            if not interrupted:
+                interrupted.append(True)
+                raise OSError("simulated cut after rename")
+
+        with patch.object(media_stray.os, "rename", side_effect=cut):
+            with self.assertRaisesRegex(OSError, "simulated cut"):
+                media_stray.apply(result["operation_id"], True, self.api)
+        applied = media_stray.apply(result["operation_id"], True, self.api)
+        self.assertEqual(applied["status"], "completed_verified")
+        self.assertEqual(media_stray.verify(result["operation_id"], self.api)["status"], "verified")
+
+    def test_rollback_resumes_a_rename_before_its_item_checkpoint(self):
+        result = media_stray.plan(self.api, promote=True)
+        media_stray.apply(result["operation_id"], True, self.api)
+        original = os.rename
+        interrupted = []
+
+        def cut(source, destination):
+            original(source, destination)
+            if not interrupted:
+                interrupted.append(True)
+                raise OSError("simulated rollback cut")
+
+        with patch.object(media_stray.os, "rename", side_effect=cut):
+            with self.assertRaisesRegex(OSError, "simulated rollback cut"):
+                media_stray.rollback(result["operation_id"], True, self.api)
+        self.assertEqual(media_stray.rollback(result["operation_id"], True, self.api)["status"], "rolled_back")
+        self.assertTrue((self.p / "roms/media/nes/screenshot/Absent Game.png").is_file())
+
+    def test_final_verification_failure_keeps_operation_recoverable(self):
+        result = media_stray.plan(self.api, promote=True)
+        with patch.object(media_stray, "verify", return_value={"status": "verify_failed", "failed": ["fixture"]}):
+            with self.assertRaisesRegex(ValueError, "Verificação final"):
+                media_stray.apply(result["operation_id"], True, self.api)
+        manifest = json.loads(Path(result["manifest"]).read_text())
+        self.assertEqual(manifest["status"], "applying")
+        self.assertEqual(media_stray.apply(result["operation_id"], True, self.api)["status"], "completed_verified")
+
+    def test_later_global_metadata_blocks_rollback_before_payload_moves(self):
+        state = self.p / "outputs/estado-final-verificacao.json"
+        state.parent.mkdir(exist_ok=True)
+        state.write_text('{}')
+        result = media_stray.plan(self.api, promote=True)
+        media_stray.apply(result["operation_id"], True, self.api)
+        state.write_text('{"later": true}')
+        with self.assertRaisesRegex(ValueError, "Metadados posteriores"):
+            media_stray.rollback(result["operation_id"], True, self.api)
+        self.assertTrue((self.p / "media/nes/screenshot/Absent Game.png").is_file())
+        self.assertEqual(state.read_text(), '{"later": true}')
+
     def test_saves_and_artwork_do_not_become_additional_rom_candidates(self):
         (self.p / "roms/nes/Absent Game.sav").write_bytes(b"protected save")
         png(self.p / "roms/nes/art/Absent Game.png", "blue")
@@ -159,15 +216,35 @@ class PromotionTests(unittest.TestCase):
         state.write_text('{"existing": true}')
         originals = {p: p.read_bytes() for p in [catalog, pending, state]}
         result = media_stray.plan(self.api, promote=True)
+        original_save = media_stray._save
+        interrupted = []
+
+        def cut_completion(api, manifest):
+            if manifest["status"] == "completed_verified" and not interrupted:
+                interrupted.append(True)
+                raise OSError("simulated metadata completion cut")
+            original_save(api, manifest)
+
+        with patch.object(media_stray, "_save", side_effect=cut_completion):
+            with self.assertRaisesRegex(OSError, "metadata completion cut"):
+                media_stray.apply(result["operation_id"], True, self.api)
         media_stray.apply(result["operation_id"], True, self.api)
         with catalog.open(encoding="utf-8-sig", newline="") as stream:
             rows = list(csv.DictReader(stream))
         self.assertTrue(any(r["current_absolute_path"] == str(self.p / "media/nes/screenshot/Absent Game.png") for r in rows))
+        count = len(rows)
+        current = json.loads(Path(result["manifest"]).read_text())
+        media_stray._update_lists(self.api, current)
+        with catalog.open(encoding="utf-8-sig", newline="") as stream:
+            self.assertEqual(len(list(csv.DictReader(stream))), count)
         with pending.open(encoding="utf-8-sig", newline="") as stream:
             rows = list(csv.DictReader(stream))
         self.assertEqual(next(r for r in rows if r["case_source_relative"] == relative)["status"], "resolvido: promoted")
         media_stray.rollback(result["operation_id"], True, self.api)
         self.assertEqual({p: p.read_bytes() for p in originals}, originals)
+        state.write_text('{"later": true}')
+        preimage = Path(result["manifest"]).parent / "rollback/estado-final-verificacao.json"
+        self.assertEqual(preimage.read_bytes(), originals[state])
 
     def test_nested_variant_is_flattened_only_with_rom_in_that_variant(self):
         (self.p / "roms/nes/translation-pt-br").mkdir()
