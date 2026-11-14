@@ -391,5 +391,53 @@ def main(argv=None):
     return subprocess.run(command, cwd=ROOT, check=False).returncode
 
 
+MANAGED_LAUNCH_ALIASES = {
+    # runtime_id -> (alias suffix, required leaf name of the target). F04: only these leaf aliases are
+    # followed; every other symlink in a collection item stays rejected.
+    "eden-nx2": (".exefs", "main"),
+}
+
+
+def validate_managed_launch_alias(raw_item: Path, platform_root: Path, system: dict) -> tuple[Path | None, str]:
+    """Return the vetted target of a managed relative launch alias, or an explicit refusal."""
+    contract = MANAGED_LAUNCH_ALIASES.get(str(system.get("runtime_id", "")))
+    if not contract or contract[0].lstrip(".") not in system.get("launch_inputs", []):
+        return None, "O perfil desta plataforma não declara aliases de lançamento gerenciados."
+    suffix, leaf = contract
+    if raw_item.suffix != suffix or raw_item.parent != platform_root:
+        return None, f"Alias gerenciado precisa ser {suffix} diretamente em {platform_root}."
+    if platform_root.is_symlink() or any(parent.is_symlink() for parent in platform_root.parents):
+        return None, "A raiz da plataforma ou um ancestral é symlink; alias recusado."
+    literal = os.readlink(raw_item)
+    literal_path = Path(literal)
+    if literal_path.is_absolute() or ".." in literal_path.parts or not literal_path.parts:
+        return None, f"Alias precisa ser relativo e interno à plataforma: {literal}"
+    component = platform_root
+    for part in literal_path.parts:
+        component = component / part
+        if component.is_symlink():
+            return None, f"Alvo do alias contém outro symlink (loop/redirecionamento recusado): {component}"
+    try:
+        target = (platform_root / literal_path).resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None, f"Alvo do alias ausente ou em loop: {literal}"
+    if not target.is_relative_to(platform_root.resolve()) or target.name != leaf or not target.is_file():
+        return None, f"Alvo do alias precisa ser {leaf} regular dentro da plataforma: {target}"
+    try:
+        with target.open("rb") as stream:
+            magic = stream.read(4)
+        npdm = (target.parent / "main.npdm").read_bytes()
+    except OSError as exc:
+        return None, f"ExeFS ilegível: {exc}"
+    if magic != b"NSO0":
+        return None, "main do alias não é NSO0."
+    if len(npdm) < 0x80 or npdm[:4] != b"META":
+        return None, "main.npdm ausente ou sem META."
+    offset = int.from_bytes(npdm[0x70:0x74], "little")
+    if offset + 24 > len(npdm) or npdm[offset:offset + 4] != b"ACI0":
+        return None, "main.npdm sem ACI0 válido."
+    return target, ""
+
+
 if __name__ == '__main__':
     raise SystemExit(main())

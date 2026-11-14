@@ -751,6 +751,10 @@
     {
       "source": "tools/roms/tests/test_catalog_projection.py",
       "target": "tools/roms/tests/test_catalog_projection.py"
+    },
+    {
+      "source": "tools/roms/tests/test_variant_registry_recovery.py",
+      "target": "tools/roms/tests/test_variant_registry_recovery.py"
     }
   ]
 }

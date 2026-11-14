@@ -73,6 +73,10 @@ Importações selecionadas usam `operations/<id>/staging/library-copies/`, verif
 
 A projeção `romtool project-catalog plan|apply|verify|rollback` mantém o diário de origem íntegro e fixa seu SHA-256. Apply e rollback usam o lock compartilhado, preimagens e propostas duráveis, validação integral dos destinos e precondições para o lote inteiro de registros. A publicação interrompida retoma pelos hashes anterior/posterior e mantém as preimagens depois da reversão. Alterações posteriores de conteúdo ou permissões e caminhos com ancestral simbólico exigem reconciliação antes de gravar. A projeção documenta os destinos verificados e conserva a classificação de cada item.
 
+O registry de variantes usa o mesmo escritor durável e o lock compartilhado. A publicação registra intenção antes de gravar, e apply/rollback retomam a partir dos hashes observados. A reversão de um registry criado preserva seus bytes na operação, com retomada entre preservação e retirada do caminho ativo. Mudanças posteriores de conteúdo e permissões permanecem protegidas. Verify exige aplicação ou reversão confirmada no manifesto.
+
+Aliases relativos de lançamento declarados no perfil passam pelo validador compartilhado com o dispatcher nativo. O inventário registra essas relações e seus destinos no diagnóstico de nomes/cobertura. O arquivo simbólico fica fora dos candidatos físicos do registry. Outros links continuam sujeitos às recusas existentes. O diagnóstico comprova o contrato da entrada observado e preserva os limites de identidade, integridade e funcionamento do conjunto.
+
 ## Sequência da próxima tarefa
 
 1. Ler as instruções do projeto e a evidência local da interrupção. Medir recursos e identificar outras cargas antes de executar verificações ou aplicar planos.
