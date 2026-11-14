@@ -386,10 +386,15 @@ def check() -> None:
     print("Host profile materialization checks passed.")
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--check", action="store_true", help="read-only verification; set RETROFE_TARGET_ROOT when checking a staged copy")
-args = parser.parse_args()
-if args.check:
-    check()
-else:
-    print(json.dumps(materialize(), ensure_ascii=False, indent=2))
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--check", action="store_true", help="read-only verification; set RETROFE_TARGET_ROOT when checking a staged copy")
+    args = parser.parse_args()
+    if args.check:
+        check()
+    else:
+        print(json.dumps(materialize(), ensure_ascii=False, indent=2))
+
+
+if __name__ == '__main__':
+    main()

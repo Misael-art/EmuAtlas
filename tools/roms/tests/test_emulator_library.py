@@ -52,6 +52,26 @@ class NativeLibraryTests(unittest.TestCase):
         path.write_text(json.dumps(value))
         return path
 
+    def test_host_materializer_import_preserves_configuration(self):
+        import importlib.util
+        retrofe = self.root / 'frontend/RetroFE'
+        (retrofe / 'collections').mkdir(parents=True)
+        (retrofe / 'Config/profiles').mkdir(parents=True)
+        (retrofe / 'settings.conf').write_bytes(b'personal frontend settings\n')
+        (retrofe / 'Config/profiles/host-linux.json').write_text('{"collections": {}}')
+        source = Path(__file__).resolve().parents[3] / 'frontend/RetroFE/Tools/materializers/materialize-host-profile.py'
+        target = retrofe / 'Tools/materializers/materialize-host-profile.py'
+        target.parent.mkdir(parents=True)
+        shutil.copy2(source, target)
+        before = runtime._library_tree(self.root)
+        spec = importlib.util.spec_from_file_location('host_materializer_import_fixture', target)
+        module = importlib.util.module_from_spec(spec)
+        with patch('sys.argv', ['fixture-import', '--unknown-import-argument']):
+            spec.loader.exec_module(module)
+        self.assertEqual(runtime._library_tree(self.root), before)
+        self.assertEqual(module.set_conf_keys('launcher = Old\n', {'launcher': 'New'}),
+                         'launcher = New\n')
+
     def cbios_fixture(self):
         names = ['config.ini', 'cbios_main_msx2.rom', 'cbios_logo_msx2.rom',
                  'cbios_sub.rom', 'cbios.txt', 'blueMSX-license.txt']

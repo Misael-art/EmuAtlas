@@ -343,8 +343,8 @@
     },
     {
       "target": "frontend/RetroFE/Tools/materializers/materialize-host-profile.py",
-      "sha256": "4601610c71206644e7bd982bbf3351ab555c8574d0893db61582123e7a678e85",
-      "size_bytes": 18806,
+      "sha256": "fbb35e39d57df39e2f9348e3afe4b8579f72bbcc62edb485d48d3b12495b0dfd",
+      "size_bytes": 18894,
       "mode": "0644"
     },
     {
@@ -1003,8 +1003,8 @@
     },
     {
       "target": "tools/roms/tests/test_emulator_library.py",
-      "sha256": "327473698ca5df46d48115b22e5f7ed0371ff1f4314e14e4fa0a8e06e104cde4",
-      "size_bytes": 72556,
+      "sha256": "831c3d29ce90cfce761b24230a6e4fc83d8332e9ec0bee3b5e857f10ae9ad576",
+      "size_bytes": 73792,
       "mode": "0644"
     },
     {
