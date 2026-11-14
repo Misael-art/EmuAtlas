@@ -83,13 +83,17 @@ class PdfCompatibilityReviewTests(unittest.TestCase):
                     decode.assert_not_called()
 
     def test_serial_decode_limits_input_and_output_threads(self):
-        with patch.object(media_optimizer, "_run", return_value=SimpleNamespace(returncode=0)) as run:
-            media_optimizer._decode_video(self.path.with_suffix(".mp4"), threads=1)
-        command = run.call_args.args[0]
-        self.assertEqual(command.count("-threads"), 2)
-        self.assertEqual([command[index + 1] for index, token in enumerate(command) if token == "-threads"], ["1", "1"])
-        with self.assertRaises(ValueError):
-            media_optimizer._decode_video(self.path, threads=0)
+        with patch.object(media_optimizer.shutil, "which", return_value="ffmpeg"):
+            with patch.object(media_optimizer, "_run", return_value=SimpleNamespace(returncode=0)) as run:
+                media_optimizer._decode_video(self.path.with_suffix(".mp4"), threads=1)
+            command = run.call_args.args[0]
+            self.assertEqual(command.count("-threads"), 2)
+            self.assertEqual([command[index + 1] for index, token in enumerate(command) if token == "-threads"], ["1", "1"])
+            with self.assertRaises(ValueError):
+                media_optimizer._decode_video(self.path, threads=0)
+        with patch.object(media_optimizer.shutil, "which", return_value=None):
+            with self.assertRaises(FileNotFoundError):
+                media_optimizer._decode_video(self.path)
 
 
 @unittest.skipUnless(shutil.which("magick"), "ImageMagick required")

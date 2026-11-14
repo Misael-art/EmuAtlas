@@ -1063,8 +1063,8 @@
     },
     {
       "target": "tools/roms/tests/test_media_session.py",
-      "sha256": "49fc7c8153ce323d78c1223c24f4be7a301ae0c4bb15a363d838a7486ec5717b",
-      "size_bytes": 35540,
+      "sha256": "554db9b194a49f01049b169ff081337a37b7b3a7ff3eb425ae28a2d6310204a5",
+      "size_bytes": 35842,
       "mode": "0644"
     },
     {
