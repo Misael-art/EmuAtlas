@@ -852,6 +852,7 @@ def launch_command(profile: dict, system: dict, item: Path) -> int:
         "item": str(item.resolve()),
         "rom_root": str(rom_root),
         "bios_root": str(bios_root),
+        "program_dir": str(Path(executable).resolve().parent),
     }
     model2_native = (os.name == 'nt' and system.get('native_runtime_id') == 'model2'
                      and system.get('rom_subdir') == 'model2')

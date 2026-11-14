@@ -26,6 +26,35 @@ def load(name, path):
 
 
 class BindingsTests(unittest.TestCase):
+    def test_supermodel_maps_observed_buttons_hats_and_inverted_axes(self):
+        self.assertEqual(controls.supermodel_input(4, 'b6'), 'JOY5_BUTTON7')
+        self.assertEqual(controls.supermodel_input(4, 'h0.1'), 'JOY5_POV1_UP')
+        self.assertEqual(controls.supermodel_input(7, 'a1~'), 'JOY8_YAXIS_INV')
+        self.assertEqual(controls.supermodel_input(7, 'a1~', -1), 'JOY8_YAXIS_POS')
+        for invalid in ['', 'a6', 'h0.3', 'b-1']:
+            with self.assertRaises(ValueError):
+                controls.supermodel_input(0, invalid)
+
+    def test_supermodel_routes_two_native_players_and_preserves_other_settings(self):
+        mapping = {'start': 'b6', 'back': 'b4', 'a': 'b0', 'b': 'b1', 'x': 'b2', 'y': 'b3',
+                   'dpup': 'h0.1', 'dpright': 'h0.2', 'dpdown': 'h0.4', 'dpleft': 'h0.8',
+                   'leftx': 'a0', 'lefty': 'a1'}
+        pads = [{'index': 4, 'mapping': mapping}, {'index': 7, 'mapping': mapping},
+                {'index': 9, 'mapping': mapping}]
+        before = (b'# personal\r\n[Global]\r\nNetwork = 0\r\n'
+                  b'InputTrigger = "KEY_K,MOUSE_LEFT_BUTTON,JOY1_BUTTON5"\r\n'
+                  b'[swtrilgy]\r\nPowerPCFrequency = 50\r\n')
+        after = controls.supermodel_controls(before, pads)
+        self.assertIn(b'InputTrigger = "KEY_K,MOUSE_LEFT_BUTTON,JOY5_BUTTON1"', after)
+        self.assertIn(b'InputStart2 = "KEY_2,JOY8_BUTTON7"', after)
+        self.assertIn(b'InputGunUp = "KEY_UP,JOY5_POV1_UP,JOY5_YAXIS_NEG"', after)
+        self.assertIn(b'InputAnalogGunX2 = "JOY8_XAXIS"', after)
+        self.assertIn(b'InputAnalogJoyX = "MOUSE_XAXIS,JOY5_XAXIS"', after)
+        self.assertIn(b'Network = 0\r\n', after)
+        self.assertIn(b'[swtrilgy]\r\nPowerPCFrequency = 50\r\n', after)
+        self.assertNotIn(b'JOY10_', after)
+        self.assertEqual(controls.supermodel_controls(after, pads), after)
+
     def test_eight_routed_ports_are_ordered_and_missing_or_duplicate_ports_fail(self):
         pads = [{'name':f'Emulation P{n+1}', 'index':n} for n in range(8)]
         with patch.dict(os.environ, {'EMULATION_PLAYER_CAPACITY':'8'}):

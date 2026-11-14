@@ -989,6 +989,20 @@
         "cache_path": "work/installation/downloads/linux-retroarch-RetroArch.7z",
         "gameplay_tested": false,
         "entry_kind": "appimage"
+      },
+      "supermodel": {
+        "display_name": "Supermodel",
+        "version": "0.4-20261113-git-2806f14",
+        "source_url": "https://github.com/trzy/Supermodel/releases/download/v0.4-20261113-git-2806f14/supermodel-0.4-20261113-git-2806f14-linux.tar.gz",
+        "source_size_bytes": 2346899,
+        "source_sha256": "a727555d36f1701c61358f7882472ce1cf1975582829d9a9405ec9ee3b2f4c67",
+        "format": "tar_gz_tree",
+        "entry": "supermodel-0.4-20261113-git-2806f14/supermodel",
+        "max_unpacked_bytes": 8388608,
+        "source_license": "GPL-3.0-or-later",
+        "source_commit": "2806f14",
+        "upstream": "https://github.com/trzy/Supermodel",
+        "notes": "Official Linux package. Shared configuration, NVRAM and saves use emulator/data/Supermodel; ROMs remain in roms/model3. Native gameplay acceptance is tracked separately."
       }
     }
   },

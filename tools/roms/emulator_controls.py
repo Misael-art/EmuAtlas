@@ -382,6 +382,69 @@ def esde_projection(root, profile):
     return project(root, profile)
 
 
+def supermodel_input(index, binding, direction=0):
+    """Translate the observed SDL joystick mapping into upstream input names."""
+    prefix = f'JOY{index + 1}_'
+    if re.fullmatch(r'b\d+', binding):
+        return prefix + 'BUTTON' + str(int(binding[1:]) + 1)
+    hat = re.fullmatch(r'h(\d+)\.([1248])', binding)
+    if hat:
+        return prefix + 'POV' + str(int(hat[1]) + 1) + '_' + {'1': 'UP', '2': 'RIGHT', '4': 'DOWN', '8': 'LEFT'}[hat[2]]
+    axis = re.fullmatch(r'a([0-5])(~?)', binding)
+    if axis:
+        name = prefix + ['X', 'Y', 'Z', 'RX', 'RY', 'RZ'][int(axis[1])] + 'AXIS'
+        if direction:
+            sign = -direction if axis[2] else direction
+            return name + ('_POS' if sign > 0 else '_NEG')
+        return name + ('_INV' if axis[2] else '')
+    raise ValueError('Mapping SDL incompatível com Supermodel: ' + str(binding))
+
+
+def supermodel_controls(data, pads):
+    """Route two native ports for the local gun/analog-stick games."""
+    config = configparser.ConfigParser(interpolation=None)
+    config.optionxform = str
+    config.read_string(data.decode('utf-8-sig'))
+    values = {}
+
+    def assign(key, bindings, fallback='NONE'):
+        original = config.get('Global', key, fallback=fallback).strip().strip('"')
+        preserved = [value.strip() for value in original.split(',')
+                     if value.strip() != 'NONE' and not re.search(r'JOY\d*_', value, re.IGNORECASE)]
+        values[key] = json.dumps(','.join(dict.fromkeys(preserved + bindings)))
+
+    for number, pad in enumerate(pads[:2], 1):
+        mapping = pad['mapping']
+        def control(name, direction=0):
+            return supermodel_input(pad['index'], mapping.get(name, ''), direction)
+
+        suffix = '' if number == 1 else '2'
+        assign('InputStart' + str(number), [control('start')], 'KEY_1' if number == 1 else 'KEY_2')
+        assign('InputCoin' + str(number), [control('back')], 'KEY_3' if number == 1 else 'KEY_4')
+        for name, axis, sign in [('Up', 'lefty', -1), ('Down', 'lefty', 1),
+                                 ('Left', 'leftx', -1), ('Right', 'leftx', 1)]:
+            bindings = [control('dp' + name.lower()), control(axis, sign)]
+            for group in ['InputJoy', 'InputGun', 'InputAnalogGun']:
+                assign(group + name + suffix, bindings, 'KEY_' + name.upper() if number == 1 else 'NONE')
+        for group in ['InputGun', 'InputAnalogGun']:
+            for axis, source in [('X', 'leftx'), ('Y', 'lefty')]:
+                assign(group + axis + suffix, [control(source)], 'MOUSE_' + axis + 'AXIS' if number == 1 else 'NONE')
+        for key, source, fallback in [('InputTrigger', 'a', 'KEY_A,MOUSE_LEFT_BUTTON'),
+                                      ('InputOffscreen', 'b', 'KEY_S,MOUSE_RIGHT_BUTTON'),
+                                      ('InputAnalogTriggerLeft', 'a', 'KEY_A,MOUSE_LEFT_BUTTON'),
+                                      ('InputAnalogTriggerRight', 'b', 'KEY_S,MOUSE_RIGHT_BUTTON')]:
+            assign(key + suffix, [control(source)], fallback if number == 1 else 'NONE')
+        if number == 1:
+            for axis, source in [('X', 'leftx'), ('Y', 'lefty')]:
+                assign('InputAnalogJoy' + axis, [control(source)], 'MOUSE_' + axis + 'AXIS')
+            for key, source, fallback in [('InputAnalogJoyTrigger', 'a', 'KEY_A,MOUSE_LEFT_BUTTON'),
+                                          ('InputAnalogJoyEvent', 'b', 'KEY_S,MOUSE_RIGHT_BUTTON'),
+                                          ('InputAnalogJoyTrigger2', 'x', 'KEY_D'),
+                                          ('InputAnalogJoyEvent2', 'y', 'NONE')]:
+                assign(key, [control(source)], fallback)
+    return ini_update(data, {'Global': values})
+
+
 def proposals(root, *, pad=None, system_id=None, frontends=True, pads=None, routed=False):
     """Return bytes and reasons. A missing runtime is reported, never guessed."""
     profile = json.loads((root / PROFILE).read_text())
@@ -399,6 +462,14 @@ def proposals(root, *, pad=None, system_id=None, frontends=True, pads=None, rout
         p = target(root, relative)
         if p.is_file():
             add(relative, ini_update(p.read_bytes(), settings, **options), reason)
+
+    if system_id == 'model3' and routed:
+        relative = Path('emulator/data/Supermodel/Config/Supermodel.ini')
+        path = target(root, relative)
+        if not path.is_file():
+            raise ValueError('Prepare a configuração Supermodel antes de rotear os controles')
+        add(relative, supermodel_controls(path.read_bytes(), pads),
+            'Associar duas portas Supermodel aos índices SDL da sessão, preservando teclado e mouse')
 
     if system_id in (None, "psx", "ps2"):
         for sid, relative in [("psx", "../../emulator/data/DuckStation/config/duckstation/settings.ini"),

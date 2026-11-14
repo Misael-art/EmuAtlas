@@ -1,5 +1,6 @@
 """Native packaging and shared-data migration safety, using isolated workspaces."""
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -8,6 +9,7 @@ import shlex
 import struct
 import subprocess
 import tempfile
+import tarfile
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -456,6 +458,96 @@ class NativeLibraryTests(unittest.TestCase):
         self.assertEqual((program / 'app.exe').read_bytes(), pe64() + b'user modification')
         self.assertTrue((romtool.operation_dir(replacement['operation_id']) / 'rolled-back-package/app.exe').is_file())
 
+    def test_tar_gz_package_preserves_resources_and_executable_mode(self):
+        source = self.root / 'official.tar.gz'
+        with tarfile.open(source, 'w:gz') as bundle:
+            for name, payload, mode in [('release/emulator', b'\x7fELFfixture', 0o755),
+                                        ('release/Config/Games.xml', b'<games/>', 0o644)]:
+                info = tarfile.TarInfo(name)
+                info.size, info.mode = len(payload), mode
+                bundle.addfile(info, io.BytesIO(payload))
+        recipe = {'entry': 'release/emulator', 'format': 'tar_gz_tree',
+                  'source_url': 'https://github.com/example/pinned.tar.gz',
+                  'source_size_bytes': source.stat().st_size, 'source_sha256': runtime._sha256(source),
+                  'version': '1', 'max_unpacked_bytes': 1024}
+        self.config({'packages': {'linux': {'example': recipe}}, 'allowed_download_hosts': ['github.com']})
+        result = runtime.install_package(self.root, 'example', 'linux', True, source)
+        target = self.root / 'emulator/linux/example/release'
+        self.assertEqual(result['status'], 'installed_verified')
+        self.assertEqual((target / 'Config/Games.xml').read_bytes(), b'<games/>')
+        self.assertEqual((target / 'emulator').stat().st_mode & 0o777, 0o755)
+        self.assertEqual(runtime.install_package(self.root, 'example', 'linux', False)['status'],
+                         'already_installed_verified')
+
+    def test_tar_gz_refuses_unsafe_members_and_expansion_before_extraction(self):
+        cases = [('../escape', tarfile.REGTYPE, 1), ('C:/escape', tarfile.REGTYPE, 1),
+                 ('bad?.exe', tarfile.REGTYPE, 1),
+                 ('NUL.txt', tarfile.REGTYPE, 1), ('link', tarfile.SYMTYPE, 0),
+                 ('hardlink', tarfile.LNKTYPE, 0), ('pipe', tarfile.FIFOTYPE, 0),
+                 ('large', tarfile.REGTYPE, 1025)]
+        for index, (name, kind, size) in enumerate(cases):
+            with self.subTest(name=name):
+                source, target = self.root / f'bad-{index}.tar.gz', self.root / f'stage-{index}'
+                with tarfile.open(source, 'w:gz') as bundle:
+                    info = tarfile.TarInfo(name)
+                    info.type, info.size, info.linkname = kind, size, '../outside'
+                    bundle.addfile(info, io.BytesIO(b'x' * size) if size else None)
+                with self.assertRaises(ValueError):
+                    runtime._extract_package(source, target, {'format': 'tar_gz_tree', 'max_unpacked_bytes': 1024})
+                self.assertFalse(target.exists())
+
+    def test_tar_gz_refuses_case_collisions_file_parents_and_bad_crc(self):
+        for index, names in enumerate([['Game', 'game'], ['file', 'file/child']]):
+            source, target = self.root / f'conflict-{index}.tar.gz', self.root / f'conflict-stage-{index}'
+            with tarfile.open(source, 'w:gz') as bundle:
+                for name in names:
+                    info = tarfile.TarInfo(name)
+                    info.size = 1
+                    bundle.addfile(info, io.BytesIO(b'x'))
+            with self.assertRaises(ValueError):
+                runtime._extract_package(source, target, {'format': 'tar_gz_tree'})
+            self.assertFalse(target.exists())
+        source = self.root / 'crc.tar.gz'
+        with tarfile.open(source, 'w:gz') as bundle:
+            info = tarfile.TarInfo('valid')
+            info.size = 1
+            bundle.addfile(info, io.BytesIO(b'x'))
+        data = bytearray(source.read_bytes())
+        data[-8] ^= 1
+        source.write_bytes(data)
+        with self.assertRaises(OSError):
+            runtime._extract_package(source, self.root / 'bad-crc', {'format': 'tar_gz_tree'})
+        self.assertFalse((self.root / 'bad-crc').exists())
+
+    def test_supermodel_data_uses_relative_package_resources_and_preserves_saves(self):
+        program = self.root / 'emulator/linux/supermodel/release'
+        (program / 'Config').mkdir(parents=True)
+        (program / 'Assets').mkdir()
+        (program / 'Config/Music.xml').write_bytes(b'<music/>')
+        (program / 'supermodel').write_bytes(b'\x7fELFfixture')
+        installed = {'status': 'already_installed_verified', 'operation_id': 'fixture-package',
+                     'entry': 'emulator/linux/supermodel/release/supermodel'}
+        with patch.object(runtime, 'install_package', return_value=installed):
+            plan = runtime.supermodel_data_plan(self.root)
+            runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+            runtime.library_execute(self.root, plan['operation_id'], 'verify')
+            userdata = self.root / 'emulator/data/Supermodel'
+            self.assertEqual((userdata / 'Assets').resolve(), program / 'Assets')
+            self.assertFalse(os.path.isabs(os.readlink(userdata / 'Config/Music.xml')))
+            (userdata / 'NVRAM').mkdir()
+            save = userdata / 'NVRAM/game.nv'
+            save.write_bytes(b'later personal save')
+            self.assertEqual(runtime.supermodel_data_plan(self.root)['status'], 'already_configured_verified')
+            self.assertEqual(save.read_bytes(), b'later personal save')
+            with self.assertRaisesRegex(ValueError, 'Inventário/SHA'):
+                runtime.library_execute(self.root, plan['operation_id'], 'rollback', True)
+            self.assertEqual(save.read_bytes(), b'later personal save')
+            (userdata / 'Config/Music.xml').unlink()
+            (userdata / 'Config/Music.xml').write_bytes(b'personal choice')
+            with self.assertRaisesRegex(ValueError, 'reconciliação'):
+                runtime.supermodel_data_plan(self.root)
+            self.assertEqual((userdata / 'Config/Music.xml').read_bytes(), b'personal choice')
+
     def test_migration_preserves_readonly_payload_and_refuses_changed_reference_on_rollback(self):
         original = self.root / 'tools/roms/runtimes/example'
         original.mkdir(parents=True)
@@ -537,6 +629,50 @@ class NativeLibraryTests(unittest.TestCase):
         self.assertFalse((self.root / 'frontend/RetroFE/UserData/RPCS3').exists())
         with self.assertRaises(ValueError):
             romtool.host_runtime_probe_environment({**row, 'userdata_subdir': '../external'})
+
+    def test_runtime_probe_cwd_requires_existing_project_userdata(self):
+        row = {'userdata_subdir': 'Supermodel', 'probe_working_directory': '{userdata}'}
+        with self.assertRaisesRegex(ValueError, 'Prepare os dados'):
+            romtool.host_runtime_probe_directory(row)
+        userdata = self.root / 'emulator/data/Supermodel'
+        userdata.mkdir(parents=True)
+        self.assertEqual(romtool.host_runtime_probe_directory(row), userdata)
+        for changes in [{'userdata_subdir': '../outside'}, {'userdata_subdir': '.'},
+                        {'probe_working_directory': '/tmp'}]:
+            with self.assertRaises(ValueError):
+                romtool.host_runtime_probe_directory({**row, **changes})
+        userdata.rename(userdata.with_name('Preserved'))
+        userdata.symlink_to('Preserved', target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'symlink'):
+            romtool.host_runtime_probe_directory(row)
+        userdata.unlink()
+        emulator = self.root / 'emulator'
+        emulator.rename(self.root / 'external-emulator')
+        emulator.symlink_to('external-emulator', target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'symlink'):
+            romtool.host_runtime_probe_directory(row)
+
+    def test_command_launcher_expands_program_resources_and_shared_working_directory(self):
+        from tools.roms.tests.launcher_fixture import load_launcher
+        host = load_launcher('supermodel_launch_fixture')
+        host.ROOT = self.root / 'frontend/RetroFE'
+        program = self.root / 'emulator/linux/supermodel/release'
+        program.mkdir(parents=True)
+        executable = program / 'supermodel'
+        executable.write_bytes(b'fixture never executed')
+        executable.chmod(0o755)
+        item = self.root / 'roms/model3/Game.zip'
+        item.parent.mkdir(parents=True)
+        item.write_bytes(b'fixture')
+        profile = {'rom_root': str(self.root / 'roms'), 'bios_root': str(self.root / 'bios')}
+        system = {'rom_subdir': 'model3', 'command': str(executable), 'userdata_subdir': 'Supermodel',
+                  'working_directory': '{userdata}',
+                  'args': ['{item}', '-game-xml-file={program_dir}/Config/Games.xml']}
+        with patch.object(host, 'run_with_music_paused', return_value=0) as run:
+            self.assertEqual(host.launch_command(profile, system, item), 0)
+        self.assertEqual(run.call_args.args[0], [str(executable), str(item),
+                                               '-game-xml-file=' + str(program / 'Config/Games.xml')])
+        self.assertEqual(run.call_args.kwargs['cwd'], self.root / 'emulator/data/Supermodel')
 
     def test_linux_fallback_uses_packaged_dolphin_without_a_host_flatpak(self):
         path = self.root / 'emulator/linux/dolphin/Dolphin.AppImage'

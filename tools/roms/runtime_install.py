@@ -11,12 +11,14 @@ from __future__ import annotations
 
 import ctypes
 import errno
+import gzip
 import hashlib
 import json
 import os
 import shutil
 import subprocess
 import tempfile
+import tarfile
 import uuid
 import zipfile
 from pathlib import Path
@@ -671,6 +673,46 @@ def native_configuration_plan(root: Path) -> dict:
     return {'operation_id': operation_id, 'status': 'prepared', 'edits': len(edits)}
 
 
+def supermodel_data_plan(root: Path) -> dict:
+    """Give upstream its portable working directory and share package resources."""
+    installed = install_package(root, 'supermodel', 'linux')
+    if installed['status'] != 'already_installed_verified':
+        raise ValueError('Instale e verifique o pacote Supermodel antes de preparar os dados')
+    program = _library_target(root, installed['entry']).parent
+    destination = _library_target(root, 'emulator/data/Supermodel')
+    links = {'Assets': program / 'Assets', 'Config/Music.xml': program / 'Config/Music.xml'}
+    expected = {name: os.path.relpath(source, (destination / name).parent)
+                for name, source in links.items()}
+    if destination.exists():
+        config = destination / 'Config'
+        if (not config.is_dir() or config.is_symlink() or
+                any(not (destination / name).is_symlink() or os.readlink(destination / name) != target
+                    for name, target in expected.items())):
+            raise ValueError('Dados Supermodel existentes exigem reconciliação; preservados')
+        return {'status': 'already_configured_verified', 'userdata': 'emulator/data/Supermodel'}
+    operation_id = 'emulator-library-supermodel-data-' + uuid.uuid4().hex[:8]
+    opdir = romtool.operation_dir(operation_id)
+    staging = opdir / 'staging/Supermodel'
+    (staging / 'Config').mkdir(parents=True)
+    for name, target in expected.items():
+        source = links[name]
+        if source.is_symlink() or not source.exists():
+            raise ValueError('Recurso Supermodel ausente ou simbólico: ' + str(source))
+        os.symlink(target, staging / name, target_is_directory=source.is_dir())
+    inventory = _library_tree(staging)
+    _sync_library_copy(staging, inventory)
+    manifest = {'schema_version': 1, 'kind': 'emulator_library_migration', 'operation_id': operation_id,
+                'status': 'prepared', 'created_at': romtool.now(), 'edits': [],
+                'moves': [{'source': staging.relative_to(root).as_posix(),
+                           'destination': destination.relative_to(root).as_posix(), 'files': inventory}],
+                'scope': 'supermodel_shared_userdata_and_relative_package_resources',
+                'package_operation_id': installed['operation_id'], 'gameplay_tested': False}
+    romtool.atomic_json(opdir / 'manifest.json', manifest)
+    romtool.append_event(operation_id, 'supermodel_data_prepared', action='library_plan', status='prepared')
+    romtool.rebuild_history_index()
+    return {'operation_id': operation_id, 'status': 'prepared', 'moves': 1, 'edits': 0}
+
+
 def dolphin_data_plan(root: Path, config_only: bool = False) -> dict:
     """Selected Dolphin import; the external host profile stays intact for rollback."""
     import datetime
@@ -760,7 +802,9 @@ def _package_member(value: str) -> Path:
     value = value.replace('\\', '/')
     path = Path(value)
     if (not value or value in ('.', '..') or value.startswith('/') or PureWindowsPath(value).drive or
-        any(part in ('..', '.') or ':' in part or part.endswith((' ', '.')) for part in path.parts)):
+        any(part in ('..', '.') or part.endswith((' ', '.')) or
+            any(ord(character) < 32 or character in '<>:"|?*' for character in part)
+            for part in path.parts)):
         raise ValueError(f'Membro inseguro: {value}')
     reserved = {'con', 'prn', 'aux', 'nul', *(f'com{i}' for i in range(1, 10)),
                 *(f'lpt{i}' for i in range(1, 10))}
@@ -799,6 +843,42 @@ def _extract_package(source: Path, destination: Path, recipe: dict) -> None:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     with bundle.open(info) as src, target.open('xb') as out:
                         shutil.copyfileobj(src, out, 1 << 20)
+    elif recipe['format'] == 'tar_gz_tree':
+        members = []
+        total = 0
+        with tarfile.open(source, 'r:gz') as bundle:
+            for info in bundle:
+                relative = _package_member(info.name.rstrip('/'))
+                key = relative.as_posix().casefold()
+                if key in names or not (info.isfile() or info.isdir()) or info.sparse:
+                    raise ValueError('Membro duplicado, especial ou link: ' + info.name)
+                names.add(key)
+                total += info.size
+                if len(names) > 10000 or info.size < 0 or total > limit:
+                    raise ValueError('Arquivo excede o limite de extração')
+                members.append((info, relative))
+            if not members:
+                raise ValueError('Arquivo sem membros')
+            files = {relative.as_posix().casefold() for info, relative in members if info.isfile()}
+            if any(parent.as_posix().casefold() in files
+                   for _info, relative in members for parent in relative.parents if parent != Path('.')):
+                raise ValueError('Membro usa arquivo como diretório')
+            # Reading the gzip stream through EOF checks its trailer CRC too.
+            with gzip.open(source, 'rb') as stream:
+                while stream.read(1 << 20):
+                    pass
+            destination.mkdir()
+            for info, relative in members:
+                target = destination / relative
+                if info.isdir():
+                    target.mkdir(parents=True, exist_ok=True)
+                else:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with bundle.extractfile(info) as src, target.open('xb') as out:
+                        shutil.copyfileobj(src, out, 1 << 20)
+                    if target.stat().st_size != info.size:
+                        raise ValueError('Membro incompleto: ' + info.name)
+                    target.chmod(info.mode & 0o777)
     elif recipe['format'] == '7z_tree':
         extractor = shutil.which('7z') or shutil.which('7zz')
         if not extractor:

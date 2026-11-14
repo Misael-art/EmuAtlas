@@ -237,7 +237,7 @@
     },
     "Commodore Amiga": {
       "rom_subdir": "amiga1200",
-      "extensions": "adf,adz,dms,ipf,zip,7z",
+      "extensions": "adf,adz,dms,ipf,m3u,zip,7z",
       "adapter": "retroarch",
       "launcher": "RetroArch Host",
       "core": "puae_libretro.so",
@@ -1736,13 +1736,37 @@
     "Sega Model 3": {
       "display_name": "Sega Model 3",
       "rom_subdir": "model3",
-      "extensions": "7z,zip",
-      "adapter": "unavailable",
-      "launcher": "Host Emulator Unavailable",
+      "extensions": "zip",
+      "adapter": "command",
+      "launcher": "Host Command",
       "menu_visible": true,
       "subcollections": [],
       "rom_path": "../../roms/model3",
-      "bios_root": "../../bios"
+      "bios_root": "../../bios",
+      "command": "../../emulator/linux/supermodel/supermodel-0.4-20261113-git-2806f14/supermodel",
+      "args": [
+        "{item}",
+        "-game-xml-file={program_dir}/Config/Games.xml",
+        "-log-output={userdata}/Supermodel.log"
+      ],
+      "userdata_subdir": "Supermodel",
+      "working_directory": "{userdata}",
+      "runtime_id": "supermodel",
+      "probe_args": [
+        "--version"
+      ],
+      "onboarding_defaults": [
+        {
+          "path": "Config/Supermodel.ini",
+          "format": "ini",
+          "section": "Global",
+          "key": "Network",
+          "value": "0",
+          "reason": "Prepare the project-local Config directory before native startup and keep network emulation disabled by default."
+        }
+      ],
+      "probe_working_directory": "{userdata}",
+      "runtime_version": "0.4-20261113-git-2806f14"
     },
     "SNK Neo Geo CD (neogeocdjp)": {
       "display_name": "SNK Neo Geo CD",

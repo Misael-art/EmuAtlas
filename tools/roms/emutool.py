@@ -248,7 +248,8 @@ def _probe_runtime_entry(runtime_id: str, system: dict, entry: dict) -> dict[str
     try:
         environment = romtool.host_runtime_probe_environment(entry)
         result = subprocess.run([executable, *args], capture_output=True, text=True, errors="replace",
-                                 check=False, timeout=30, env=environment)
+                                 check=False, timeout=30, env=environment,
+                                 cwd=romtool.host_runtime_probe_directory(entry))
     except subprocess.TimeoutExpired as error:
         return {"runtime_id": runtime_id, "available": False, "status": "probe_timed_out",
                 "command": executable, "probe_args": args,
@@ -1550,6 +1551,7 @@ def runtime_probe(
                 check=False,
                 timeout=30,
                 env=probe_env,
+                cwd=romtool.host_runtime_probe_directory(system),
             )
         except subprocess.TimeoutExpired as error:
             result.update(status="runtime_probe_timed_out", runtime=executable,
@@ -1785,6 +1787,7 @@ def main() -> int:
     library_actions.add_parser('plan')
     library_actions.add_parser('windows-config-plan')
     library_actions.add_parser('model2-config-plan')
+    library_actions.add_parser('supermodel-data-plan')
     library_actions.add_parser('dolphin-data-plan')
     library_actions.add_parser('dolphin-config-plan')
     for action in ('apply', 'verify', 'rollback'):
@@ -1856,7 +1859,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.command == 'library':
         try:
-            result = (runtime_install.model2_configuration_plan(ROOT) if args.library_action == 'model2-config-plan' else
+            result = (runtime_install.supermodel_data_plan(ROOT) if args.library_action == 'supermodel-data-plan' else
+                      runtime_install.model2_configuration_plan(ROOT) if args.library_action == 'model2-config-plan' else
                       runtime_install.dolphin_data_plan(ROOT, config_only=args.library_action == 'dolphin-config-plan')
                       if args.library_action in ('dolphin-data-plan', 'dolphin-config-plan') else
                       runtime_install.native_configuration_plan(ROOT) if args.library_action == 'windows-config-plan' else

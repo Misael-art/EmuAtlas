@@ -71,3 +71,4 @@ jobs:
           tools.roms.tests.test_mobile_controller
           tools.roms.tests.test_save_journey
           tools.roms.tests.test_emulator_controls.BindingsTests
+          tools.roms.tests.test_rom_archive_normalization

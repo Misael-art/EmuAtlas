@@ -58,7 +58,9 @@
           "python-evdev",
           "python-gobject",
           "squashfs-tools",
-          "qrencode"
+          "qrencode",
+          "sdl2_net",
+          "glu"
         ],
         "apt-get": [
           "flatpak",
@@ -106,7 +108,9 @@
           "python3-evdev",
           "python3-gi",
           "squashfs-tools",
-          "qrencode"
+          "qrencode",
+          "libsdl2-net-2.0-0",
+          "libglu1-mesa"
         ],
         "dnf": [
           "flatpak",
@@ -153,7 +157,9 @@
           "zstd",
           "squashfs-tools",
           "qrencode",
-          "python3-evdev"
+          "python3-evdev",
+          "SDL2_net",
+          "mesa-libGLU"
         ]
       }
     },
@@ -831,6 +837,14 @@
           "objects.githubusercontent.com"
         ]
       }
+    },
+    "runtime-supermodel": {
+      "kind": "runtime",
+      "runtime_id": "supermodel",
+      "package_platform": "linux",
+      "requires": [
+        "host-packages"
+      ]
     }
   }
 }

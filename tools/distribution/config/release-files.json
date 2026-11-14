@@ -755,6 +755,10 @@
     {
       "source": "tools/roms/tests/test_variant_registry_recovery.py",
       "target": "tools/roms/tests/test_variant_registry_recovery.py"
+    },
+    {
+      "source": "tools/roms/tests/test_rom_archive_normalization.py",
+      "target": "tools/roms/tests/test_rom_archive_normalization.py"
     }
   ]
 }

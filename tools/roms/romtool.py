@@ -634,10 +634,10 @@ def verify_gdi(path: Path) -> dict:
 
 
 def run_validator(argv: list[str], full_output: bool = False, *, env: dict[str, str] | None = None,
-                  timeout: float | None = None) -> dict:
+                  timeout: float | None = None, cwd: Path | None = None) -> dict:
     try:
         result = subprocess.run(argv, capture_output=True, text=True, errors="replace", check=False,
-                                env=env, timeout=timeout)
+                                env=env, timeout=timeout, cwd=cwd)
         stdout, stderr = result.stdout, result.stderr
         if not full_output:
             stdout, stderr = stdout[-12000:], stderr[-4000:]
@@ -649,6 +649,38 @@ def run_validator(argv: list[str], full_output: bool = False, *, env: dict[str, 
                 "stdout": (error.stdout or "")[-12000:], "stderr": (error.stderr or "")[-4000:]}
 
 
+def host_runtime_userdata_root(row: dict) -> Path | None:
+    userdata_subdir = row.get("userdata_subdir")
+    userdata_root = None
+    if userdata_subdir:
+        relative = Path(str(userdata_subdir))
+        if relative.is_absolute() or not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
+            raise ValueError("userdata_subdir inválido durante a sonda de runtime")
+        userdata_base = PROJECT_ROOT / "emulator" / "data"
+        userdata_root = (userdata_base / relative).resolve()
+        if not is_within(userdata_root, userdata_base.resolve()):
+            raise ValueError("userdata_subdir saiu de UserData durante a sonda de runtime")
+        cursor = userdata_base
+        if userdata_base.parent.is_symlink() or cursor.is_symlink():
+            raise ValueError("UserData é symlink durante a sonda de runtime")
+        for part in relative.parts:
+            cursor = cursor / part
+            if cursor.is_symlink():
+                raise ValueError(f"Componente symlink em userdata_subdir: {cursor}")
+    return userdata_root
+
+
+def host_runtime_probe_directory(row: dict) -> Path | None:
+    if not row.get('probe_working_directory'):
+        return None
+    userdata_root = host_runtime_userdata_root(row)
+    if row['probe_working_directory'] != '{userdata}' or userdata_root is None:
+        raise ValueError('Diretório da sonda exige {userdata} e userdata_subdir')
+    if not userdata_root.is_dir():
+        raise ValueError('Prepare os dados compartilhados antes da sonda de runtime')
+    return userdata_root
+
+
 def host_runtime_probe_environment(row: dict) -> dict[str, str] | None:
     templates = row.get("environment", {})
     if not templates:
@@ -656,23 +688,7 @@ def host_runtime_probe_environment(row: dict) -> dict[str, str] | None:
     if not isinstance(templates, dict):
         raise ValueError("O environment do perfil command precisa ser um objeto")
     env = os.environ.copy()
-    userdata_subdir = row.get("userdata_subdir")
-    userdata_root = None
-    if userdata_subdir:
-        relative = Path(str(userdata_subdir))
-        if relative.is_absolute() or any(part in {"", ".", ".."} for part in relative.parts):
-            raise ValueError("userdata_subdir inválido durante a sonda de runtime")
-        userdata_base = PROJECT_ROOT / "emulator" / "data"
-        userdata_root = (userdata_base / relative).resolve()
-        if not is_within(userdata_root, userdata_base.resolve()):
-            raise ValueError("userdata_subdir saiu de UserData durante a sonda de runtime")
-        cursor = userdata_base
-        if cursor.is_symlink():
-            raise ValueError("UserData é symlink durante a sonda de runtime")
-        for part in relative.parts:
-            cursor = cursor / part
-            if cursor.is_symlink():
-                raise ValueError(f"Componente symlink em userdata_subdir: {cursor}")
+    userdata_root = host_runtime_userdata_root(row)
     values = {"userdata": str(userdata_root)} if userdata_root else {}
     for name, template in templates.items():
         if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
@@ -844,6 +860,14 @@ def verify_one(path: Path, list_archive_contents: bool = False) -> dict:
                 result.update({"validator": "7z_test", "status": "ok" if checked.get("returncode") == 0 else "archive_error",
                                "returncode": checked.get("returncode"), "output": checked.get("stdout", ""),
                                "error": checked.get("error", checked.get("stderr", ""))})
+        except ArchivePasswordRequired as exc:
+            result.update({'validator': 'python_zipfile_metadata_only',
+                           'status': 'encrypted_archive_password_required',
+                           'member_count': len(exc.members),
+                           'encrypted_member_count': sum(bool(member['encrypted']) for member in exc.members),
+                           'full_crc_verified': False, 'error': str(exc)})
+            if list_archive_contents:
+                result['archive_members'] = exc.members
         except Exception as exc:
             result.update({"validator": "archive_test_and_list", "status": "archive_error",
                            "error": f"{type(exc).__name__}: {exc}"})
@@ -1422,24 +1446,32 @@ def run_inventory(roots: list[Path], output_dir: Path, with_hash: bool) -> dict:
     return {**manifest, "csv": str(csv_path), "manifest": str(opdir / "manifest.json")}
 
 
+class ArchivePasswordRequired(ValueError):
+    def __init__(self, members: list[dict]):
+        super().__init__('ZIP cifrado exige senha para validar os CRCs; original preservado')
+        self.members = members
+
+
 def archive_members(path: Path) -> dict:
     detected = detect_archive_format(path)
     archive_format = detected["format"]
     if archive_format == "zip":
         members = []
         with zipfile.ZipFile(path) as archive:
-            bad = archive.testzip()
-            if bad is not None:
-                raise ValueError(f"ZIP não passou CRC no membro: {bad}")
             for info in archive.infolist():
                 name = info.filename.replace("\\", "/")
                 rel = PurePosixPath(name)
                 mode = (info.external_attr >> 16) & 0xFFFF
-                if rel.is_absolute() or ".." in rel.parts or stat.S_ISLNK(mode):
+                if rel.is_absolute() or ".." in rel.parts or re.match(r'^[A-Za-z]:', name) or stat.S_ISLNK(mode):
                     raise ValueError(f"Membro ZIP inseguro: {name}")
                 members.append({"path": name.rstrip("/"), "directory": info.is_dir(),
                                 "size_bytes": info.file_size, "packed_size_bytes": info.compress_size,
                                 "crc32": f"{info.CRC:08x}", "encrypted": bool(info.flag_bits & 0x1)})
+            if any(member['encrypted'] for member in members):
+                raise ArchivePasswordRequired(members)
+            bad = archive.testzip()
+            if bad is not None:
+                raise ValueError(f"ZIP não passou CRC no membro: {bad}")
         return {"validator": "python_zipfile_crc", "status": "ok", "archive_format": "zip",
                 "archive_signature_detection": detected, "members": members,
                 "content_classification": classify_archive_contents([str(path)], members)}
@@ -1599,6 +1631,7 @@ def host_runtime_format_evidence(system_id: str, extension: str, *, probe: bool 
         return {**evidence, "supported": False, "status": "format_not_listed_by_host_profile"}
     if probe:
         probe_env = None
+        probe_cwd = None
         if adapter in {"mame", "mame_named"}:
             executable = shutil.which(str(profile.get("mame_executable", "mame")))
             argv = [executable, "-version"] if executable else []
@@ -1619,12 +1652,13 @@ def host_runtime_format_evidence(system_id: str, extension: str, *, probe: bool 
                     and isinstance(probe_args, list) and all(isinstance(x, str) for x in probe_args)
                     else [])
             probe_env = host_runtime_probe_environment(row)
+            probe_cwd = host_runtime_probe_directory(row)
             evidence["runtime_probe_environment_keys"] = sorted((row.get("environment") or {}).keys())
         else:
             argv = []
         if not argv:
             return {**evidence, "supported": False, "status": "runtime_probe_not_configured"}
-        checked = run_validator(argv, env=probe_env, timeout=30)
+        checked = run_validator(argv, env=probe_env, timeout=30, cwd=probe_cwd)
         evidence["runtime_probe"] = argv
         evidence["runtime_probe_returncode"] = checked.get("returncode")
         evidence["runtime_probe_output"] = checked.get("stdout", "")[:1000]

@@ -156,3 +156,17 @@ O plano recusa membros com nomes duplicados ou equivalentes sem distinção de m
 Categorias canônicas criadas por uma promoção podem exigir novos aliases do ES-DE. Executar `romtool media esde validate` após o lote identifica essa necessidade. O fluxo `media esde aliases plan|apply|verify|rollback` cria os links relativos para as categorias físicas existentes e registra cada alteração.
 
 A criação registra uma intenção durável antes do link e sincroniza seu diretório em POSIX antes do checkpoint. A retomada de `applying` aceita somente o link que corresponde à intenção registrada. A reversão confere a propriedade dos links, registra a intenção antes de remover cada alias e admite retomar após uma interrupção. Links ocupados por mudanças externas permanecem protegidos pelas precondições.
+
+## Supermodel no Linux
+
+O instalador oferece o componente `runtime-supermodel` e a receita oficial fixada por tamanho e SHA-256. O extrator TAR/Gzip valida os tipos e nomes de todos os membros, limites de expansão, colisões de nomes, relações entre arquivos e diretórios e o CRC Gzip completo antes de publicar o pacote. Links e arquivos especiais no archive exigem revisão e permanecem recusados nesse formato.
+
+`emutool library supermodel-data-plan` prepara `emulator/data/Supermodel/` com o executor reversível de biblioteca. Assets e Music.xml usam links relativos para os recursos internos do pacote. Configurações, NVRAM, states e logs gravados pelo emulador usam a pasta compartilhada. Dados existentes divergentes ficam preservados para reconciliação. O instalador aplica e verifica essa preparação ao instalar o componente.
+
+O perfil encaminha os ZIPs de `roms/model3/` pelo launcher nativo, calcula `{program_dir}` a partir do executável e utiliza a pasta compartilhada como diretório de execução. A sonda `--version` também declara `{userdata}` como diretório para manter a inicialização do upstream dentro do projeto. O roteamento temporário de controles usa os índices e mappings SDL observados, com direcional, analógico esquerdo e botões em duas portas nativas para os jogos locais de armas/analógico. As alternativas de teclado e mouse são preservadas pelo lease da sessão. As dependências SDL2_net e GLU entram na seleção de pacotes do instalador. Lançamento, controles e retorno precisam de aceite por jogo. [Distribuição e fontes oficiais](https://github.com/trzy/Supermodel/releases)
+
+O perfil Amiga 1200 admite M3U junto dos formatos existentes. Playlists continuam vinculadas à identidade, ordem e validação do conjunto selecionado. [Documentação PUAE](https://docs.libretro.com/library/puae/)
+
+## Archives cifrados
+
+A verificação de ZIP identifica membros cifrados antes de tentar os CRCs. O resultado `encrypted_archive_password_required` registra os membros seguros observáveis e `full_crc_verified=false`. O archive permanece preservado até obter a senha e concluir a leitura integral. Sua identidade e classificação dependem das evidências do conteúdo.

@@ -10,9 +10,10 @@ import sys
 import tarfile
 import tempfile
 import time
+from types import SimpleNamespace
 import unittest
 import xml.etree.ElementTree as ET
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -38,6 +39,37 @@ class SetupTests(unittest.TestCase):
         config['components']['a']['requires'] = ['b']
         with self.assertRaises(ValueError):
             s.graph(config)
+
+    def test_native_runtime_package_reuses_receipt_and_prepares_shared_data(self):
+        runtime = Mock()
+        runtime.load_recipes.return_value = {}
+        runtime.install_package.return_value = {'status': 'already_installed_verified', 'operation_id': 'package'}
+        runtime.supermodel_data_plan.return_value = {'status': 'prepared', 'operation_id': 'shared-data'}
+        with patch.dict(sys.modules, {'runtime_install': runtime, 'romtool': SimpleNamespace(PROJECT_ROOT=self.root)}), \
+                patch.object(self.engine, 'acquire') as acquire:
+            result = self.engine.runtime({'runtime_id': 'supermodel', 'package_platform': 'linux'})
+        self.assertEqual(result['status'], 'reused')
+        acquire.assert_not_called()
+        runtime.library_execute.assert_any_call(self.root, 'shared-data', 'apply', True)
+        runtime.library_execute.assert_any_call(self.root, 'shared-data', 'verify')
+
+    def test_native_runtime_package_uses_pinned_source_and_preserves_existing_data(self):
+        runtime = Mock()
+        recipe = {'source_url': 'https://github.com/example/pinned.tar.gz', 'source_size_bytes': 12,
+                  'source_sha256': 'a' * 64}
+        runtime.load_recipes.return_value = {'packages': {'linux': {'supermodel': recipe}},
+                                            'allowed_download_hosts': ['github.com']}
+        runtime.install_package.side_effect = [{'status': 'prepared'},
+                                               {'status': 'installed_verified', 'operation_id': 'package'}]
+        runtime.supermodel_data_plan.return_value = {'status': 'already_configured_verified'}
+        source = self.root / 'pinned-source'
+        with patch.dict(sys.modules, {'runtime_install': runtime, 'romtool': SimpleNamespace(PROJECT_ROOT=self.root)}), \
+                patch.object(self.engine, 'acquire', return_value=source) as acquire:
+            result = self.engine.runtime({'runtime_id': 'supermodel', 'package_platform': 'linux'})
+        self.assertEqual(result['status'], 'installed')
+        self.assertEqual(acquire.call_args.args[0]['sha256'], recipe['source_sha256'])
+        runtime.install_package.assert_called_with(self.root, 'supermodel', 'linux', True, from_file=source)
+        runtime.library_execute.assert_not_called()
 
     def make_wheel(self, directory, name, version):
         path = directory / f'{name}-{version}-py3-none-any.whl'

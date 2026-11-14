@@ -438,6 +438,24 @@ class Installer:
         if romtool.PROJECT_ROOT != self.root:
             raise ValueError('Execute o instalador a partir da release implantada no destino')
         config = runtime.load_recipes(self.root)
+        if item.get('package_platform'):
+            platform = item['package_platform']
+            prepared = runtime.install_package(self.root, item['runtime_id'], platform)
+            if prepared['status'] == 'already_installed_verified':
+                result, status = prepared, 'reused'
+            else:
+                recipe = config['packages'][platform][item['runtime_id']]
+                source = self.acquire({'url': recipe['source_url'], 'size_bytes': recipe['source_size_bytes'],
+                                       'sha256': recipe['source_sha256'], 'allowed_hosts': config['allowed_download_hosts']})
+                result = runtime.install_package(self.root, item['runtime_id'], platform, True, from_file=source)
+                status = 'installed'
+            data = None
+            if platform == 'linux' and item['runtime_id'] == 'supermodel':
+                data = runtime.supermodel_data_plan(self.root)
+                if data['status'] == 'prepared':
+                    runtime.library_execute(self.root, data['operation_id'], 'apply', True)
+                    data = runtime.library_execute(self.root, data['operation_id'], 'verify')
+            return {'status': status, 'operation_id': result['operation_id'], 'shared_data': data}
         recipe = config['runtimes'].get(item['runtime_id'])
         if recipe is None:
             template = w.read(w.HERE / 'templates/tools/roms/config/portable-runtimes.json')

@@ -23,6 +23,9 @@ def load_launcher(name):
     (retrofe / "Config/profiles/host-linux.json").write_text(json.dumps({"collections": {}}))
     for source in EMULATORS.glob("*.py"):
         shutil.copy2(source, target / source.name)
+    tools = base / 'tools/roms'
+    tools.mkdir(parents=True)
+    shutil.copy2(ROOT / 'tools/roms/portable_emulator.py', tools / 'portable_emulator.py')
     sys.path.insert(0, str(target))
     spec = importlib.util.spec_from_file_location(name, target / "host-emulator-launcher.py")
     module = importlib.util.module_from_spec(spec)

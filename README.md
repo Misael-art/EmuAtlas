@@ -121,7 +121,7 @@ Leia o [guia de instalação automatizada](docs/business/automated-install.md) p
 
 <table>
   <tr>
-    <td align="center"><strong>63</strong><br/>componentes no fluxo de instalação</td>
+    <td align="center"><strong>64</strong><br/>componentes no fluxo de instalação</td>
     <td align="center"><strong>24</strong><br/>núcleos libretro com receitas</td>
     <td align="center"><strong>4</strong><br/>frontends integrados ao instalador</td>
   </tr>
@@ -131,7 +131,7 @@ Leia o [guia de instalação automatizada](docs/business/automated-install.md) p
 | :--- | :--- |
 | **Frontends** | RetroFE, ES-DE, Pegasus e Quiver Launcher. O [Pegasus portátil](frontend/pegasus-frontend/README.md) compartilha os perfis de execução e a mídia canônica. |
 | **Launcher alternativo** | [RocketLauncher](docs/business/architecture.md), adicionado localmente para lançamento de jogos pelos frontends; ativação no Linux pendente de validação. |
-| **Emulação** | RetroArch, MAME, Dolphin, DuckStation, PCSX2, RPCS3, PPSSPP, Flycast, Cemu, melonDS, Azahar e xemu. |
+| **Emulação** | RetroArch, MAME, Dolphin, DuckStation, PCSX2, RPCS3, PPSSPP, Flycast, Cemu, melonDS, Azahar, xemu e Supermodel para Sega Model 3. |
 | **Host** | Dependências de mídia, arquivos compactados, fontes, janelas, Python, Wine e ferramentas de compilação. |
 | **Organização** | Inventário, integridade, identificação, variantes, compactação e planos reversíveis. |
 | **Mídia** | Ferramentas de scraping/ingestão, metadados, histórias e caminhos compartilhados por plataforma. |
