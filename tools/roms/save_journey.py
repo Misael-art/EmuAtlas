@@ -854,7 +854,7 @@ class RetroArchSession:
         if not pending:
             return
         age = time.monotonic() - pending["started"]
-        if pending["phase"] == "render":
+        if pending["phase"] == "confirm":
             if self.status_generation >= pending["render_status"] + 2:
                 self.last_resume = pending["sequence"]
                 self.last_load_outcome = "loaded"
@@ -930,11 +930,8 @@ class RetroArchSession:
                     self.store.clean_loading_cache()
                     self.reserved.clear()
                 else:
-                    # Refresh the restored frame behind the preview before the
-                    # shelf releases its pause and fades out.
-                    self.send("FRAMEADVANCE")
-                    pending.update(phase="render", render_status=self.status_generation)
-                    self.message = "Preparando a imagem da retomada…"
+                    pending.update(phase="confirm", render_status=self.status_generation)
+                    self.message = "Confirmando a retomada…"
             elif age > pending["timeout"]:
                 self.message = "Carregamento em andamento · aguardando o RetroArch"
 
@@ -961,13 +958,6 @@ class RetroArchSession:
                 if self.battery_pending and now-self.battery_pending[0][1] > 8:
                     self.battery_pending.clear()
                     self.message = "Save interno preservado · core sem confirmação de state acompanhante"
-                if self.pause_wanted and self.status == "PLAYING" and now - self.last_pause_command > 1:
-                    self.send("PAUSE_TOGGLE")
-                    self.paused_by_us = True
-                    self.last_pause_command = now
-                if not self.pause_wanted and self.paused_by_us and self.status == "PAUSED":
-                    self.send("PAUSE_TOGGLE")
-                    self.paused_by_us = False
                 try:
                     action, value = self.actions.get_nowait()
                     if action == "load":
@@ -975,6 +965,11 @@ class RetroArchSession:
                         self.last_load_outcome = "pending"
                     elif action == "pause":
                         self.pause_wanted = value
+                    elif action == "resume":
+                        self.pause_wanted = False
+                        if self.status == "PAUSED":
+                            self.send("PAUSE_TOGGLE")
+                        self.paused_by_us = False
                     elif action == "favorite":
                         self.store.annotate(value, favorite=not self.store.get(value)["favorite"])
                         self.revision += 1
@@ -991,6 +986,13 @@ class RetroArchSession:
                 except (ValueError, OSError) as exc:
                     self.message = str(exc)
                     self.revision += 1
+                if self.pause_wanted and self.status == "PLAYING" and now - self.last_pause_command > 1:
+                    self.send("PAUSE_TOGGLE")
+                    self.paused_by_us = True
+                    self.last_pause_command = now
+                if not self.pause_wanted and self.paused_by_us and self.status == "PAUSED":
+                    self.send("PAUSE_TOGGLE")
+                    self.paused_by_us = False
                 if self.load_requested is not None and not self.battery_pending and not self.preview_pending:
                     sequence = self.load_requested
                     self.load_requested = None

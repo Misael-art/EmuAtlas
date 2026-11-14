@@ -583,8 +583,8 @@
     },
     {
       "target": "tools/roms/docs/save-journey.md",
-      "sha256": "b802b8ddef7c7f0c9260b0a472f48e47747a3d3dc1ae77893d8e351f7bc31050",
-      "size_bytes": 9594,
+      "sha256": "e697637d46c44e862060465ad31f81c4032b2733c6fc0e5b5c97773cb8d7a13a",
+      "size_bytes": 9685,
       "mode": "0644"
     },
     {
@@ -883,14 +883,14 @@
     },
     {
       "target": "tools/roms/save_journey.py",
-      "sha256": "dfdd18f52b5eec10e0b4027f4260cf4f8671b005c89f4a2e5b0a828b31a125bf",
-      "size_bytes": 57493,
+      "sha256": "a96352301b263fb3b36ba492519ce17d03141d398e523aa587430b4da2a1c0b9",
+      "size_bytes": 57550,
       "mode": "0644"
     },
     {
       "target": "tools/roms/save_journey_ui.py",
-      "sha256": "d6eddfbb963427e50e5765a87a7edc67724f9b16833a418eb603cd4aa41b60ff",
-      "size_bytes": 24032,
+      "sha256": "fd7db7f96a0cbda0491c9878b8aed1c10f88e0365585c4870f44969ac53019e8",
+      "size_bytes": 24089,
       "mode": "0644"
     },
     {
@@ -1063,8 +1063,8 @@
     },
     {
       "target": "tools/roms/tests/test_save_journey.py",
-      "sha256": "541bc7065b50d8c1c37d26f522d9dc0f658eb7231d8bda56086927610478189a",
-      "size_bytes": 23610,
+      "sha256": "4b52a5a208f6eecc65d6bbe6e224557f78e19b8dde74cc2c2731ee326020b12d",
+      "size_bytes": 25832,
       "mode": "0644"
     },
     {

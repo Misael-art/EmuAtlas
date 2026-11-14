@@ -402,10 +402,10 @@ class JourneyTests(unittest.TestCase):
                 session.close()
         self.assertTrue(session.lease.closed)
 
-    def test_render_waits_for_subsequent_native_status_before_handoff(self):
+    def test_confirmation_waits_for_subsequent_native_status_before_handoff(self):
         session = self.session()
         session.status_generation = 10
-        session.load_pending = {"phase": "render", "render_status": 10, "sequence": 1,
+        session.load_pending = {"phase": "confirm", "render_status": 10, "sequence": 1,
                                 "started": m.time.monotonic()}
         session.advance_load()
         self.assertIsNotNone(session.load_pending)
@@ -485,6 +485,49 @@ class JourneyTests(unittest.TestCase):
         shelf.controller(set())
         shelf.controller({"dpdown"})
         shelf.move.assert_called_once_with(1)
+
+    def test_visual_handoff_waits_for_playing_cycles_before_fading(self):
+        from unittest.mock import Mock
+        shelf = ui.SaveShelf.__new__(ui.SaveShelf)
+        shelf.geometry = (0, 0, 1280, 800)
+        shelf.width, shelf.row_height, shelf.scale = 320, 114, 1
+        shelf.reduce_motion = False
+        shelf.loading = {"row": {"sequence": 1}, "start": 0, "revision": 0}
+        shelf.transition, shelf.transition_canvas = Mock(), Mock()
+        shelf.rounded, shelf.text, shelf.collapse = Mock(), Mock(), Mock()
+        shelf.photo = Mock(return_value=None)
+        shelf.backend = Mock(load_pending=None, load_requested=None, revision=1,
+                             last_load_outcome="loaded", status="PAUSED", status_generation=10,
+                             message="Pronto")
+        shelf.animate(1)
+        shelf.backend.request.assert_called_once_with("resume")
+        shelf.backend.status, shelf.backend.status_generation = "PLAYING", 11
+        shelf.animate(1.3)
+        shelf.collapse.assert_not_called()
+        shelf.backend.status_generation = 12
+        shelf.animate(1.5)
+        shelf.collapse.assert_not_called()
+        shelf.animate(2)
+        shelf.collapse.assert_called_once()
+        self.assertIsNone(shelf.loading)
+
+    def test_failed_load_keeps_shelf_open_with_explanation(self):
+        from unittest.mock import Mock
+        shelf = ui.SaveShelf.__new__(ui.SaveShelf)
+        shelf.geometry = (0, 0, 1280, 800)
+        shelf.width, shelf.row_height, shelf.scale = 320, 114, 1
+        shelf.reduce_motion = True
+        shelf.loading = {"row": {"sequence": 1}, "start": 0, "revision": 0}
+        shelf.transition, shelf.transition_canvas = Mock(), Mock()
+        shelf.rounded, shelf.text, shelf.draw, shelf.collapse = Mock(), Mock(), Mock(), Mock()
+        shelf.photo = Mock(return_value=None)
+        shelf.backend = Mock(load_pending=None, load_requested=None, revision=1,
+                             last_load_outcome="failed", message="Core mudou")
+        shelf.animate(1)
+        self.assertIsNone(shelf.loading)
+        self.assertEqual(shelf.notice, "Core mudou")
+        shelf.collapse.assert_not_called()
+        shelf.backend.request.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ A sessão gerenciada acompanha as gravações do jogo lançado pelo EmuAtlas. Ca
 
 O cartão compacto destaca um favorito, ou a gravação mais recente. A lista expandida mostra cinco cartões e oferece rolagem. Favoritos vêm primeiro, ordenados do mais recente ao mais antigo dentro do grupo. As demais gravações seguem a mesma ordem temporal. A numeração representa a sequência de versões observadas daquele jogo/core.
 
-As marcações incluem Chefe, Final, Hiperdesafio, Descoberta, Marco, Treino e Fase 1–9999. O editor aceita uma nota de até 500 caracteres. O jogo pausa ao abrir a lista. Fechar libera somente a pausa assumida pelo monitor. Uma pausa previamente aplicada pelo usuário continua sob seu controle. Enquanto a lista captura a entrada, o roteador neutraliza as portas do jogo e exige soltura dos comandos ao retornar.
+As marcações incluem Chefe, Final, Hiperdesafio, Descoberta, Marco, Treino e Fase 1–9999. O editor aceita uma nota de até 500 caracteres. O jogo pausa ao abrir a lista. Fechar libera somente a pausa assumida pelo monitor. Uma pausa previamente aplicada pelo usuário continua sob seu controle ao fechar a lista. Escolher Retomar solicita explicitamente a continuação do jogo. Enquanto a lista captura a entrada, o roteador neutraliza as portas do jogo e exige soltura dos comandos ao retornar.
 
 A interface usa grafite, dourado discreto, contraste de texto e animação curta. O cartão ocupa a lateral esquerda, dimensionada pela janela e pela proporção da captura. Em janelas sem margem estimada, uma pequena entrada Saves abre a lista. A lista expandida pode cobrir parte do jogo durante a pausa. `emuatlas_reduce_motion = "true"` na configuração RetroArch reduz as animações.
 
@@ -78,7 +78,7 @@ RASTATE v1 é validado por estrutura, memória e terminador. Contêineres RZIP v
 3. Copiar a versão selecionada para um slot nativo temporário alto, depois da cópia de segurança.
 4. Registrar a intenção e publicar sem sobrescrita, com hash verificado e sincronização em disco.
 5. Solicitar LOAD_STATE_SLOT e aguardar callback nativo, ausência de erro e status posterior.
-6. Avançar um frame atrás da imagem centralizada, aguardar o ciclo do emulador, liberar a pausa assumida pela interface e fazer a transição suave.
+6. Solicitar continuação atrás da imagem centralizada, aguardar PLAYING em dois ciclos posteriores e fazer a transição suave para os frames restaurados.
 7. Limpar apenas a cópia derivada de carregamento sob assinatura e hash correspondentes.
 
 Uma recusa tenta recuperar o momento anterior e informa o resultado. Uma solicitação nativa já enviada continua aguardando confirmação, pois a API não fornece cancelamento seguro. Após interrupção, a próxima sessão reconcilia cópias de carregamento registradas. Arquivos divergentes são preservados. Versões históricas permanecem disponíveis.

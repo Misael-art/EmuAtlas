@@ -398,9 +398,10 @@ class SaveShelf:
                 return
             if "released" not in self.loading:
                 self.loading["released"] = now
-                self.loading["await_playing"] = self.backend.paused_by_us
-                self.backend.request("pause", False)
-            if self.loading["await_playing"] and self.backend.status != "PLAYING":
+                self.loading["resume_status"] = self.backend.status_generation
+                self.backend.request("resume")
+            if (self.backend.status != "PLAYING" or
+                    self.backend.status_generation < self.loading["resume_status"] + 2):
                 return
             if "fade_start" not in self.loading:
                 self.loading["fade_start"] = now
