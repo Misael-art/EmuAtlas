@@ -9,12 +9,15 @@ in emulator/.incoming/ and the installer verifies it the same way.
 
 from __future__ import annotations
 
+import ctypes
+import errno
 import hashlib
 import json
 import os
 import shutil
 import subprocess
 import tempfile
+import uuid
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -32,11 +35,14 @@ ROLLBACK_CHANGE_TYPE = "portable_runtime_rollback"
 
 def _library_tree(directory: Path) -> list[dict]:
     """Complete inventory, including link literals; never follows directory links."""
+    def unreadable(error):
+        raise error
+
     if directory.is_file() and not directory.is_symlink():
         return [{'path': '', 'kind': 'file', 'size_bytes': directory.stat().st_size,
                  'sha256': _sha256(directory), 'mode': directory.stat().st_mode & 0o777}]
     rows = []
-    for parent, directories, files in os.walk(directory, followlinks=False):
+    for parent, directories, files in os.walk(directory, followlinks=False, onerror=unreadable):
         for name in sorted(directories + files):
             path = Path(parent) / name
             relative = path.relative_to(directory).as_posix()
@@ -61,6 +67,95 @@ def _library_tree(directory: Path) -> list[dict]:
             else:
                 raise ValueError(f"Arquivo especial preservado: {path}")
     return sorted(rows, key=lambda row: row["path"])
+
+
+def _sync_library_copy(directory: Path, inventory: list[dict]) -> None:
+    """Flush copied bytes and directory entries before publishing their root."""
+    parents = {directory.parent}
+    for row in inventory:
+        path = directory / row['path'] if row['path'] else directory
+        if row['kind'] == 'file':
+            mode = path.stat().st_mode & 0o777
+            if not mode & 0o400:
+                path.chmod(mode | 0o400)
+            try:
+                with path.open('rb') as stream:
+                    if not mode & 0o400:
+                        path.chmod(mode)
+                    os.fsync(stream.fileno())
+            finally:
+                if not mode & 0o400:
+                    path.chmod(mode)
+            parents.add(path.parent)
+        elif row['kind'] == 'directory':
+            parents.add(path)
+    if directory.is_dir():
+        parents.add(directory)
+    for parent in sorted(parents, key=lambda path: len(path.parts), reverse=True):
+        romtool.sync_directory_chain(parent)
+
+
+def _rename_library_path(root: Path, source: Path, destination: Path, move: dict,
+                         manifest: dict, opdir: Path, phase: str) -> None:
+    """Retain root permissions and ownership evidence across an interrupted rename."""
+    for path in (source, destination):
+        _library_target(root, path.relative_to(root).as_posix())
+    paths = {'source': source.relative_to(root).as_posix(),
+             'destination': destination.relative_to(root).as_posix()}
+    checkpoints = move.setdefault('rename_checkpoints', {})
+    checkpoint = checkpoints.get(phase)
+    if checkpoint is None:
+        info = source.stat()
+        checkpoint = {**paths, 'mode': info.st_mode & 0o777,
+                      'directory': source.is_dir(), 'device': info.st_dev, 'inode': info.st_ino,
+                      'filesystem_id': os.statvfs(source).f_fsid}
+        checkpoints[phase] = checkpoint
+        romtool.atomic_json(opdir / 'manifest.json', manifest)
+    if any(checkpoint[key] != value for key, value in paths.items()):
+        raise ValueError('Caminhos do checkpoint de rename divergentes')
+    if source.exists() and destination.exists():
+        raise ValueError('Destino de rename ocupado: ' + str(destination))
+    current = source if source.exists() else destination
+    info = current.stat()
+    if (os.statvfs(current).f_fsid, info.st_ino) != (checkpoint['filesystem_id'], checkpoint['inode']):
+        raise ValueError('Inode do rename mudou: ' + str(current))
+    mode = checkpoint['mode']
+    temporary_mode = mode | 0o200 if checkpoint['directory'] else mode
+    if (info.st_mode & 0o777) not in {mode, temporary_mode}:
+        raise ValueError('Permissões do rename mudaram: ' + str(current))
+    if source.exists():
+        try:
+            if checkpoint['directory']:
+                source.chmod(temporary_mode)
+            _library_rename_exclusive(source, destination)
+        finally:
+            for path in (source, destination):
+                if path.exists():
+                    info = path.stat()
+                    if (os.statvfs(path).f_fsid, info.st_ino) == (checkpoint['filesystem_id'], checkpoint['inode']):
+                        path.chmod(mode)
+    elif checkpoint['directory']:
+        destination.chmod(mode)
+    if checkpoint['directory']:
+        romtool.sync_directory_chain(destination)
+    source_parent = source.parent
+    while not source_parent.exists():
+        source_parent = source_parent.parent
+    romtool.sync_directory_chain(source_parent)
+    romtool.sync_directory_chain(destination.parent)
+    checkpoint['complete'] = True
+    romtool.atomic_json(opdir / 'manifest.json', manifest)
+
+
+def _library_rename_exclusive(source: Path, destination: Path) -> None:
+    rename = getattr(ctypes.CDLL(None, use_errno=True), 'renameat2', None)
+    if rename is None:
+        raise OSError(errno.ENOTSUP, 'renameat2 indisponível; original preservado')
+    rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    rename.restype = ctypes.c_int
+    if rename(-100, os.fsencode(source), -100, os.fsencode(destination), 1):
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code), str(source), None, str(destination))
 
 
 def _library_guard(root: Path) -> None:
@@ -255,17 +350,31 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         _library_guard(root)
-        if action == 'apply' and manifest['status'] not in ('prepared', 'failed'):
+        if action == 'apply' and manifest['status'] not in ('prepared', 'failed', 'applying'):
             raise ValueError('Apply requer plano prepared ou checkpoint failed')
-        if action == 'rollback' and manifest['status'] not in ('completed_verified', 'applied', 'failed'):
+        if action == 'rollback' and manifest['status'] not in ('completed_verified', 'applied', 'failed', 'applying', 'rolling_back'):
             raise ValueError('Rollback requer operação aplicada')
-        applied = manifest['status'] in ('completed_verified', 'applied', 'failed')
+        applied = manifest['status'] in ('completed_verified', 'applied', 'failed', 'applying', 'rolling_back')
         # Recheck every precondition before the first mutation.
         for move in manifest['moves']:
             source = _library_source(root, move)
             destination = _library_target(root, move['destination'])
             at_destination = destination.exists() if applied else False
             directory = destination if at_destination else source
+            intent = {'source': move['source'], 'destination': move['destination']}
+            if (action == 'apply' and at_destination and manifest.get('durable_moves')
+                    and move.get('move_intent') != intent):
+                raise ValueError('Destino sem intenção durável comprovada: ' + move['destination'])
+            preserved_copy = opdir / 'rollback/imported' / move['destination']
+            if (action == 'rollback' and move.get('action') == 'copy'
+                    and not at_destination and not preserved_copy.exists()):
+                checkpoint = move.get('rename_checkpoints', {}).get('apply')
+                if (move.get('apply_completed') or checkpoint and
+                        (checkpoint.get('complete') or not (root / checkpoint['source']).exists())):
+                    raise ValueError('Importação publicada ausente; reconciliar: ' + move['destination'])
+            if (action == 'rollback' and move.get('action') == 'copy' and not at_destination
+                    and move.get('rollback_intent') and preserved_copy.exists()):
+                directory = preserved_copy
             expected = [dict(row) for row in move['files']]
             if applied and action == 'verify':
                 for edit in manifest['edits']:
@@ -289,7 +398,8 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
                                 row['size_bytes'] = actual_path.stat().st_size
             if not directory.exists() or _library_tree(directory) != expected:
                 raise ValueError(f'Inventário/SHA divergente: {directory}')
-            if action == 'apply' and destination.exists() and (not applied or source.exists()):
+            if (action == 'apply' and destination.exists() and
+                    (not applied or (source.exists() and move.get('action') != 'copy'))):
                 raise ValueError(f'Destino existente preservado: {destination}')
             if action == 'rollback' and source.exists() and at_destination and move.get('action') != 'copy':
                 raise ValueError(f'Origem reapareceu: {source}')
@@ -312,10 +422,26 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
         if action == 'verify':
             manifest['status'] = 'completed_verified'
         elif action == 'apply':
+            manifest['status'] = 'applying'
+            manifest['durable_moves'] = True
+            romtool.atomic_json(opdir / 'manifest.json', manifest)
             try:
-                for move in manifest['moves']:
+                for index, move in enumerate(manifest['moves']):
                     source, destination = _library_source(root, move), root / move['destination']
+                    move['move_intent'] = {'source': move['source'], 'destination': move['destination']}
+                    romtool.atomic_json(opdir / 'manifest.json', manifest)
                     if destination.exists() and (not source.exists() or move.get('action') == 'copy'):
+                        checkpoint = move.get('rename_checkpoints', {}).get('apply')
+                        if checkpoint:
+                            _rename_library_path(root, root / checkpoint['source'], destination,
+                                                 move, manifest, opdir, 'apply')
+                        else:
+                            romtool.sync_directory_chain(destination.parent)
+                            romtool.sync_directory_chain(source.parent)
+                        if move.get('action') == 'copy':
+                            _sync_library_copy(destination, move['files'])
+                        move['apply_completed'] = True
+                        romtool.atomic_json(opdir / 'manifest.json', manifest)
                         continue
                     missing = []
                     parent = destination.parent
@@ -333,21 +459,45 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
                     if move.get('action') == 'copy':
                         if any(row['kind'] == 'symlink' for row in move['files']):
                             raise ValueError('Importação Dolphin não admite symlinks')
-                        if source.is_dir():
-                            shutil.copytree(source, destination, symlinks=False)
-                        else:
-                            shutil.copy2(source, destination)
-                        if _library_tree(destination) != move['files'] or _library_tree(source) != move['files']:
+                        staging = opdir / 'staging/library-copies' / str(index)
+                        _library_target(root, staging.relative_to(root).as_posix())
+                        staging.parent.mkdir(parents=True, exist_ok=True)
+                        for phase, checkpoint in list(move.get('rename_checkpoints', {}).items()):
+                            if not phase.startswith('partial-'):
+                                continue
+                            if not checkpoint.get('complete'):
+                                _rename_library_path(root, root / checkpoint['source'],
+                                                     root / checkpoint['destination'], move, manifest, opdir, phase)
+                            retained = (root / checkpoint['destination']).relative_to(opdir).as_posix()
+                            if retained not in move.get('interrupted_copies', []):
+                                move.setdefault('interrupted_copies', []).append(retained)
+                                romtool.atomic_json(opdir / 'manifest.json', manifest)
+                        if staging.exists() and _library_tree(staging) != move['files']:
+                            phase = 'partial-' + uuid.uuid4().hex
+                            partial = opdir / 'rollback/interrupted-copies' / (str(index) + '-' + phase)
+                            partial.parent.mkdir(parents=True, exist_ok=True)
+                            _rename_library_path(root, staging, partial, move, manifest, opdir, phase)
+                            move.setdefault('interrupted_copies', []).append(partial.relative_to(opdir).as_posix())
+                            romtool.atomic_json(opdir / 'manifest.json', manifest)
+                        if not staging.exists():
+                            if source.is_dir():
+                                shutil.copytree(source, staging, symlinks=False)
+                            else:
+                                shutil.copy2(source, staging)
+                        if _library_tree(staging) != move['files'] or _library_tree(source) != move['files']:
                             raise ValueError('Importação divergiu da fonte validada')
+                        _sync_library_copy(staging, move['files'])
+                        if destination.exists():
+                            raise ValueError('Destino da importação apareceu durante a cópia')
+                        _rename_library_path(root, staging, destination, move, manifest, opdir, 'apply')
+                        move['apply_completed'] = True
+                        romtool.atomic_json(opdir / 'manifest.json', manifest)
                         romtool.append_event(operation_id, 'dolphin_data_imported', action='library_apply',
                                              status='applied', source=move['source_absolute'], destination=move['destination'])
                         continue
-                    original_mode = source.stat().st_mode & 0o777
-                    source.chmod(original_mode | 0o200)
-                    try:
-                        source.rename(destination)
-                    finally:
-                        (destination if destination.exists() else source).chmod(original_mode)
+                    _rename_library_path(root, source, destination, move, manifest, opdir, 'apply')
+                    move['apply_completed'] = True
+                    romtool.atomic_json(opdir / 'manifest.json', manifest)
                     romtool.append_event(operation_id, 'runtime_moved', action='library_apply', status='applied',
                                          source=move['source'], destination=move['destination'])
                 for edit in manifest['edits']:
@@ -364,13 +514,19 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
                     data = (opdir / 'proposed' / edit['path']).read_bytes()
                     if hashlib.sha256(data).hexdigest() != edit['sha256_after']:
                         raise ValueError('Snapshot alterado: ' + edit['path'])
+                    edit['write_intent'] = {'sha256': edit['sha256_after']}
+                    romtool.atomic_json(opdir / 'manifest.json', manifest)
                     romtool.atomic_write_bytes(path, data, mode=edit['mode'])
+                    edit['write_completed'] = True
+                    romtool.atomic_json(opdir / 'manifest.json', manifest)
                 manifest['status'] = 'applied'
             except Exception:
                 manifest['status'] = 'failed'
                 romtool.atomic_json(opdir / 'manifest.json', manifest)
                 raise
         else:
+            manifest['status'] = 'rolling_back'
+            romtool.atomic_json(opdir / 'manifest.json', manifest)
             for edit in reversed(manifest['edits']):
                 path = root / edit['path']
                 if edit.get('after_move') and not path.exists():
@@ -380,8 +536,16 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
                             break
                 if edit['sha256_before'] is None:
                     preserved = opdir / 'rollback/applied-files' / edit['path']
+                    if not path.exists() and not edit.get('write_intent') and manifest.get('durable_moves'):
+                        continue
+                    if not path.exists() and preserved.is_file() and _sha256(preserved) == edit['sha256_after']:
+                        if edit.get('rename_checkpoints', {}).get('rollback-created-file'):
+                            _rename_library_path(root, path, preserved, edit, manifest, opdir, 'rollback-created-file')
+                        continue
                     preserved.parent.mkdir(parents=True, exist_ok=True)
-                    path.rename(preserved)
+                    if preserved.exists():
+                        raise ValueError('Destino de preservação ocupado: ' + edit['path'])
+                    _rename_library_path(root, path, preserved, edit, manifest, opdir, 'rollback-created-file')
                     continue
                 before = (opdir / 'rollback/files' / edit['path']).read_bytes()
                 if hashlib.sha256(before).hexdigest() != edit['sha256_before']:
@@ -390,23 +554,39 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
             for move in reversed(manifest['moves']):
                 source = root / move['destination']
                 destination = _library_source(root, move)
+                rollback_target = ((opdir / 'rollback/imported' / move['destination']).relative_to(root).as_posix()
+                                   if move.get('action') == 'copy' else move['source'])
+                move['rollback_intent'] = {'source': move['destination'], 'destination': rollback_target}
+                romtool.atomic_json(opdir / 'manifest.json', manifest)
                 if move.get('action') == 'copy':
                     preserved = opdir / 'rollback/imported' / move['destination']
+                    if not source.exists() and not preserved.exists():
+                        # A copy interrupted in staging has never entered the shared library.
+                        # Its original and private staging remain available for inspection.
+                        continue
+                    if not source.exists() and preserved.exists() and _library_tree(preserved) == move['files']:
+                        if move.get('rename_checkpoints', {}).get('rollback'):
+                            _rename_library_path(root, source, preserved, move, manifest, opdir, 'rollback')
+                        continue
                     preserved.parent.mkdir(parents=True, exist_ok=True)
-                    source.rename(preserved)
+                    if preserved.exists():
+                        raise ValueError('Destino de preservação da importação ocupado')
+                    _rename_library_path(root, source, preserved, move, manifest, opdir, 'rollback')
+                    move['rollback_completed'] = True
+                    romtool.atomic_json(opdir / 'manifest.json', manifest)
                     continue
-                if not source.exists() and destination.is_dir():
+                if not source.exists() and destination.exists():
+                    if move.get('rename_checkpoints', {}).get('rollback'):
+                        _rename_library_path(root, source, destination, move, manifest, opdir, 'rollback')
                     continue
-                mode = source.stat().st_mode & 0o777
-                source.chmod(mode | 0o200)
-                try:
-                    source.rename(destination)
-                finally:
-                    (destination if destination.exists() else source).chmod(mode)
+                _rename_library_path(root, source, destination, move, manifest, opdir, 'rollback')
+                move['rollback_completed'] = True
+                romtool.atomic_json(opdir / 'manifest.json', manifest)
             for relative in reversed(manifest.get('created_directories', [])):
                 directory = _library_target(root, relative)
                 if directory.is_dir() and not any(directory.iterdir()):
                     directory.rmdir()
+                    romtool.sync_directory_chain(directory.parent)
             manifest['status'] = 'rolled_back'
         romtool.atomic_json(opdir / 'manifest.json', manifest)
         romtool.append_event(operation_id, 'library_' + action, action='library_' + action,

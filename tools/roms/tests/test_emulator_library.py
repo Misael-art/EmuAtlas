@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import shlex
 import struct
@@ -14,6 +15,10 @@ import zipfile
 from tools.roms import romtool, runtime_install as runtime
 from tools.roms import portable_emulator, native_bindings
 from tools.roms.frontend_projection import esde_projection
+
+
+class Interruption(BaseException):
+    pass
 
 
 def pe64():
@@ -44,6 +49,312 @@ class NativeLibraryTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(value))
         return path
+
+    def migration_fixture(self, names=('example',), regular_file=False, new_reference=False):
+        operation_id = 'migration-fixture-' + '-'.join(names)
+        operation = romtool.operation_dir(operation_id)
+        moves = []
+        for name in names:
+            source = self.root / 'tools/roms/runtimes' / name
+            source.parent.mkdir(parents=True, exist_ok=True)
+            if regular_file:
+                source.write_bytes(b'own payload ' + name.encode())
+                source.chmod(0o444)
+            else:
+                source.mkdir()
+                (source / 'runtime.bin').write_bytes(b'own payload ' + name.encode())
+                source.chmod(0o555)
+            moves.append({'source': source.relative_to(self.root).as_posix(),
+                          'destination': 'emulator/linux/' + name, 'files': runtime._library_tree(source)})
+        edits = []
+        if new_reference:
+            relative = 'frontend/RetroFE/Config/new.json'
+            proposal = operation / 'proposed' / relative
+            proposal.parent.mkdir(parents=True)
+            proposal.write_bytes(b'new fixture reference')
+            edits.append({'path': relative, 'sha256_before': None,
+                          'sha256_after': runtime._sha256(proposal), 'mode': 0o640})
+        romtool.atomic_json(operation / 'manifest.json', {
+            'operation_id': operation_id, 'kind': 'emulator_library_migration',
+            'status': 'prepared', 'moves': moves, 'edits': edits})
+        return operation_id, operation, moves
+
+    def copy_fixture(self):
+        home = self.root.parent / 'old host'
+        source = home / '.var/app/org.flycast.Flycast/data/flycast'
+        source.mkdir(parents=True)
+        (source / 'save-a.bin').write_bytes(b'own save A')
+        (source / 'save-b.bin').write_bytes(b'own save B')
+        source.chmod(0o555)
+        operation_id = 'copy-fixture'
+        operation = romtool.operation_dir(operation_id)
+        move = {'action': 'copy', 'external_app': 'org.flycast.Flycast',
+                'external_source': 'data/flycast', 'source_absolute': str(source), 'source': str(source),
+                'destination': 'emulator/data/Flycast/data/flycast', 'files': runtime._library_tree(source)}
+        romtool.atomic_json(operation / 'manifest.json', {
+            'operation_id': operation_id, 'kind': 'emulator_library_migration',
+            'status': 'prepared', 'moves': [move], 'edits': []})
+        return home, source, self.root / move['destination'], operation_id, operation
+
+    def test_move_resumes_after_rename_and_restores_interrupted_readonly_directory_mode(self):
+        ident, operation, moves = self.migration_fixture()
+        original = runtime._library_rename_exclusive
+        def cut(source, destination):
+            original(source, destination)
+            raise Interruption()
+        with patch.object(runtime, '_library_rename_exclusive', side_effect=cut):
+            with self.assertRaises(Interruption):
+                runtime.library_execute(self.root, ident, 'apply', True)
+        manifest = json.loads((operation / 'manifest.json').read_text())
+        self.assertEqual(manifest['status'], 'applying')
+        destination = self.root / moves[0]['destination']
+        destination.chmod(0o755)  # Model the permission left by a power cut before finally.
+        runtime.library_execute(self.root, ident, 'apply', True)
+        runtime.library_execute(self.root, ident, 'verify')
+        self.assertEqual(destination.stat().st_mode & 0o777, 0o555)
+        self.assertFalse((self.root / moves[0]['source']).exists())
+
+    def test_move_resumes_after_directory_sync_failure_and_preserves_readonly_file(self):
+        ident, operation, moves = self.migration_fixture(regular_file=True)
+        destination = self.root / moves[0]['destination']
+        synchronize = romtool.sync_directory_chain
+        failed = False
+        def fail_after_rename(path):
+            nonlocal failed
+            if not failed and destination.exists():
+                failed = True
+                raise OSError('fixture directory sync interruption')
+            synchronize(path)
+        with patch.object(romtool, 'sync_directory_chain', side_effect=fail_after_rename):
+            with self.assertRaises(OSError):
+                runtime.library_execute(self.root, ident, 'apply', True)
+        runtime.library_execute(self.root, ident, 'apply', True)
+        runtime.library_execute(self.root, ident, 'verify')
+        self.assertEqual(destination.stat().st_mode & 0o777, 0o444)
+
+    def test_atomic_noreplace_preserves_a_destination_created_after_preflight(self):
+        ident, operation, moves = self.migration_fixture()
+        original = runtime._library_rename_exclusive
+        def collide(source, destination):
+            destination.mkdir(mode=0o700)
+            original(source, destination)
+        with patch.object(runtime, '_library_rename_exclusive', side_effect=collide):
+            with self.assertRaises(FileExistsError):
+                runtime.library_execute(self.root, ident, 'apply', True)
+        self.assertTrue((self.root / moves[0]['source']).is_dir())
+        self.assertEqual((self.root / moves[0]['source']).stat().st_mode & 0o777, 0o555)
+        self.assertEqual((self.root / moves[0]['destination']).stat().st_mode & 0o777, 0o700)
+
+    def test_resume_refuses_an_identical_replacement_inode(self):
+        ident, operation, moves = self.migration_fixture()
+        original = runtime._library_rename_exclusive
+        def cut(source, destination):
+            original(source, destination)
+            raise Interruption()
+        with patch.object(runtime, '_library_rename_exclusive', side_effect=cut):
+            with self.assertRaises(Interruption):
+                runtime.library_execute(self.root, ident, 'apply', True)
+        destination = self.root / moves[0]['destination']
+        retained = self.root / 'retained-original'
+        destination.chmod(0o755)
+        destination.rename(retained)
+        shutil.copytree(retained, destination)
+        with self.assertRaisesRegex(ValueError, 'Inode'):
+            runtime.library_execute(self.root, ident, 'apply', True)
+        self.assertEqual((retained / 'runtime.bin').read_bytes(), (destination / 'runtime.bin').read_bytes())
+
+    def test_resume_uses_filesystem_identity_when_device_numbers_change(self):
+        ident, operation, moves = self.migration_fixture()
+        original = runtime._library_rename_exclusive
+        def cut(source, destination):
+            original(source, destination)
+            raise Interruption()
+        with patch.object(runtime, '_library_rename_exclusive', side_effect=cut):
+            with self.assertRaises(Interruption):
+                runtime.library_execute(self.root, ident, 'apply', True)
+        manifest = json.loads((operation / 'manifest.json').read_text())
+        manifest['moves'][0]['rename_checkpoints']['apply']['device'] += 1000
+        romtool.atomic_json(operation / 'manifest.json', manifest)
+        runtime.library_execute(self.root, ident, 'apply', True)
+        self.assertTrue((self.root / moves[0]['destination']).exists())
+
+    def test_partial_rollback_resumes_for_regular_files_and_directories(self):
+        for regular_file in (False, True):
+            with self.subTest(regular_file=regular_file):
+                names = ('file-a', 'file-b') if regular_file else ('dir-a', 'dir-b')
+                ident, operation, moves = self.migration_fixture(names, regular_file=regular_file)
+                runtime.library_execute(self.root, ident, 'apply', True)
+                original = runtime._library_rename_exclusive
+                def cut(source, destination):
+                    original(source, destination)
+                    raise Interruption()
+                with patch.object(runtime, '_library_rename_exclusive', side_effect=cut):
+                    with self.assertRaises(Interruption):
+                        runtime.library_execute(self.root, ident, 'rollback', True)
+                self.assertEqual(json.loads((operation / 'manifest.json').read_text())['status'], 'rolling_back')
+                runtime.library_execute(self.root, ident, 'rollback', True)
+                self.assertTrue(all((self.root / move['source']).exists() for move in moves))
+                self.assertTrue(all(not (self.root / move['destination']).exists() for move in moves))
+
+    def test_rollback_skips_new_reference_not_reached_before_an_interruption(self):
+        ident, operation, moves = self.migration_fixture(new_reference=True)
+        original = runtime._library_rename_exclusive
+        def cut(source, destination):
+            original(source, destination)
+            raise Interruption()
+        with patch.object(runtime, '_library_rename_exclusive', side_effect=cut):
+            with self.assertRaises(Interruption):
+                runtime.library_execute(self.root, ident, 'apply', True)
+        runtime.library_execute(self.root, ident, 'rollback', True)
+        self.assertFalse((self.root / 'frontend/RetroFE/Config/new.json').exists())
+        self.assertTrue((self.root / moves[0]['source']).exists())
+
+    def test_created_reference_rollback_resumes_after_its_preservation_rename(self):
+        ident, operation, moves = self.migration_fixture(new_reference=True)
+        runtime.library_execute(self.root, ident, 'apply', True)
+        original = runtime._library_rename_exclusive
+        def cut(source, destination):
+            original(source, destination)
+            raise Interruption()
+        with patch.object(runtime, '_library_rename_exclusive', side_effect=cut):
+            with self.assertRaises(Interruption):
+                runtime.library_execute(self.root, ident, 'rollback', True)
+        runtime.library_execute(self.root, ident, 'rollback', True)
+        self.assertEqual((operation / 'rollback/applied-files/frontend/RetroFE/Config/new.json').read_bytes(),
+                         b'new fixture reference')
+        self.assertFalse((self.root / 'frontend/RetroFE/Config/new.json').exists())
+
+    def test_partial_import_stays_outside_canonical_data_and_is_preserved_on_retry(self):
+        home, source, destination, ident, operation = self.copy_fixture()
+        def cut_copy(original, target, **kwargs):
+            target.mkdir()
+            (target / 'save-a.bin').write_bytes((original / 'save-a.bin').read_bytes())
+            (target / 'save-b.bin').write_bytes(b'own')
+            raise Interruption()
+        with patch.object(Path, 'home', return_value=home):
+            with patch.object(runtime.shutil, 'copytree', side_effect=cut_copy):
+                with self.assertRaises(Interruption):
+                    runtime.library_execute(self.root, ident, 'apply', True)
+            self.assertFalse(destination.exists())
+            runtime.library_execute(self.root, ident, 'apply', True)
+            runtime.library_execute(self.root, ident, 'verify')
+        manifest = json.loads((operation / 'manifest.json').read_text())
+        partial = operation / manifest['moves'][0]['interrupted_copies'][0]
+        self.assertEqual((partial / 'save-b.bin').read_bytes(), b'own')
+        self.assertEqual(runtime._library_tree(source), runtime._library_tree(destination))
+        self.assertEqual(destination.stat().st_mode & 0o777, 0o555)
+
+    def test_complete_import_staging_is_reused_after_sync_interruption(self):
+        home, source, destination, ident, operation = self.copy_fixture()
+        synchronize = runtime._sync_library_copy
+        def cut_sync(path, inventory):
+            synchronize(path, inventory)
+            raise Interruption()
+        with patch.object(Path, 'home', return_value=home):
+            with patch.object(runtime, '_sync_library_copy', side_effect=cut_sync):
+                with self.assertRaises(Interruption):
+                    runtime.library_execute(self.root, ident, 'apply', True)
+            self.assertFalse(destination.exists())
+            with patch.object(runtime.shutil, 'copytree', side_effect=AssertionError('verified copy must be reused')):
+                runtime.library_execute(self.root, ident, 'apply', True)
+        self.assertEqual(runtime._library_tree(source), runtime._library_tree(destination))
+
+    def test_partial_copy_rollback_preserves_staging_and_external_original(self):
+        home, source, destination, ident, operation = self.copy_fixture()
+        def cut_copy(original, target, **kwargs):
+            target.mkdir()
+            (target / 'save-a.bin').write_bytes(b'partial own save')
+            raise Interruption()
+        with patch.object(Path, 'home', return_value=home):
+            with patch.object(runtime.shutil, 'copytree', side_effect=cut_copy):
+                with self.assertRaises(Interruption):
+                    runtime.library_execute(self.root, ident, 'apply', True)
+            runtime.library_execute(self.root, ident, 'rollback', True)
+        self.assertFalse(destination.exists())
+        self.assertEqual((source / 'save-a.bin').read_bytes(), b'own save A')
+        self.assertEqual((operation / 'staging/library-copies/0/save-a.bin').read_bytes(), b'partial own save')
+
+    def test_partial_copy_retention_resumes_after_rename_before_registration(self):
+        home, source, destination, ident, operation = self.copy_fixture()
+        staging = operation / 'staging/library-copies/0'
+        staging.mkdir(parents=True)
+        (staging / 'save-a.bin').write_bytes(b'partial own save')
+        original = runtime._library_rename_exclusive
+        def cut(current, target):
+            original(current, target)
+            raise Interruption()
+        with patch.object(Path, 'home', return_value=home):
+            with patch.object(runtime, '_library_rename_exclusive', side_effect=cut):
+                with self.assertRaises(Interruption):
+                    runtime.library_execute(self.root, ident, 'apply', True)
+            runtime.library_execute(self.root, ident, 'apply', True)
+            runtime.library_execute(self.root, ident, 'verify')
+        manifest = json.loads((operation / 'manifest.json').read_text())
+        retained = manifest['moves'][0]['interrupted_copies']
+        self.assertEqual(len(retained), 1)
+        self.assertEqual((operation / retained[0] / 'save-a.bin').read_bytes(), b'partial own save')
+        self.assertEqual(runtime._library_tree(source), runtime._library_tree(destination))
+
+    def test_import_reuses_publication_after_rename_before_checkpoint(self):
+        home, source, destination, ident, operation = self.copy_fixture()
+        original = runtime._library_rename_exclusive
+        def cut(current, target):
+            original(current, target)
+            raise Interruption()
+        with patch.object(Path, 'home', return_value=home):
+            with patch.object(runtime, '_library_rename_exclusive', side_effect=cut):
+                with self.assertRaises(Interruption):
+                    runtime.library_execute(self.root, ident, 'apply', True)
+            with patch.object(runtime.shutil, 'copytree', side_effect=AssertionError('published bytes must be reused')):
+                runtime.library_execute(self.root, ident, 'apply', True)
+            runtime.library_execute(self.root, ident, 'verify')
+        self.assertEqual(runtime._library_tree(source), runtime._library_tree(destination))
+
+    def test_rollback_resumes_after_cleanup_before_final_manifest(self):
+        ident, operation, moves = self.migration_fixture(new_reference=True)
+        runtime.library_execute(self.root, ident, 'apply', True)
+        publish = romtool.atomic_json
+        def cut(path, value):
+            if path == operation / 'manifest.json' and value.get('status') == 'rolled_back':
+                raise Interruption()
+            publish(path, value)
+        with patch.object(romtool, 'atomic_json', side_effect=cut):
+            with self.assertRaises(Interruption):
+                runtime.library_execute(self.root, ident, 'rollback', True)
+        self.assertFalse((self.root / 'emulator').exists())
+        runtime.library_execute(self.root, ident, 'rollback', True)
+        self.assertTrue((self.root / moves[0]['source']).exists())
+
+    def test_import_rollback_resumes_without_overwriting_later_external_save_changes(self):
+        home, source, destination, ident, operation = self.copy_fixture()
+        with patch.object(Path, 'home', return_value=home):
+            runtime.library_execute(self.root, ident, 'apply', True)
+            original = runtime._library_rename_exclusive
+            def cut(current, target):
+                original(current, target)
+                raise Interruption()
+            with patch.object(runtime, '_library_rename_exclusive', side_effect=cut):
+                with self.assertRaises(Interruption):
+                    runtime.library_execute(self.root, ident, 'rollback', True)
+            (source / 'save-a.bin').write_bytes(b'later personal external save')
+            runtime.library_execute(self.root, ident, 'rollback', True)
+        self.assertFalse(destination.exists())
+        self.assertEqual((source / 'save-a.bin').read_bytes(), b'later personal external save')
+        self.assertEqual((operation / 'rollback/imported/emulator/data/Flycast/data/flycast/save-a.bin').read_bytes(),
+                         b'own save A')
+
+    def test_unreadable_directory_never_passes_as_an_empty_inventory(self):
+        if os.geteuid() == 0:
+            self.skipTest('root bypasses the filesystem permission fixture')
+        directory = self.root / 'unreadable'
+        directory.mkdir()
+        (directory / 'hidden.bin').write_bytes(b'own hidden payload')
+        directory.chmod(0)
+        try:
+            with self.assertRaises(PermissionError):
+                runtime._library_tree(directory)
+        finally:
+            directory.chmod(0o700)
 
     def test_frontend_defaults_to_project_cores_and_preserves_explicit_override(self):
         source = (Path(__file__).resolve().parents[3] /

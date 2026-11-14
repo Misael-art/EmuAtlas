@@ -67,6 +67,10 @@ As preimagens de catálogo, pendências e estado usam cópias CoW quando dispon�
 
 Apply e rollback mantêm checkpoints recuperáveis entre o rename e a atualização do item. A publicação repetida dos registros de uma mesma operação mantém uma única entrada corrente de catálogo para cada origem selecionada.
 
+O executor Linux `emutool library` também persiste intenção, identidade do filesystem/inode, permissões e checkpoints de aplicação/reversão. A publicação usa `renameat2` com `RENAME_NOREPLACE` e sincroniza os diretórios envolvidos. Uma colisão posterior à revisão preserva o destino existente. Diretórios somente leitura recebem temporariamente escrita do proprietário para atualizar seu pai, com o modo original registrado e restaurado na retomada. [Documentação de rename](https://man7.org/linux/man-pages/man2/rename.2.html)
+
+Importações selecionadas usam `operations/<id>/staging/library-copies/`, verificam os inventários de fonte e staging e sincronizam os arquivos antes da publicação. Cópias parciais permanecem em `rollback/interrupted-copies/`. A reversão preserva importações publicadas em `rollback/imported/` e arquivos de configuração criados em `rollback/applied-files/`. Os testes pequenos cobrem interrupções entre essas etapas, permissões somente leitura, colisões e mudanças posteriores. A execução nativa em Windows permanece pendente.
+
 ## Sequência da próxima tarefa
 
 1. Ler as instruções do projeto e a evidência local da interrupção. Medir recursos e identificar outras cargas antes de executar verificações ou aplicar planos.
