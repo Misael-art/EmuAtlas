@@ -328,9 +328,13 @@ def _validate(path, api, *, pdf_linearization_review=False, pdf_stream_eol_revie
         if result.returncode:
             raise ValueError("Decodificação integral da imagem falhou")
         return info
-    if ext == ".mp4":
+    if ext in {".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v",
+               ".mp3", ".ogg", ".flac", ".wav", ".m4a", ".aac", ".opus"}:
         info = optimizer._probe_av(path)
-        optimizer._decode_video(path)
+        expected = "audio" if ext in {".mp3", ".ogg", ".flac", ".wav", ".m4a", ".aac", ".opus"} else "video"
+        if not any(stream.get("codec_type") == expected for stream in info["streams"]):
+            raise ValueError(f"Arquivo sem stream {expected} esperado")
+        optimizer._decode_video(path, threads=1)
         return info
     if ext == ".pdf":
         info = optimizer._probe_pdf(path)

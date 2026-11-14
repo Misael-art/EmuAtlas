@@ -212,3 +212,11 @@ O launcher valida o descritor, o vínculo relativo, a pasta canônica e o SFO an
 ## Índice histórico em lotes
 
 `record-change --defer-history-index` e `emutool install apply --defer-history-index` preservam o diário e o manifesto de cada operação e adiam a reconstrução agregada para `romtool history`. O executor de biblioteca respeita `history_index_deferred` declarado pelo plano. O instalador usa essa opção na aquisição Vita3K. A reconstrução deve ocorrer ao consolidar o lote, com margem medida para ler os manifestos históricos.
+
+## Validação da mídia durante o alinhamento de nomes
+
+O plano de nomes No-Intro confere os arquivos associados por basename exato antes de propor a mudança coordenada. Imagens passam pela decodificação integral com limite explícito e histórias precisam conter texto legível. Vídeo e áudio reutilizam a inspeção de streams e a decodificação integral do fluxo de mídia, com uma thread no decodificador e na saída. PDFs reutilizam qpdf e o render de todas as páginas. Avisos de PDF continuam exigindo revisão no fluxo especializado.
+
+A evidência guarda tamanho e SHA-256 dos bytes validados. A aplicação repete a validação antes de mover a ROM e recusa arquivos ou destinos alterados. Planos antigos sem prova integral de mídia visual exigem novo planejamento. Cada original continua protegido pela reversão existente.
+
+A instalação vazia materializa `tools/roms/config/tooling.json` a partir de um template com os perfis aprovados de mídia e seus limites de qualidade. Registros de ferramentas observadas, arquivos pessoais e histórico do host pertencem à instalação que os produziu. A configuração local existente continua protegida pelas verificações de conflito do instalador.

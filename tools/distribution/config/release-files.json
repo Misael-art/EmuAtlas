@@ -767,6 +767,14 @@
     {
       "source": "tools/roms/tests/test_runtime_install.py",
       "target": "tools/roms/tests/test_runtime_install.py"
+    },
+    {
+      "source": "tools/roms/tests/test_variant_organization.py",
+      "target": "tools/roms/tests/test_variant_organization.py"
+    },
+    {
+      "source": "tools/distribution/templates/tools/roms/config/tooling.json",
+      "target": "tools/distribution/templates/tools/roms/config/tooling.json"
     }
   ]
 }

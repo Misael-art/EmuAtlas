@@ -68,14 +68,42 @@ class PdfCompatibilityReviewTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'páginas'):
             session._validate(self.path, {'media_optimizer': self.optimizer}, pdf_stream_eol_review=True)
 
+    def test_audio_and_video_require_their_stream_and_full_serial_decode(self):
+        for suffix, kind in [(".mp4", "video"), (".flac", "audio")]:
+            with self.subTest(suffix=suffix):
+                path = self.path.with_suffix(suffix)
+                with patch.object(media_optimizer, "_probe_av", return_value={"streams": [{"codec_type": kind}]}), \
+                        patch.object(media_optimizer, "_decode_video") as decode:
+                    session._validate(path, {"media_optimizer": media_optimizer})
+                    decode.assert_called_once_with(path, threads=1)
+                with patch.object(media_optimizer, "_probe_av", return_value={"streams": []}), \
+                        patch.object(media_optimizer, "_decode_video") as decode:
+                    with self.assertRaisesRegex(ValueError, "stream"):
+                        session._validate(path, {"media_optimizer": media_optimizer})
+                    decode.assert_not_called()
+
+    def test_serial_decode_limits_input_and_output_threads(self):
+        with patch.object(media_optimizer, "_run", return_value=SimpleNamespace(returncode=0)) as run:
+            media_optimizer._decode_video(self.path.with_suffix(".mp4"), threads=1)
+        command = run.call_args.args[0]
+        self.assertEqual(command.count("-threads"), 2)
+        self.assertEqual([command[index + 1] for index, token in enumerate(command) if token == "-threads"], ["1", "1"])
+        with self.assertRaises(ValueError):
+            media_optimizer._decode_video(self.path, threads=0)
+
 
 @unittest.skipUnless(shutil.which("magick"), "ImageMagick required")
 class MediaSessionTests(unittest.TestCase):
     def setUp(self):
         self.project=Path(__file__).resolve().parents[3]
+        (self.project / "work/roms-consolidation").mkdir(parents=True, exist_ok=True)
         self.temp=tempfile.TemporaryDirectory(prefix="media-session-test-",dir=self.project/"work/roms-consolidation")
         self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name)
+        fixture_tools = self.root / "tools/roms"
+        (fixture_tools / "config").mkdir(parents=True)
+        shutil.copyfile(self.project / "tools/distribution/templates/tools/roms/config/tooling.json",
+                        fixture_tools / "config/tooling.json")
         self.media=self.root/"media"
         self.target=self.media/"nes/cover-front/Title.png"
         self.target.parent.mkdir(parents=True)
@@ -91,7 +119,7 @@ class MediaSessionTests(unittest.TestCase):
         (user/"es_settings.xml").write_text(f'<string name="MediaDirectory" value="{self.media}" />\n<string name="Keep" value="user preference" />\n')
         self.events=[]
         self.api={"PROJECT_ROOT":self.root,"MEDIA_DEST_ROOT":self.media,"OPS_ROOT":self.root/"outputs/operations",
-                  "TOOL_ROOT":self.project/"tools/roms","MEDIA_TYPES":{"cover-front","screenshot"},
+                  "TOOL_ROOT":fixture_tools,"MEDIA_TYPES":{"cover-front","screenshot"},
                   "esde_media":esde_media,"media_optimizer":media_optimizer,
                   "operation_dir":lambda op:self.root/"outputs/operations"/op,
                   "now":lambda:"2026-10-26T00:00:00Z","sha256_file":lambda p:hashlib.sha256(p.read_bytes()).hexdigest(),

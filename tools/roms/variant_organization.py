@@ -10,6 +10,7 @@ import re
 import subprocess
 import tempfile
 import uuid
+import warnings
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from pathlib import Path, PurePosixPath
@@ -846,11 +847,62 @@ def _validate_story_file(path: Path) -> dict:
             break
         except (UnicodeDecodeError, LookupError):
             continue
-    if decoded is None:
+    if decoded is None or not decoded.strip():
         raise ValueError(f"Texto não decodificável: {path}")
     if any(ord(char) < 32 and char not in "\r\n\t\f" for char in decoded):
         raise ValueError(f"Texto contém controles binários: {path}")
     return {"sha256": _sha(data), "size_bytes": len(data), "text_encoding": encoding}
+
+
+def _validate_image_file(path: Path, sha256_file) -> dict:
+    """Verify and fully decode a bounded single-frame image; bind proof to bytes."""
+    from PIL import Image
+
+    formats = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG",
+               ".webp": "WEBP", ".bmp": "BMP", ".gif": "GIF"}
+    expected = formats.get(path.suffix.casefold())
+    if expected is None:
+        raise ValueError("Formato de imagem não suportado")
+    before = sha256_file(path)
+    size_bytes = path.stat().st_size
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(path) as probe:
+                if probe.format != expected or getattr(probe, "n_frames", 1) != 1:
+                    raise ValueError("Formato divergente ou imagem animada/multipágina")
+                width, height = probe.size
+                if width <= 0 or height <= 0 or width * height > 4_000_000:
+                    raise ValueError("Imagem excede limite de quatro megapixels")
+                probe.verify()
+            with Image.open(path) as image:
+                image.load()
+    except (Image.DecompressionBombError, EOFError, SyntaxError) as exc:
+        raise ValueError(f"Falha na decodificação da imagem: {exc}") from exc
+    if path.stat().st_size != size_bytes or sha256_file(path) != before:
+        raise ValueError("Imagem mudou durante a validação")
+    return {"sha256": before, "size_bytes": size_bytes, "validation": "image_full_decode_v1",
+            "image_format": expected, "dimensions": [width, height]}
+
+
+def _validate_associated_media(path: Path, api: dict) -> dict:
+    suffix = path.suffix.casefold()
+    if suffix == ".txt":
+        return _validate_story_file(path)
+    if suffix in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}:
+        return _validate_image_file(path, api["sha256_file"])
+    try:
+        from . import media_optimizer, media_session
+    except ImportError:
+        import media_optimizer
+        import media_session
+    before = api["sha256_file"](path)
+    size_bytes = path.stat().st_size
+    evidence = media_session._validate(path, {"media_optimizer": media_optimizer})
+    if path.stat().st_size != size_bytes or api["sha256_file"](path) != before:
+        raise ValueError("Mídia mudou durante a validação integral")
+    return {"sha256": before, "size_bytes": size_bytes,
+            "validation": "media_full_decode_v1", "format_evidence": evidence}
 
 
 def plan_dat_name_alignment(system_id: str, inventory_operation_id: str, dat_operation_id: str,
@@ -949,9 +1001,13 @@ def plan_dat_name_alignment(system_id: str, inventory_operation_id: str, dat_ope
                                      "media_path": str(media_source)})
                     item_media = []
                     break
-                media_validation = _validate_story_file(media_source) if media_source.suffix.casefold() == ".txt" else {
-                    "sha256": api["sha256_file"](media_source), "size_bytes": media_source.stat().st_size,
-                    "validation": "path_and_byte_hash_only"}
+                try:
+                    media_validation = _validate_associated_media(media_source, api)
+                except (OSError, ValueError, ImportError, Warning, subprocess.TimeoutExpired) as exc:
+                    blockers.append({**considered, "reason": "associated_media_validation_failed",
+                                     "media_path": str(media_source), "detail": str(exc)})
+                    item_media = []
+                    break
                 media_destination = media_source.with_name(target.stem + media_source.suffix)
                 if media_destination.exists() or media_destination.is_symlink():
                     blockers.append({**considered, "reason": "associated_media_destination_collision",
@@ -1116,9 +1172,15 @@ def apply(operation_id: str, confirmed: bool, api: dict) -> dict:
                 raise ValueError(f"Componente de destino é symlink: {component}")
     for item in manifest.get("media_items", []):
         source, destination = Path(item["source"]), Path(item["destination"])
+        is_text = source.suffix.casefold() == ".txt"
+        if not is_text and item.get("validation") not in {"image_full_decode_v1", "media_full_decode_v1"}:
+            raise ValueError(f"Mídia associada exige validação integral não suportada por este plano: {source}")
         if (source.is_symlink() or not source.is_file() or source.stat().st_size != item["size_bytes"]
                 or api["sha256_file"](source) != item["sha256"]):
             raise ValueError(f"Mídia associada mudou desde o plano: {source}")
+        validated = _validate_associated_media(source, api)
+        if validated["sha256"] != item.get("sha256"):
+            raise ValueError(f"Validação da mídia diverge do plano: {source}")
         if destination.exists() or destination.is_symlink():
             raise FileExistsError(f"Destino de mídia mudou desde o plano: {destination}")
         if not destination.is_relative_to(project_root / "media" / manifest["system_id"]):

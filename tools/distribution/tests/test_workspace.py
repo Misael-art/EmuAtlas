@@ -27,6 +27,11 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(p['status'], 'ready')
         self.assertFalse(self.root.exists())
         w.initialize(self.root, ['mastersystem'], True)
+        from tools.roms import media_optimizer
+        media_config, _, _ = media_optimizer._config({
+            'TOOL_ROOT': self.root / 'tools/roms', 'sha256_file': w.digest})
+        self.assertIn('png-lossless-repack', {profile['id'] for profile in media_config['profiles']})
+        self.assertTrue(media_config['policy']['retain_original_in_operation_rollback'])
         cfg = self.root / 'tools/roms/config/policy.json'
         before = cfg.read_bytes(), cfg.stat().st_mtime_ns
         (self.root / 'roms/mastersystem/customer.sms').write_bytes(b'customer content')

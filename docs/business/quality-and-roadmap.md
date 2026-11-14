@@ -16,7 +16,7 @@ Cada transição pede evidência própria. Não pular de checksum correto para �
 | Dependências Python | Wheelhouse por identidade do host, transitivas com SHA-256 e instalação local com hashes | Preparação real de 16 pacotes e reutilização verificadas em BigLinux/Python 3.14. Repetir nos hosts contratados |
 | Atualização de fontes | Staging, preimagens, checkpoints por arquivo, verificação e reversão condicionada | Ensaio integral 181→184 fontes, verificação e reversão exata concluídos em workspace isolado. Repetir no host contratado |
 | Ferramentas de organização | Código existente reutilizado | Insumos e regressões do escopo do cliente |
-| Mídias | Download de itens pinados + fluxos de ingestão existentes | Provedor/licença configurados e associação revisada |
+| Mídias | Download de itens pinados, ingestão e perfis de otimização na instalação vazia. Alinhamento de nomes valida imagens, áudio, vídeo e PDFs associados | Provedor/licença configurados e associação revisada |
 | RetroFE e temas | Receita de compilação e fallback textual; temas pessoais não empacotados | Build em host limpo, direitos, testes visuais e navegação |
 | Pegasus Linux | Receita pinada, dados portáteis, projeção por entrada e launcher nativo | Gameplay, controles físicos e temas no host contratado |
 | Vita3K Linux | AppImage oficial fixado, CLI nativa verificada, dados portáteis e vínculos relativos validados por SFO | Firmware, integridade dos conjuntos, execução de jogos e aceite físico |
