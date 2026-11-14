@@ -7,7 +7,7 @@
 **Um lugar para organizar a biblioteca, preparar o host e conectar a experiência.**
 
 <p>
-  <img alt="Versão 0.2.0-alpha.6" src="https://img.shields.io/badge/vers%C3%A3o-0.2.0--alpha.6-83f6d5?style=flat-square&amp;labelColor=101c2d" />
+  <img alt="Versão 0.2.0-alpha.7" src="https://img.shields.io/badge/vers%C3%A3o-0.2.0--alpha.7-83f6d5?style=flat-square&amp;labelColor=101c2d" />
   <img alt="Linux x86_64" src="https://img.shields.io/badge/Linux-x86__64-6ac5fc?style=flat-square&amp;labelColor=101c2d" />
   <img alt="Python 3.10 ou superior" src="https://img.shields.io/badge/Python-3.10%2B-b9a3f5?style=flat-square&amp;labelColor=101c2d" />
   <img alt="Prévia de engenharia" src="https://img.shields.io/badge/status-pr%C3%A9via_de_engenharia-f4c786?style=flat-square&amp;labelColor=101c2d" />
@@ -16,6 +16,8 @@
 <p>
   <a href="#instalar">Começar</a> &nbsp;·&nbsp;
   <a href="#ecossistema">Ecossistema</a> &nbsp;·&nbsp;
+  <a href="#controles-e-jogadores">Controles e jogadores</a> &nbsp;·&nbsp;
+  <a href="#sua-jornada-nos-jogos">Saves e jornada</a> &nbsp;·&nbsp;
   <a href="#estrutura">Estrutura</a> &nbsp;·&nbsp;
   <a href="#estado-do-projeto">Estado do projeto</a> &nbsp;·&nbsp;
   <a href="#guias">Documentação</a>
@@ -31,8 +33,51 @@ Bibliotecas de emulação crescem. Jogos, artes, versões, ferramentas e configu
 | :--- | :--- | :--- |
 | Frontends, emuladores, núcleos e ferramentas conectados por receitas. | ROMs, mídias, BIOS, saves e configurações com destinos definidos. | Planos, hashes, logs e resultados por componente. |
 
+O projeto também prepara a entrada nativa de teclado e gamepads, a atribuição de jogadores e os controles virtuais pelo navegador do celular ou tablet. Steam permanece uma integração opcional.
+
+## Controles e jogadores
+
+<img src="docs/business/assets/branding/controller-mobile.svg" alt="Celular com botões virtuais conectado à atribuição de jogadores do EmuAtlas" width="1040" />
+
+| Quero usar… | Como funciona |
+| :--- | :--- |
+| **Teclado ou gamepad** | Entrada nativa e painel de controles integrado à sessão. |
+| **Um controle específico** | Representações de GameSir, 8BitDo, Xbox, PlayStation, Logitech e Switch. **Modelo** permite corrigir a identificação visual. |
+| **Um arcade de luta** | Ilustrações de 8BitDo Arcade Stick, HORI Fighting Stick Alpha e Razer Kitsune. |
+| **Um modelo desconhecido** | O arquivo canônico `default.png` fornece a representação padrão. |
+| **Outra ordem de jogadores** | Arraste o controle até o jogador desejado. Posições ocupadas trocam os dois controles. A ordem fica salva. |
+| **Celular ou tablet** | Abra **Controles → ＋ Adicionar celular ou tablet**, escaneie o QR Code na mesma rede local e toque em **Conectar controle**. Escolha o jogador na página ou no painel do host. |
+
+### Controle móvel
+
+A página responsiva oferece direcional, dois analógicos, A/B/X/Y, ombros, gatilhos, Select, Start e L3/R3. Cada navegador é um controle independente. O padrão é **oito controles móveis e oito posições de jogador**, com capacidade ajustável para a próxima sessão em `frontend/RetroFE/Config/controller-artwork.json`, no campo `player_capacity`. A quantidade efetiva de jogadores acompanha o suporte do jogo e do emulador.
+
+O telefone continua conectado durante a passagem do frontend para o jogo. O comando **Select + Start por dois segundos** solicita a saída normal da janela do jogo. A legenda persistente e o botão **Controles** mantêm essas ações acessíveis. O serviço começa ao adicionar um controle e encerra com suas sessões consumidoras. Convites expiram em dois minutos. Uma nova sessão do host exige novo pareamento móvel. Perda de conexão por 750 ms libera os comandos e exige soltura antes de retomar.
+
+O backend de dispositivos virtuais desta entrega usa **Linux/KDE e evdev/uinput**. A página pode ser aberta em navegadores móveis atuais, em retrato ou paisagem. O roteamento HTTP até oito portas virtuais foi ensaiado localmente, incluindo neutralização após falha de rede. A aceitação com oito telefones/tablets físicos, a latência da rede Wi-Fi e o backend de entrada nativo Windows permanecem pendentes.
+
+As ilustrações de controles pertencem ao acervo canônico da instalação. A exportação pública contém o código, o mapeamento e a ilustração documental desta seção. As dependências do host incluem `qrencode`, evdev e Pillow, preparados pelo fluxo de instalação existente.
+
 > [!IMPORTANT]
 > **Prévia de engenharia.** A automação está implementada; a instalação integral em máquina limpa e a aceitação física de gameplay/controles ainda precisam de validação. As permissões de distribuição de cada componente seguem em revisão.
+
+## Sua jornada nos jogos
+
+O **RetroArch** recebe um histórico visual por jogo e core. Cada gravação observada conserva a versão nativa e reúne screenshot, número, data, horário, tempo observado e vínculos com o momento anterior.
+
+| Durante o jogo | Sua jornada |
+| --- | --- |
+| **Cartão discreto à esquerda** | Um favorito fica em destaque. Passe o mouse para abrir cinco gravações e role pelas demais. |
+| **♥ Favoritos** | Fixe momentos especiais. Favoritos vêm primeiro e cada grupo segue do mais recente ao mais antigo. |
+| **♛ Chefe · ⚑ Final · ◆ Hiperdesafio** | Acrescente fases numeradas, outras marcações e uma nota pessoal. |
+| **Retomada visual** | A imagem se centraliza, o momento corrente recebe uma cópia de segurança e a sessão continua após confirmação do emulador. |
+| **Planilha da jornada** | Exporte CSV com tempos, hashes, imagens, notas e relações entre saves. |
+
+Abra com **Select + Y no P1** ou **Ctrl + Shift + J**. Use ↑↓, **A** para retomar, **X** para favoritar, **Start** para marcações e **B** para voltar. Os dois atalhos aparecem na legenda persistente durante o jogo. Os nomes dos botões seguem o mapeamento lógico SDL. Mouse e teclado também operam a lista.
+
+O histórico fica junto aos dados compartilhados do RetroArch em `emulator/data/RetroArch/states/journey/`. SQLite registra os metadados e PNG reúne imagem e dados imutáveis da captura. A versão nativa é preservada. Saves internos aparecem quando o core os grava em disco. O tempo é medido desde o monitoramento. Cores com suporte a states oferecem retomada visual dos saves de bateria por state acompanhante.
+
+A interface desta entrega usa **Linux/KDE**. O ensaio isolado com RetroArch real verifica gravação, thumbnail e restauração do momento original. Aceitação física de gameplay, foco/composição e execução Windows continuam na matriz de validação. Consulte o contrato técnico e os controles completos. [Jornada de saves](tools/roms/docs/save-journey.md)
 
 ## Instalar
 
@@ -50,6 +95,8 @@ Bibliotecas de emulação crescem. Jogos, artes, versões, ferramentas e configu
 ```
 
 **Já existe algo instalado?** O fluxo procura componentes disponíveis, reutiliza downloads íntegros e preserva personalizações. Para retomar após uma falha, execute novamente o comando de instalação; o estado real é revalidado.
+
+As dependências Python recebem um cache verificado por versão e host. Atualizações de fontes e templates têm preparação separada, conferência das personalizações e reversão pelo histórico. O guia de releases apresenta esse fluxo. [Atualização e reversão](docs/business/releasing.md)
 
 Pacotes nativos podem exigir autenticação pelo **Polkit/sudo**. A inicialização não abre jogos ou interfaces dos emuladores. Em bibliotecas existentes, revise o plano antes de aplicar.
 
@@ -74,17 +121,18 @@ Leia o [guia de instalação automatizada](docs/business/automated-install.md) p
 
 <table>
   <tr>
-    <td align="center"><strong>62</strong><br/>componentes no fluxo de instalação</td>
+    <td align="center"><strong>65</strong><br/>componentes no fluxo de instalação</td>
     <td align="center"><strong>24</strong><br/>núcleos libretro com receitas</td>
-    <td align="center"><strong>3</strong><br/>frontends integrados ao instalador</td>
+    <td align="center"><strong>4</strong><br/>frontends integrados ao instalador</td>
   </tr>
 </table>
 
 | Camada | O que o projeto prepara |
 | :--- | :--- |
-| **Frontends** | RetroFE, ES-DE e Quiver Launcher. |
+| **Frontends** | RetroFE, ES-DE, Pegasus e Quiver Launcher. O [Pegasus portátil](frontend/pegasus-frontend/README.md) compartilha os perfis de execução e a mídia canônica. |
 | **Launcher alternativo** | [RocketLauncher](docs/business/architecture.md), adicionado localmente para lançamento de jogos pelos frontends; ativação no Linux pendente de validação. |
-| **Emulação** | RetroArch, MAME, Dolphin, DuckStation, PCSX2, RPCS3, PPSSPP, Flycast, Cemu, melonDS, Azahar e xemu. |
+| **Emulação** | RetroArch, MAME, Dolphin, DuckStation, PCSX2, RPCS3, PPSSPP, Flycast, Cemu, melonDS, Azahar, xemu e Supermodel para Sega Model 3. |
+| **Sony PlayStation Vita** | Vita3K oficial fixado, CLI Linux verificada e dados portáteis. Aplicativos e patches usam Title ID e entradas `.psvita`. Firmware e execução por jogo integram a aceitação funcional. |
 | **Host** | Dependências de mídia, arquivos compactados, fontes, janelas, Python, Wine e ferramentas de compilação. |
 | **Organização** | Inventário, integridade, identificação, variantes, compactação e planos reversíveis. |
 | **Mídia** | Ferramentas de scraping/ingestão, metadados, histórias e caminhos compartilhados por plataforma. |

@@ -25,7 +25,7 @@ import sys
 import uuid
 import xml.etree.ElementTree as ET
 
-PROTECTED_GAMELIST_TAGS = {"favorite", "playcount", "lastplayed", "hidden", "kidgame", "path"}
+PROTECTED_GAMELIST_TAGS = {"favorite", "playcount", "lastplayed", "hidden", "kidgame", "path", "nomultiscrape", "nogamecount"}
 TAG_RE = re.compile(r"<[^>]+>")
 STORY_LINE_RE = re.compile(r"^[ \t]*media\.story[ \t]*=[ \t]*(\S*)[ \t]*$", re.MULTILINE)
 SAFE_SYSTEM_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
@@ -164,6 +164,14 @@ def _file_record(project: Path, path: Path, before: bytes | None, after: bytes, 
     }
 
 
+def _declared_dependencies(rom_root: Path):
+    try:
+        from . import media_session
+    except ImportError:
+        import media_session
+    return media_session._track_paths(rom_root, include_playlists=True)
+
+
 def merge_gamelist_bytes(canonical: bytes | None, incoming: bytes, rom_root: Path):
     """Fill empty canonical fields from a staging gamelist. Return (bytes or None, report)."""
     report = {"changed": False, "filled": 0, "conflicts": [], "added": 0, "error": ""}
@@ -182,7 +190,13 @@ def merge_gamelist_bytes(canonical: bytes | None, incoming: bytes, rom_root: Pat
             report["error"] = f"gamelist canônica inválida; preservada: {exc}"
             return None, report
         existing = {_path_key(_text(game, "path")): game for game in root.iter("game") if _text(game, "path")}
+    tracks = _declared_dependencies(rom_root)
+    report["excluded_dependencies"] = []
     for game in list(incoming_root.iter("game")):
+        resolved = resolve_rom(rom_root, _text(game, "path"))
+        if resolved is not None and resolved != "rejected" and resolved.absolute() in tracks:
+            report["excluded_dependencies"].append(_text(game, "path"))
+            continue
         key = _path_key(_text(game, "path"))
         if not key:
             continue
@@ -240,6 +254,7 @@ def publish_stories(project: Path, system_id: str, gamelist: Path, provider: str
         records["notes"].append({"system_id": system_id, "status": "gamelist_invalida", "error": str(exc)})
         return
     grouped = {}
+    tracks = _declared_dependencies(rom_root)
     for game in root.iter("game"):
         raw = _text(game, "path")
         resolved = resolve_rom(rom_root, raw)
@@ -248,6 +263,9 @@ def publish_stories(project: Path, system_id: str, gamelist: Path, provider: str
             continue
         if resolved is None:
             records["notes"].append({"system_id": system_id, "status": "rom_ausente", "path": raw})
+            continue
+        if resolved.absolute() in tracks:
+            records["notes"].append({"system_id": system_id, "status": "dependencia_de_descritor_preservada", "path": raw})
             continue
         grouped.setdefault(resolved.stem, []).append((game, resolved))
     for stem, items in grouped.items():

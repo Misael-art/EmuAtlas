@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack
+import fcntl
 import gzip
 import hashlib
 import io
@@ -14,13 +16,18 @@ import shutil
 import sys
 import tarfile
 import tempfile
+import uuid
 
 sys.dont_write_bytecode = True
 from workspace import HERE, SOURCE_ROOT, read, root_path, safe_path, digest
 
+sys.path.insert(0, str(SOURCE_ROOT / 'tools/roms'))
+import romtool
+import workspace as w
+
 FORBIDDEN = {"roms", "bios", "saves", "media", "UserData", "emulator", "quarantine", "outputs", "work", "runtimes", "vendor", "skraper", "Assets", "Manifests", "__pycache__", ".git"}
 # Documentation SVGs are reviewed text sources, included only by the explicit allowlist.
-EXTENSIONS = {".py", ".sh", ".json", ".md", ".js", ".html", ".yml", ".txt", ".svg"}
+EXTENSIONS = {".py", ".sh", ".json", ".md", ".js", ".html", ".css", ".yml", ".txt", ".svg"}
 CODE_EXCEPTIONS = {"tools/roms/skraper/launch.sh", "emulator/linux/eden-nx2/eden-nx2-launch", "emulator/launch.sh", "emulator/launch.cmd", "emulator/README.md"}
 
 
@@ -136,6 +143,176 @@ def verify(root):
     return {"status": "verified", "files": len(manifest["files"]), "unexpected_files": 0}
 
 
+def source_state(root, relative):
+    path = safe_path(root, relative)
+    if not path.exists():
+        return None
+    if not path.is_file():
+        raise ValueError('Destino de fonte deve ser arquivo regular: ' + relative)
+    return {'sha256': digest(path), 'size_bytes': path.stat().st_size,
+            'mode': format(path.stat().st_mode & 0o777, '04o')}
+
+
+def source_entries(root):
+    manifest = read(safe_path(root, 'release-manifest.json'))
+    entries = {}
+    for row in manifest['files']:
+        relative = row['target']
+        if relative == 'release-manifest.json' or relative in entries:
+            raise ValueError('Destino repetido/reservado no manifesto de fontes')
+        # Apply the same reviewed source boundaries to incoming updates.
+        inspect_source(root, {'source': relative, 'target': relative})
+        entries[relative] = {key: row[key] for key in ['sha256', 'size_bytes', 'mode']}
+    return manifest, entries
+
+
+def plan_update(root, incoming, prepare=False):
+    root, incoming = root_path(root), root_path(incoming)
+    if root == incoming:
+        raise ValueError('Selecione a release de entrada em uma pasta própria')
+    verify(incoming)
+    previous, old = source_entries(root)
+    following, new = source_entries(incoming)
+    if previous.get('product') != following.get('product'):
+        raise ValueError('Atualização de outro produto')
+    old['release-manifest.json'] = source_state(root, 'release-manifest.json')
+    new['release-manifest.json'] = source_state(incoming, 'release-manifest.json')
+    changes = []
+    # Inspect the entire owned selection before preparing or changing anything.
+    for relative in sorted(old.keys() | new.keys()):
+        current = source_state(root, relative)
+        if current != old.get(relative):
+            raise ValueError('Fonte personalizada/existente preservada: ' + relative)
+        if old.get(relative) != new.get(relative):
+            changes.append({'path': relative, 'before': old.get(relative),
+                            'after': new.get(relative), 'status': 'prepared'})
+    result = {'kind': 'source_release_update', 'status': 'prepared' if prepare else 'planned',
+              'product': following['product'], 'from_version': previous['version'],
+              'to_version': following['version'], 'changes': changes,
+              'library_payloads_modified': False, 'gameplay_tested': False}
+    if not prepare:
+        return result
+    ident = 'source-update-' + uuid.uuid4().hex
+    op = safe_path(root, 'outputs/installation/updates/' + ident)
+    stage = safe_path(root, 'work/installation/updates/' + ident + '/staging')
+    with w.lock(root):
+        op.mkdir(parents=True)
+        for change in changes:
+            relative = change['path']
+            # Recheck after obtaining the lock, including existing new targets.
+            if source_state(root, relative) != change['before']:
+                raise ValueError('Fonte mudou durante a preparação: ' + relative)
+            if change['before']:
+                snapshot = safe_path(op / 'rollback/files', relative)
+                romtool.atomic_write_bytes(snapshot, safe_path(root, relative).read_bytes(),
+                                            mode=int(change['before']['mode'], 8))
+            if change['after']:
+                source = safe_path(incoming, relative)
+                if source_state(incoming, relative) != change['after']:
+                    raise ValueError('Release mudou durante a preparação: ' + relative)
+                romtool.atomic_write_bytes(safe_path(stage, relative), source.read_bytes(),
+                                            mode=int(change['after']['mode'], 8))
+        result.update(operation_id=ident, stage=stage.relative_to(root).as_posix(),
+                      created_at=romtool.now())
+        romtool.atomic_json(op / 'manifest.json', result)
+    return result
+
+
+def execute_update(root, ident, action, confirmed=False):
+    if not re.fullmatch(r'source-update-[0-9a-f]{32}', ident):
+        raise ValueError('ID de atualização inválido')
+    if action != 'verify' and not confirmed:
+        raise ValueError('Confirme a aplicação/reversão explicitamente')
+    root = root_path(root)
+    op = safe_path(root, 'outputs/installation/updates/' + ident)
+    manifest_path = safe_path(op, 'manifest.json')
+    with ExitStack() as stack:
+        stack.enter_context(w.lock(root))
+        install_lock = safe_path(root, 'outputs/installation/install.lock')
+        fd = os.open(install_lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        stack.callback(os.close, fd)
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        manifest = read(manifest_path)
+        if manifest.get('kind') != 'source_release_update' or manifest.get('operation_id') != ident:
+            raise ValueError('Manifesto de outra operação')
+        allowed = {'apply': {'prepared', 'applying', 'applied'},
+                   'verify': {'applied', 'completed_verified'},
+                   'rollback': {'applying', 'applied', 'completed_verified', 'rolling_back'}}
+        if action not in allowed or manifest['status'] not in allowed[action]:
+            raise ValueError('Estado incompatível com a ação de atualização')
+        if action != 'verify':
+            from runtime_install import _library_guard
+            _library_guard(root)
+        changes = manifest['changes']
+        stage = safe_path(root, 'work/installation/updates/' + ident + '/staging')
+        rollback_files = safe_path(root, 'outputs/installation/updates/' + ident + '/rollback/files')
+        removed_files = safe_path(root, 'outputs/installation/updates/' + ident + '/rollback/removed')
+        applied_files = safe_path(root, 'outputs/installation/updates/' + ident + '/rollback/applied-files')
+        # Verify all preimages, proposals and current states before any mutation.
+        for change in changes:
+            relative = change['path']
+            for image, folder in [('before', rollback_files), ('after', stage)]:
+                if change[image] is not None and source_state(folder, relative) != change[image]:
+                    raise ValueError('Snapshot alterado: ' + relative)
+                if change[image] is not None:
+                    inspect_source(folder, {'source': relative, 'target': relative})
+            current = source_state(root, relative)
+            acceptable = [change['after']] if action == 'verify' else [change['before'], change['after']]
+            if current not in acceptable:
+                raise ValueError('Alteração posterior preservada: ' + relative)
+            if current is None and change['before'] and not change['after']:
+                if (not change.get('intent') or
+                        source_state(removed_files, relative) != change['before']):
+                    raise ValueError('Fonte removida sem checkpoint comprovado: ' + relative)
+            if action == 'rollback' and current is None and not change['before'] and change['after']:
+                if (change.get('intent') == 'rollback' and
+                        source_state(applied_files, relative) != change['after']):
+                    raise ValueError('Nova fonte ausente sem preservação comprovada: ' + relative)
+        if action == 'verify':
+            for row in read(root / 'release-manifest.json')['files']:
+                if source_state(root, row['target']) != {key: row[key] for key in ['sha256', 'size_bytes', 'mode']}:
+                    raise ValueError('Fonte publicada diverge: ' + row['target'])
+            manifest['status'] = 'completed_verified'
+        else:
+            manifest['status'] = 'applying' if action == 'apply' else 'rolling_back'
+            romtool.atomic_json(manifest_path, manifest)
+            sequence = changes if action == 'apply' else reversed(changes)
+            for change in sequence:
+                relative = change['path']
+                desired = change['after'] if action == 'apply' else change['before']
+                current = source_state(root, relative)
+                if current == desired:
+                    continue
+                expected = change['before'] if action == 'apply' else change['after']
+                if current != expected:
+                    raise ValueError('Fonte mudou durante a publicação: ' + relative)
+                change['intent'] = action
+                romtool.atomic_json(manifest_path, manifest)
+                path = safe_path(root, relative)
+                if desired is None:
+                    folder = removed_files if action == 'apply' else applied_files
+                    preserved = safe_path(folder, relative)
+                    if preserved.exists():
+                        raise ValueError('Destino de preservação existente: ' + relative)
+                    preserved.parent.mkdir(parents=True, exist_ok=True)
+                    path.rename(preserved)
+                    romtool.sync_directory_chain(preserved.parent)
+                    romtool.sync_directory_chain(path.parent)
+                else:
+                    folder = stage if action == 'apply' else rollback_files
+                    data = safe_path(folder, relative).read_bytes()
+                    if hashlib.sha256(data).hexdigest() != desired['sha256']:
+                        raise ValueError('Snapshot mudou durante a publicação: ' + relative)
+                    romtool.atomic_write_bytes(path, data, mode=int(desired['mode'], 8))
+                change['status'] = 'applied' if action == 'apply' else 'rolled_back'
+                romtool.atomic_json(manifest_path, manifest)
+            manifest['status'] = 'applied' if action == 'apply' else 'rolled_back'
+        manifest['updated_at'] = romtool.now()
+        romtool.atomic_json(manifest_path, manifest)
+        return {'operation_id': ident, 'status': manifest['status'], 'changed_files': len(changes),
+                'library_payloads_modified': False, 'gameplay_tested': False}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -146,9 +323,25 @@ def main():
             p.add_argument("--apply", action="store_true")
     p = sub.add_parser("verify")
     p.add_argument("--root", type=Path, required=True)
+    p = sub.add_parser('update-plan')
+    p.add_argument('--root', type=Path, default=SOURCE_ROOT)
+    p.add_argument('--incoming', type=Path, required=True)
+    p.add_argument('--prepare', action='store_true')
+    for name in ['update-apply', 'update-verify', 'update-rollback']:
+        p = sub.add_parser(name)
+        p.add_argument('--root', type=Path, default=SOURCE_ROOT)
+        p.add_argument('--operation-id', required=True)
+        p.add_argument('--apply', action='store_true')
     args = parser.parse_args()
     try:
-        result = verify(args.root) if args.command == "verify" else build(args.output, args.command == "build" and args.apply)
+        if args.command == 'update-plan':
+            result = plan_update(args.root, args.incoming, args.prepare)
+        elif args.command.startswith('update-'):
+            result = execute_update(args.root, args.operation_id, args.command.removeprefix('update-'), args.apply)
+        elif args.command == 'verify':
+            result = verify(args.root)
+        else:
+            result = build(args.output, args.command == 'build' and args.apply)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except (ValueError, OSError) as exc:

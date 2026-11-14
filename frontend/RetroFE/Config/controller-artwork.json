@@ -1,0 +1,438 @@
+{
+  "schema_version": 1,
+  "default": "default",
+  "models": {
+    "gamesir-t4-pro": {
+      "label": "GameSir T4 Pro",
+      "patterns": [
+        "gamesir.*t4[ _-]*pro"
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/gamepads-gamesir-8bitdo-logitech-atlas.png",
+        "grid": [
+          3,
+          3
+        ],
+        "cell": [
+          0,
+          0
+        ],
+        "region": [
+          10,
+          70,
+          418,
+          382
+        ]
+      },
+      "brand": "GameSir"
+    },
+    "8bitdo-ultimate-2c": {
+      "label": "8BitDo Ultimate 2C",
+      "patterns": [
+        "8bitdo.*ultimate[ _-]*2c"
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/gamepads-gamesir-8bitdo-logitech-atlas.png",
+        "grid": [
+          3,
+          3
+        ],
+        "cell": [
+          0,
+          1
+        ],
+        "region": [
+          8,
+          70,
+          418,
+          382
+        ]
+      },
+      "usb_ids": [
+        [
+          11720,
+          12315
+        ]
+      ],
+      "brand": "8BitDo"
+    },
+    "8bitdo-pro-2": {
+      "label": "8BitDo Pro 2",
+      "patterns": [
+        "8bitdo.*pro[ _-]*2"
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/gamepads-gamesir-8bitdo-logitech-atlas.png",
+        "grid": [
+          3,
+          3
+        ],
+        "cell": [
+          0,
+          2
+        ],
+        "region": [
+          0,
+          70,
+          418,
+          382
+        ]
+      },
+      "usb_ids": [
+        [
+          11720,
+          24579
+        ],
+        [
+          11720,
+          24582
+        ]
+      ],
+      "brand": "8BitDo"
+    },
+    "logitech-f310": {
+      "label": "Logitech F310",
+      "patterns": [
+        "f310"
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/gamepads-gamesir-8bitdo-logitech-atlas.png",
+        "grid": [
+          3,
+          3
+        ],
+        "cell": [
+          1,
+          0
+        ],
+        "region": [
+          7,
+          65,
+          418,
+          366
+        ]
+      },
+      "usb_ids": [
+        [
+          1133,
+          49693
+        ],
+        [
+          1133,
+          49686
+        ]
+      ],
+      "brand": "Logitech"
+    },
+    "steam-deck": {
+      "label": "Steam Deck",
+      "patterns": [
+        "steam[ _-]*deck"
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/gamepads-gamesir-8bitdo-logitech-atlas.png",
+        "grid": [
+          3,
+          3
+        ],
+        "cell": [
+          1,
+          1
+        ],
+        "region": [
+          0,
+          105,
+          418,
+          312
+        ]
+      },
+      "brand": "Valve"
+    },
+    "gamesir-g7-se": {
+      "label": "GameSir G7 SE",
+      "patterns": [
+        "gamesir.*g7[ _-]*se"
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/gamepads-gamesir-8bitdo-logitech-atlas.png",
+        "grid": [
+          3,
+          3
+        ],
+        "cell": [
+          1,
+          2
+        ],
+        "region": [
+          0,
+          55,
+          418,
+          366
+        ]
+      },
+      "brand": "GameSir"
+    },
+    "8bitdo-ultimate-2": {
+      "label": "8BitDo Ultimate 2",
+      "patterns": [
+        "8bitdo.*ultimate[ _-]*2(?!c)"
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/gamepads-gamesir-8bitdo-logitech-atlas.png",
+        "grid": [
+          3,
+          3
+        ],
+        "cell": [
+          2,
+          0
+        ],
+        "region": [
+          7,
+          42,
+          418,
+          352
+        ]
+      },
+      "usb_ids": [
+        [
+          11720,
+          24594
+        ]
+      ],
+      "brand": "8BitDo"
+    },
+    "switch-pro": {
+      "label": "Nintendo Switch Pro",
+      "patterns": [
+        "switch.*pro[ _-]*controller"
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/gamepads-gamesir-8bitdo-logitech-atlas.png",
+        "grid": [
+          3,
+          3
+        ],
+        "cell": [
+          2,
+          1
+        ],
+        "region": [
+          0,
+          42,
+          418,
+          352
+        ]
+      },
+      "brand": "Nintendo"
+    },
+    "xbox-series": {
+      "label": "Xbox Series",
+      "patterns": [
+        "xbox.*series"
+      ],
+      "usb_ids": [
+        [
+          1118,
+          2834
+        ],
+        [
+          1118,
+          2835
+        ]
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/platforms/microsoft-xbox-series.png"
+      },
+      "brand": "Microsoft"
+    },
+    "xbox-one": {
+      "label": "Xbox One",
+      "patterns": [
+        "xbox.*one"
+      ],
+      "usb_ids": [
+        [
+          1118,
+          721
+        ],
+        [
+          1118,
+          733
+        ],
+        [
+          1118,
+          746
+        ],
+        [
+          1118,
+          765
+        ]
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/platforms/microsoft-xbox-one.png"
+      },
+      "brand": "Microsoft"
+    },
+    "xbox-360": {
+      "label": "Xbox 360",
+      "patterns": [
+        "xbox.*360",
+        "x-box.*360"
+      ],
+      "usb_ids": [
+        [
+          1118,
+          654
+        ]
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/platforms/microsoft-xbox-360.png"
+      },
+      "brand": "Microsoft"
+    },
+    "dualsense": {
+      "label": "DualSense",
+      "patterns": [
+        "dualsense",
+        "ps5"
+      ],
+      "usb_ids": [
+        [
+          1356,
+          3302
+        ],
+        [
+          1356,
+          3570
+        ]
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/platforms/sony-playstation-5.png"
+      },
+      "brand": "Sony"
+    },
+    "dualshock-4": {
+      "label": "DualShock 4",
+      "patterns": [
+        "dualshock.*4",
+        "ps4"
+      ],
+      "usb_ids": [
+        [
+          1356,
+          1476
+        ],
+        [
+          1356,
+          2508
+        ]
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/platforms/sony-playstation-4.png"
+      },
+      "brand": "Sony"
+    },
+    "dualshock-3": {
+      "label": "DualShock 3",
+      "patterns": [
+        "playstation.*3",
+        "dualshock.*3"
+      ],
+      "usb_ids": [
+        [
+          1356,
+          616
+        ]
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/platforms/sony-playstation-3.png"
+      },
+      "brand": "Sony"
+    },
+    "default": {
+      "label": "Controle padrão",
+      "brand": "",
+      "patterns": [],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/default.png"
+      }
+    },
+    "8bitdo-arcade-stick": {
+      "label": "8BitDo Arcade Stick",
+      "brand": "8BitDo",
+      "patterns": [
+        "8bitdo.*arcade[ _-]*stick"
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/arcade-controllers-atlas.png",
+        "grid": [
+          1,
+          3
+        ],
+        "cell": [
+          0,
+          0
+        ]
+      },
+      "source": "https://www.8bitdo.com/arcade-stick/"
+    },
+    "hori-fighting-stick-alpha": {
+      "label": "HORI Fighting Stick Alpha",
+      "brand": "HORI",
+      "patterns": [
+        "hori.*(?:alpha|α)|fighting[ _-]*stick[ _-]*(?:alpha|α)"
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/arcade-controllers-atlas.png",
+        "grid": [
+          1,
+          3
+        ],
+        "cell": [
+          0,
+          1
+        ]
+      },
+      "source": "https://stores.horiusa.com/SPF-037U"
+    },
+    "razer-kitsune": {
+      "label": "Razer Kitsune",
+      "brand": "Razer",
+      "patterns": [
+        "razer.*kitsune|kitsune"
+      ],
+      "image": {
+        "path": "Assets/shared/images/controllers/artwork/arcade-controllers-atlas.png",
+        "grid": [
+          1,
+          3
+        ],
+        "cell": [
+          0,
+          2
+        ]
+      },
+      "source": "https://www.razer.com/console-controllers/razer-kitsune"
+    },
+    "mobile": {
+      "label": "Celular ou tablet",
+      "brand": "EmuAtlas",
+      "patterns": [
+        "emuatlas[ _-]*mobile"
+      ],
+      "image": {
+        "path": "Assets/shared/images/devices/full-setups/android-aura-new-device.png"
+      }
+    }
+  },
+  "identity_sources": [
+    "https://github.com/libsdl-org/SDL/blob/main/src/joystick/usb_ids.h",
+    "https://github.com/libsdl-org/SDL/blob/main/src/joystick/controller_list.h",
+    "https://support.logi.com/hc/en-in/articles/360023467133-Logitech-Gamepad-F310-Technical-Specifications",
+    "https://www.8bitdo.com/arcade-stick/",
+    "https://stores.horiusa.com/SPF-037U",
+    "https://www.razer.com/console-controllers/razer-kitsune"
+  ],
+  "player_capacity": 8
+}

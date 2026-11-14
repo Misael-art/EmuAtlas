@@ -23,6 +23,7 @@ import re
 import shutil
 import sys
 import unicodedata
+import uuid
 import xml.etree.ElementTree as ET
 import zlib
 from pathlib import Path, PurePosixPath
@@ -96,11 +97,14 @@ def expanded(data: str) -> bytes:
     return zlib.decompress(base64.b64decode(data))
 
 
+def romtool_api():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+    from tools.roms import romtool
+    return romtool
+
+
 def atomic_write(path: Path, data: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_name(path.name + f".tmp-{os.getpid()}")
-    temp.write_bytes(data)
-    os.replace(temp, path)
+    romtool_api().atomic_write_bytes(path, data)
 
 
 def slug(value: str) -> str:
@@ -693,6 +697,19 @@ def preferred_taxonomy(group: dict[str, Any]) -> tuple[str, str, str, list[dict[
     return primary[0], primary[1], primary[2], tags
 
 
+def current_storage_rules() -> dict[str, Any]:
+    return {
+        "library_path": "Assets/shared/<media-type>/<category>/<style>/<logical-name>.<ext>; omit style when standard",
+        "library_scope": "workspace",
+        "hash_identity": "Full SHA-256 and its two-character bucket prefix are metadata only; no hash bucket directories or hash suffixes in routine filenames.",
+        "media_types": ["fonts", "sounds", "music", "videos", "images"],
+        "runtime_aliases": "Consumers use managed relative symlinks or configuration paths derived from the current project root.",
+        "per_game_artwork": "Game artwork uses media/<system_id>/<media_type>/. Historical lookup paths are preserved by reviewed relative aliases.",
+        "source_artwork": "Editable masters remain under Assets/source-artwork and are indexed separately.",
+        "static_layout_assets": "Eligible local layout media is cataloged in Assets/shared. Layout XML and configuration retain their theme structure.",
+    }
+
+
 def prepare_catalog(catalog_before: dict[str, Any], groups: dict[str, dict[str, Any]], targets: dict[str, str], aliases: dict[str, list[dict[str, Any]]], manifest_rel: str) -> dict[str, Any]:
     canonical = []
     aliases_by_hash: collections.Counter[str] = collections.Counter()
@@ -721,15 +738,7 @@ def prepare_catalog(catalog_before: dict[str, Any], groups: dict[str, dict[str, 
     result["mode"] = "semantic-library"
     result["updated_at"] = now()
     result["reorganization_manifest"] = manifest_rel
-    result["storage_rules"] = {
-        "library_path": "Assets/shared/<media-type>/<category>/<style>/<logical-name>.<ext>; omit style when standard",
-        "hash_identity": "Full SHA-256 and its two-character bucket prefix are metadata only; no hash bucket directories or hash suffixes in routine filenames.",
-        "media_types": ["fonts", "sounds", "music", "videos", "images"],
-        "runtime_aliases": "Relative symlinks preserve RetroFE lookup names in layouts/*/collections/_common/medium_artwork, collections/Main/medium_artwork, and local static layout asset paths.",
-        "per_game_artwork": "Artwork in collections other than Main remains with its collection until the separate migration to media/<system_id>/<media_type>/.",
-        "source_artwork": "Editable masters remain under Assets/source-artwork and are indexed separately.",
-        "static_layout_assets": "Every local layout media payload is cataloged once in Assets/shared; XML src/font consumers use the canonical path and legacy local names remain relative aliases.",
-    }
+    result["storage_rules"] = current_storage_rules()
     result["canonical_assets"] = canonical
     for field_name in ("layout_aliases", "main_artwork_aliases", "static_layout_aliases"):
         updated = []
@@ -1290,7 +1299,7 @@ def build_external_static_asset_plan(manifest_path: Path, spec_path: Path, reaso
     entries = {}
     allowed = {"controllers/artwork", "collection-metadata/genre", "fade"}
     if project_staging:
-        allowed = {"branding/logos/full-set", "devices"}
+        allowed = {"branding/logos/full-set", "devices", "controllers/artwork"}
     for entry in spec["assets"]:
         relative = PurePosixPath(entry["relative_path"])
         if relative.is_absolute() or any(p in {".", ".."} for p in relative.parts):
@@ -1633,6 +1642,122 @@ def verify_scoped_static_asset_manifest(path: Path) -> dict[str, Any]:
         raise ValueError("Índice de busca diverge do catálogo atual")
     return {"status": "passed_scoped", "payloads": len(manifest["assets"]),
             "external_aliases": 0, "unrelated_tree_drift_checked_or_changed": False}
+
+
+def build_catalog_policy_plan(path: Path, reason: str) -> dict[str, Any]:
+    if path.parent != CATALOG.parent or path.exists() or not reason.strip():
+        raise ValueError("Use um manifesto ausente em Manifests e uma justificativa para atualizar a política")
+    for source in (CATALOG, SEARCH_INDEX, ROOT / "Config/media-map.json", path):
+        romtool_api().reject_symlink_components(source)
+    catalog_before = CATALOG.read_bytes()
+    index_before = digest_file(SEARCH_INDEX)
+    catalog = json.loads(catalog_before)
+    assets = catalog.get("canonical_assets", [])
+    if len({item["sha256"] for item in assets}) != len(assets):
+        raise ValueError("O catálogo tem hashes duplicados e exige reconciliação")
+    for item in assets:
+        relative = PurePosixPath(item["path"])
+        if (relative.is_absolute() or ".." in relative.parts
+                or relative.parts[:2] != ("Assets", "shared")):
+            raise ValueError("Payload fora da biblioteca compartilhada")
+        target = ROOT / relative
+        for component in [target, *target.parents]:
+            if component == ROOT:
+                break
+            if component.is_symlink():
+                raise ValueError("Payload canônico atravessa um symlink")
+        if not target.is_file() or target.stat().st_size != item["size_bytes"]:
+            raise ValueError("Payload ausente ou com tamanho divergente: " + item["path"])
+    catalog["storage_rules"] = current_storage_rules()
+    catalog["updated_at"] = now()
+    mapping_path = ROOT / "Config/media-map.json"
+    mapping_before = mapping_path.read_bytes()
+    mapping = json.loads(mapping_before)
+    mapping["runtime_assets"]["count"] = len(assets)
+    mapping["runtime_assets"]["sharing_scope"] = "workspace"
+    mapping["runtime_assets"]["catalog_policy_manifest"] = rel(path)
+    mapping["theme_specific_assets"] = "Layout XML and configuration stay in layouts/<layout>/. Eligible runtime media uses Assets/shared with managed relative aliases."
+    files = []
+    for target, value, before in ((CATALOG, catalog, catalog_before), (mapping_path, mapping, mapping_before)):
+        after = (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode()
+        files.append({"path": rel(target), "before_sha256": hashlib.sha256(before).hexdigest(),
+                      "after_sha256": hashlib.sha256(after).hexdigest(),
+                      "before_zlib_base64": compressed(before), "after_zlib_base64": compressed(after)})
+    if (digest_file(CATALOG) != hashlib.sha256(catalog_before).hexdigest()
+            or digest_file(mapping_path) != hashlib.sha256(mapping_before).hexdigest()
+            or digest_file(SEARCH_INDEX) != index_before):
+        raise ValueError("Catálogo, mapa ou índice mudou durante a preparação")
+    return {"schema_version": 1, "kind": "retrofe_asset_catalog_policy", "status": "planned",
+            "operation_id": "asset-policy-" + uuid.uuid4().hex, "created_at": now(),
+            "manifest_path": rel(path), "reason": reason, "files": files,
+            "search_index_sha256": index_before,
+            "summary": {"canonical_assets": len(assets), "metadata_files": 2, "payloads_moved": 0,
+                        "payload_hashes_checked": False, "payload_metadata_checked": True}}
+
+
+def catalog_policy_transaction(path: Path, rollback: bool = False) -> dict[str, Any]:
+    manifest = json.loads(path.read_bytes())
+    expected_paths = {rel(CATALOG), "Config/media-map.json"}
+    if (manifest.get("kind") != "retrofe_asset_catalog_policy" or len(manifest.get("files", [])) != 2
+            or {item["path"] for item in manifest["files"]} != expected_paths):
+        raise ValueError("Manifesto de política fora do escopo permitido")
+    states = {"completed_verified", "applying", "rolling_back"} if rollback else {"planned", "applying"}
+    if manifest["status"] not in states or digest_file(SEARCH_INDEX) != manifest["search_index_sha256"]:
+        raise ValueError("Estado da operação ou índice mudou desde o plano")
+    for source in (path, SEARCH_INDEX):
+        romtool_api().reject_symlink_components(source)
+    for item in manifest["files"]:
+        target = ROOT / item["path"]
+        romtool_api().reject_symlink_components(target)
+        current = digest_file(target)
+        expected = {item["after_sha256"]} if rollback else {item["before_sha256"]}
+        if manifest["status"] in {"applying", "rolling_back"}:
+            expected |= {item["before_sha256"], item["after_sha256"]}
+        if target.is_symlink() or current not in expected:
+            raise ValueError("Metadados alterados por outra operação devem ser preservados")
+        for state in ("before", "after"):
+            if hashlib.sha256(expanded(item[state + "_zlib_base64"])).hexdigest() != item[state + "_sha256"]:
+                raise ValueError("Preimagem ou proposta divergente do manifesto")
+    manifest["status"] = "rolling_back" if rollback else "applying"
+    write_manifest(path, manifest)
+    state = "before" if rollback else "after"
+    for item in manifest["files"]:
+        target = ROOT / item["path"]
+        atomic_write(target, expanded(item[state + "_zlib_base64"]))
+        if digest_file(target) != item[state + "_sha256"]:
+            raise ValueError("Falha ao verificar a publicação de metadados")
+    manifest["status"] = "rolled_back_verified" if rollback else "completed_verified"
+    manifest["completed_at"] = now()
+    write_manifest(path, manifest)
+    return {key: manifest[key] for key in ("operation_id", "status", "summary")}
+
+
+def run_catalog_policy(path: Path, rollback: bool = False) -> dict[str, Any]:
+    romtool = romtool_api()
+    project = ROOT.parents[1]
+    api = dict(vars(romtool), PROJECT_ROOT=project,
+               OPS_ROOT=project / romtool.OPS_ROOT.relative_to(romtool.PROJECT_ROOT))
+    with romtool.media_session.write_lock(api):
+        if any(romtool.frontend_processes_running().values()):
+            raise RuntimeError("Feche os frontends antes de atualizar a política de assets")
+        return catalog_policy_transaction(path, rollback)
+
+
+def verify_catalog_policy(path: Path) -> dict[str, Any]:
+    manifest = json.loads(path.read_bytes())
+    if manifest.get("kind") != "retrofe_asset_catalog_policy":
+        raise ValueError("Manifesto de política incompatível")
+    expected = {rel(CATALOG), "Config/media-map.json"}
+    if len(manifest["files"]) != 2 or {item["path"] for item in manifest["files"]} != expected:
+        raise ValueError("Arquivos fora do escopo da política")
+    for source in (path, SEARCH_INDEX, CATALOG, ROOT / "Config/media-map.json"):
+        romtool_api().reject_symlink_components(source)
+    if digest_file(SEARCH_INDEX) != manifest["search_index_sha256"]:
+        raise ValueError("Índice alterado depois da atualização de política")
+    for item in manifest["files"]:
+        if digest_file(ROOT / item["path"]) != item["after_sha256"]:
+            raise ValueError("Política atual divergente do plano")
+    return {"status": "verified", "operation_id": manifest["operation_id"], "summary": manifest["summary"]}
 
 
 def write_manifest(path: Path, data: dict[str, Any]) -> None:
@@ -2066,6 +2191,8 @@ def rollback_main_artwork_alias_manifest(path: Path) -> dict[str, Any]:
 
 def apply_manifest(path: Path) -> dict[str, Any]:
     manifest = json.loads(path.read_text(encoding="utf-8"))
+    if manifest.get("kind") == "retrofe_asset_catalog_policy":
+        return run_catalog_policy(path)
     if manifest.get("kind") == "retrofe_unregistered_diagnostic_retirement":
         sys.path.insert(0, str(ROOT.parents[1] / 'tools/roms'))
         import romtool
@@ -2245,6 +2372,8 @@ def rollback_manifest(path: Path) -> dict[str, Any]:
         with romtool.media_session.write_lock(vars(romtool)):
             return rollback_diagnostic_retirement(path, retirement)
     manifest = json.loads(path.read_text(encoding="utf-8"))
+    if manifest.get("kind") == "retrofe_asset_catalog_policy":
+        return run_catalog_policy(path, rollback=True)
     if manifest.get("kind") == "retrofe_main_artwork_alias_addition":
         return rollback_main_artwork_alias_manifest(path)
     if manifest.get("kind") == "retrofe_scoped_common_layout_alias_addition":
@@ -2838,6 +2967,7 @@ def main() -> int:
     plan.add_argument("--add-layout-common-alias", action="append", default=[], metavar="ALIAS_PATH=CANONICAL_PATH", help="planeja um symlink comum de layout para asset canônico já catalogado; pode ser repetido")
     plan.add_argument("--add-static-layout-asset", action="append", default=[], metavar="LAYOUT_PATH", help="centraliza somente o arquivo estático de layout nomeado, mantendo symlink relativo no layout; pode ser repetido")
     plan.add_argument("--import-static-assets", type=Path, help="spec explícito de PNGs externos revisados; sem aliases externos")
+    plan.add_argument("--refresh-catalog-policy", action="store_true", help="reconcilia regras e contagens atuais com preimagens, preservando payloads e índice")
     apply = sub.add_parser("apply", help="aplica o plano após revisão")
     apply.add_argument("--manifest", type=Path, required=True)
     rollback = sub.add_parser("rollback", help="reverte um manifesto verificado")
@@ -2846,7 +2976,14 @@ def main() -> int:
     verify.add_argument("--manifest", type=Path, help="verifica somente a inclusão estática indicada")
     args = parser.parse_args()
     if args.command == "plan":
-        if args.retire_unregistered_diagnostics:
+        if args.refresh_catalog_policy:
+            if (not args.reason or any((args.retire_unregistered_diagnostics, args.import_static_assets,
+                    args.add_layout_common_alias, args.add_static_layout_asset, args.add_main_logo_alias,
+                    args.add_main_logo_variant_alias, args.add_main_artwork_alias, args.reclassify_asset,
+                    args.category, args.reconcile_main_alias))):
+                parser.error("atualização de política exige --reason e um escopo exclusivo")
+            manifest = build_catalog_policy_plan(args.manifest.resolve(), args.reason)
+        elif args.retire_unregistered_diagnostics:
             manifest = build_diagnostic_retirement(args.manifest.resolve(), args.retire_unregistered_diagnostics, args.reason)
         elif args.import_static_assets:
             if args.add_layout_common_alias or args.add_static_layout_asset or args.add_main_logo_alias or args.add_main_logo_variant_alias or args.add_main_artwork_alias or args.reclassify_asset or args.category or args.reconcile_main_alias or not args.reason:
@@ -2926,7 +3063,9 @@ def main() -> int:
             result = {key: result.get(key) for key in ("status", "operation_id", "manifest_path", "rollback_verification", "rolled_back_at")}
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
-        if args.manifest and json.loads(args.manifest.read_text()).get('kind') == 'retrofe_unregistered_diagnostic_retirement':
+        if args.manifest and json.loads(args.manifest.read_text()).get("kind") == "retrofe_asset_catalog_policy":
+            result = verify_catalog_policy(args.manifest.resolve())
+        elif args.manifest and json.loads(args.manifest.read_text()).get('kind') == 'retrofe_unregistered_diagnostic_retirement':
             result = verify_diagnostic_retirement(args.manifest.resolve(), json.loads(args.manifest.read_text()))
         else:
             result = verify_scoped_static_asset_manifest(args.manifest.resolve()) if args.manifest else verify_library()

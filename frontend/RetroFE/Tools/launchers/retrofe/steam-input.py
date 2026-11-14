@@ -875,6 +875,10 @@ def ensure_recovery_guard(root: Path) -> None:
     systemd = shutil.which("systemctl")
     usable = systemd and run([systemd, "--user", "is-active", "graphical-session.target"], timeout=5).returncode == 0
     destination = config_home() / ("systemd/user/retrofe-input-recovery.service" if usable else "autostart/retrofe-input-recovery.desktop")
+    if usable and destination.is_symlink() and destination.resolve(strict=False) == Path("/dev/null"):
+        raise RuntimeError("O serviço retrofe-input-recovery.service está mascarado no systemd do usuário. "
+                           "A integração Steam Input exige esse guardião antes de alterar o perfil Desktop. "
+                           "Revise o bloqueio do serviço antes de reativar a integração Steam Input.")
     if destination.is_symlink() or (destination.exists() and marker not in destination.read_text()):
         raise RuntimeError(f"Integração de recuperação não gerenciada foi preservada: {destination}")
     if usable:
@@ -916,15 +920,31 @@ def ensure_recovery_guard(root: Path) -> None:
                                         "backend":"systemd-user" if usable else "xdg-autostart"})
     print("[RECUPERAÇÃO] Guardião de sessão/login disponível (" + ("systemd usuário" if usable else "autostart") + ").")
 
+def input_backend() -> str:
+    inherited_steam = os.environ.get(steam_desktop_session.SESSION_TOKEN_ENV)
+    backend = os.environ.get("RETROFE_INPUT_BACKEND", "steam" if inherited_steam else "native")
+    if backend not in {"native", "steam"}:
+        raise ValueError("RETROFE_INPUT_BACKEND deve ser native ou steam")
+    return backend
+
+
 def run_session(root: Path, command: list[str], system_id: str | None = None) -> int:
     """Use the existing Steam lease for ES-DE and direct emulator launches."""
     if command and command[0] == "--":
         command = command[1:]
     if not command:
         raise ValueError("Sessão de controle exige um comando após --")
-    devices = Path("/proc/bus/input/devices").read_text(errors="replace")
-    mode = runpy.run_path(str(Path(__file__).with_name("input-session.py")))["detect_session_mode"]()
-    if not re.search(r"Vendor=28de Product=1205", devices, re.IGNORECASE) or mode == "big-picture":
+    backend = input_backend()
+    os.environ["RETROFE_INPUT_BACKEND"] = backend
+    if backend == "native":
+        print("[CONTROLE] Entrada nativa: teclado e gamepads pelo frontend/emulador.", flush=True)
+        mode = runpy.run_path(str(Path(__file__).with_name("input-session.py")))["detect_session_mode"]() if system_id else "desktop"
+        direct = True
+    else:
+        devices = Path("/proc/bus/input/devices").read_text(errors="replace")
+        mode = runpy.run_path(str(Path(__file__).with_name("input-session.py")))["detect_session_mode"]()
+        direct = not re.search(r"Vendor=28de Product=1205", devices, re.IGNORECASE) or mode == "big-picture"
+    if direct:
         if system_id:
             if mode != "big-picture":
                 sys.path.insert(0, str(root.parents[1] / "tools/roms"))
@@ -932,6 +952,11 @@ def run_session(root: Path, command: list[str], system_id: str | None = None) ->
                 return controller_session.run(root.parents[1], system_id, command, os.environ.copy())
             print('[CONTROLE] Gaming Mode mantém Steam Input; roteamento dock/saída KWin exige sessão Desktop.', flush=True)
             prepare_emulator_controls(root, system_id)
+        if system_id and os.environ.get("EMUATLAS_RETROARCH_JOURNEY"):
+            sys.path.insert(0, str(root.parents[1] / "tools/roms"))
+            import save_journey
+            return save_journey.run_unrouted(root.parents[1], command, os.environ.copy(),
+                json.loads(os.environ["EMUATLAS_RETROARCH_JOURNEY"]))
         return subprocess.run(command, check=False).returncode
     helper = [sys.executable, str(Path(__file__).resolve()), "--root", str(root)]
     ensure_recovery_guard(root)
@@ -989,6 +1014,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("input-backend", help="consulta a entrada native (padrão) ou steam selecionada")
     commands.add_parser("status", help="diagnóstico somente leitura")
     commands.add_parser("ensure", help="instala/configura Steam Input uma vez e garante cliente ativo")
     commands.add_parser("open-desktop", help="abre no Steam a configuração Desktop/Gamepad do Steam Deck")
@@ -1014,6 +1040,9 @@ def main() -> int:
     args = parser.parse_args()
     root = args.root.resolve()
     try:
+        if args.command == "input-backend":
+            print(input_backend())
+            return 0
         if args.command == "controller-prepare":
             prepare_emulator_controls(root, args.system_id, require_gamepad=args.require_gamepad)
             return 0

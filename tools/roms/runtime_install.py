@@ -9,12 +9,18 @@ in emulator/.incoming/ and the installer verifies it the same way.
 
 from __future__ import annotations
 
+import ctypes
+import errno
+import gzip
 import hashlib
 import json
 import os
 import shutil
 import subprocess
 import tempfile
+import tarfile
+import uuid
+import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -32,11 +38,14 @@ ROLLBACK_CHANGE_TYPE = "portable_runtime_rollback"
 
 def _library_tree(directory: Path) -> list[dict]:
     """Complete inventory, including link literals; never follows directory links."""
+    def unreadable(error):
+        raise error
+
     if directory.is_file() and not directory.is_symlink():
         return [{'path': '', 'kind': 'file', 'size_bytes': directory.stat().st_size,
                  'sha256': _sha256(directory), 'mode': directory.stat().st_mode & 0o777}]
     rows = []
-    for parent, directories, files in os.walk(directory, followlinks=False):
+    for parent, directories, files in os.walk(directory, followlinks=False, onerror=unreadable):
         for name in sorted(directories + files):
             path = Path(parent) / name
             relative = path.relative_to(directory).as_posix()
@@ -61,6 +70,95 @@ def _library_tree(directory: Path) -> list[dict]:
             else:
                 raise ValueError(f"Arquivo especial preservado: {path}")
     return sorted(rows, key=lambda row: row["path"])
+
+
+def _sync_library_copy(directory: Path, inventory: list[dict]) -> None:
+    """Flush copied bytes and directory entries before publishing their root."""
+    parents = {directory.parent}
+    for row in inventory:
+        path = directory / row['path'] if row['path'] else directory
+        if row['kind'] == 'file':
+            mode = path.stat().st_mode & 0o777
+            if not mode & 0o400:
+                path.chmod(mode | 0o400)
+            try:
+                with path.open('rb') as stream:
+                    if not mode & 0o400:
+                        path.chmod(mode)
+                    os.fsync(stream.fileno())
+            finally:
+                if not mode & 0o400:
+                    path.chmod(mode)
+            parents.add(path.parent)
+        elif row['kind'] == 'directory':
+            parents.add(path)
+    if directory.is_dir():
+        parents.add(directory)
+    for parent in sorted(parents, key=lambda path: len(path.parts), reverse=True):
+        romtool.sync_directory_chain(parent)
+
+
+def _rename_library_path(root: Path, source: Path, destination: Path, move: dict,
+                         manifest: dict, opdir: Path, phase: str) -> None:
+    """Retain root permissions and ownership evidence across an interrupted rename."""
+    for path in (source, destination):
+        _library_target(root, path.relative_to(root).as_posix())
+    paths = {'source': source.relative_to(root).as_posix(),
+             'destination': destination.relative_to(root).as_posix()}
+    checkpoints = move.setdefault('rename_checkpoints', {})
+    checkpoint = checkpoints.get(phase)
+    if checkpoint is None:
+        info = source.stat()
+        checkpoint = {**paths, 'mode': info.st_mode & 0o777,
+                      'directory': source.is_dir(), 'device': info.st_dev, 'inode': info.st_ino,
+                      'filesystem_id': os.statvfs(source).f_fsid}
+        checkpoints[phase] = checkpoint
+        romtool.atomic_json(opdir / 'manifest.json', manifest)
+    if any(checkpoint[key] != value for key, value in paths.items()):
+        raise ValueError('Caminhos do checkpoint de rename divergentes')
+    if source.exists() and destination.exists():
+        raise ValueError('Destino de rename ocupado: ' + str(destination))
+    current = source if source.exists() else destination
+    info = current.stat()
+    if (os.statvfs(current).f_fsid, info.st_ino) != (checkpoint['filesystem_id'], checkpoint['inode']):
+        raise ValueError('Inode do rename mudou: ' + str(current))
+    mode = checkpoint['mode']
+    temporary_mode = mode | 0o200 if checkpoint['directory'] else mode
+    if (info.st_mode & 0o777) not in {mode, temporary_mode}:
+        raise ValueError('Permissões do rename mudaram: ' + str(current))
+    if source.exists():
+        try:
+            if checkpoint['directory']:
+                source.chmod(temporary_mode)
+            _library_rename_exclusive(source, destination)
+        finally:
+            for path in (source, destination):
+                if path.exists():
+                    info = path.stat()
+                    if (os.statvfs(path).f_fsid, info.st_ino) == (checkpoint['filesystem_id'], checkpoint['inode']):
+                        path.chmod(mode)
+    elif checkpoint['directory']:
+        destination.chmod(mode)
+    if checkpoint['directory']:
+        romtool.sync_directory_chain(destination)
+    source_parent = source.parent
+    while not source_parent.exists():
+        source_parent = source_parent.parent
+    romtool.sync_directory_chain(source_parent)
+    romtool.sync_directory_chain(destination.parent)
+    checkpoint['complete'] = True
+    romtool.atomic_json(opdir / 'manifest.json', manifest)
+
+
+def _library_rename_exclusive(source: Path, destination: Path) -> None:
+    rename = getattr(ctypes.CDLL(None, use_errno=True), 'renameat2', None)
+    if rename is None:
+        raise OSError(errno.ENOTSUP, 'renameat2 indisponível; original preservado')
+    rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    rename.restype = ctypes.c_int
+    if rename(-100, os.fsencode(source), -100, os.fsencode(destination), 1):
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code), str(source), None, str(destination))
 
 
 def _library_guard(root: Path) -> None:
@@ -243,29 +341,144 @@ def library_plan(root: Path) -> dict:
             'bytes': sum(f.get('size_bytes', 0) for row in moves for f in row['files'])}
 
 
+def _vita3k_binding_paths(root: Path, opdir: Path, manifest: dict, binding: dict, index: int):
+    scope = manifest.get('scope')
+    portable = (scope == 'vita3k_portable_userdata'
+                and binding.get('source') == 'emulator/linux/vita3k/portable'
+                and binding.get('destination') == 'emulator/data/Vita3K')
+    game = scope == 'vita3k_game_bindings'
+    if game:
+        from portable_emulator import vita3k_game_identity
+        role = binding.get('role')
+        if role not in ('app', 'patch'):
+            raise ValueError('Papel do vínculo Vita3K inválido')
+        identity = vita3k_game_identity(root, root / binding['destination'], 'gd' if role == 'app' else 'gp')
+        expected_source = 'emulator/data/Vita3K/fs/ux0/' + role + '/' + identity['title_id']
+        if (binding.get('source') != expected_source or identity['title_id'] != manifest.get('title_id')
+                or identity['sfo_sha256'] != binding.get('sfo_sha256')):
+            raise ValueError('Identidade do aplicativo Vita3K mudou após o plano')
+    if not portable and not game:
+        raise ValueError('Vínculo de runtime fora do escopo portátil Vita3K')
+    link = root / binding['source']
+    _library_target(root, link.parent.relative_to(root).as_posix())
+    target = _library_target(root, binding['destination'])
+    staged = opdir / 'bindings' / str(index)
+    _library_target(root, staged.parent.relative_to(root).as_posix())
+    if binding.get('literal') != os.path.relpath(target, link.parent):
+        raise ValueError('Vínculo Vita3K exige o caminho relativo canônico')
+    return link, target, staged
+
+
+def _vita3k_binding_snapshot(path: Path) -> dict | None:
+    if not os.path.lexists(path):
+        return None
+    info = path.lstat()
+    if not path.is_symlink():
+        raise ValueError('Caminho de vínculo Vita3K ocupado; preservado: ' + str(path))
+    return {'filesystem_id': os.statvfs(path.parent).f_fsid, 'inode': info.st_ino,
+            'mtime_ns': info.st_mtime_ns, 'literal': os.readlink(path)}
+
+
+def _vita3k_binding_layout(link: Path, staged: Path, binding: dict) -> str:
+    at_link, at_staging = _vita3k_binding_snapshot(link), _vita3k_binding_snapshot(staged)
+    expected = binding['snapshot']
+    if expected.get('literal') != binding['literal']:
+        raise ValueError('Preimagem do vínculo Vita3K divergiu do plano')
+    if at_link is None and at_staging == expected:
+        return 'prepared'
+    if at_link == expected and at_staging is None and binding.get('apply_intent'):
+        return 'applied'
+    raise ValueError('Objetos do vínculo Vita3K mudaram fora da operação; preserve e reconcilie')
+
+
+def _vita3k_binding_execute(root: Path, opdir: Path, manifest: dict, binding: dict, index: int,
+                           action: str) -> None:
+    link, target, staged = _vita3k_binding_paths(root, opdir, manifest, binding, index)
+    layout = _vita3k_binding_layout(link, staged, binding)
+    if action != 'rollback' and manifest.get('scope') == 'vita3k_portable_userdata':
+        fs = _library_target(root, binding['destination'] + '/fs')
+        config_path = _library_target(root, binding['destination'] + '/config.yml')
+        if not target.is_dir() or not fs.is_dir() or not config_path.is_file():
+            raise ValueError('Dados Vita3K perderam o layout portátil preparado')
+    if action == 'verify':
+        if layout != 'applied' or not target.is_dir() or link.resolve(strict=True) != target:
+            raise ValueError('Vínculo Vita3K não resolve aos dados compartilhados')
+        return
+    if binding.get('preexisting'):
+        if layout != 'applied':
+            raise ValueError('Vínculo Vita preexistente mudou após a seleção')
+        return
+    expected_layout = 'applied' if action == 'apply' else 'prepared'
+    source, destination = (staged, link) if action == 'apply' else (link, staged)
+    if layout != expected_layout:
+        if action == 'apply' and not target.is_dir():
+            raise ValueError('Prepare os dados Vita3K antes do vínculo portátil')
+        binding[action + '_intent'] = True
+        if action == 'apply':
+            missing = []
+            parent = link.parent
+            while not parent.exists() and parent != root:
+                missing.append(parent.relative_to(root).as_posix())
+                parent = parent.parent
+            manifest.setdefault('created_directories', []).extend(value for value in reversed(missing)
+                if value not in manifest.get('created_directories', []))
+        romtool.atomic_json(opdir / 'manifest.json', manifest)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        _library_rename_exclusive(source, destination)
+        if _vita3k_binding_layout(link, staged, binding) != expected_layout:
+            raise ValueError('Vínculo Vita3K divergiu após publicação')
+    romtool.sync_directory_chain(source.parent)
+    romtool.sync_directory_chain(destination.parent)
+    binding[action + '_completed'] = True
+    romtool.atomic_json(opdir / 'manifest.json', manifest)
+
+
 def library_execute(root: Path, operation_id: str, action: str, confirmed: bool = False) -> dict:
     import fcntl
     opdir = romtool.operation_dir(operation_id)
     manifest = json.loads((opdir / 'manifest.json').read_text())
     if manifest.get('kind') != 'emulator_library_migration':
         raise ValueError('Operação não é migração da biblioteca de emuladores')
+    bindings = manifest.get('vita3k_bindings', [])
+    if (not isinstance(bindings, list) or any(not isinstance(row, dict) for row in bindings)
+            or len({row.get('source') for row in bindings}) != len(bindings)):
+        raise ValueError('Vínculos Vita3K inválidos ou repetidos')
     if action != 'verify' and not confirmed:
         raise ValueError('Ação exige --apply')
     lock = os.open(romtool.OPS_ROOT / 'emulator-controls.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         _library_guard(root)
-        if action == 'apply' and manifest['status'] not in ('prepared', 'failed'):
+        if action == 'apply' and manifest['status'] not in ('prepared', 'failed', 'applying'):
             raise ValueError('Apply requer plano prepared ou checkpoint failed')
-        if action == 'rollback' and manifest['status'] not in ('completed_verified', 'applied', 'failed'):
+        if action == 'rollback' and manifest['status'] not in ('completed_verified', 'applied', 'failed', 'applying', 'rolling_back'):
             raise ValueError('Rollback requer operação aplicada')
-        applied = manifest['status'] in ('completed_verified', 'applied', 'failed')
+        applied = manifest['status'] in ('completed_verified', 'applied', 'failed', 'applying', 'rolling_back')
         # Recheck every precondition before the first mutation.
+        for index, binding in enumerate(manifest.get('vita3k_bindings', [])):
+            link, target, staged = _vita3k_binding_paths(root, opdir, manifest, binding, index)
+            layout = _vita3k_binding_layout(link, staged, binding)
+            if action == 'verify' and layout != 'applied':
+                raise ValueError('Vínculo Vita3K ainda não publicado')
         for move in manifest['moves']:
             source = _library_source(root, move)
             destination = _library_target(root, move['destination'])
             at_destination = destination.exists() if applied else False
             directory = destination if at_destination else source
+            intent = {'source': move['source'], 'destination': move['destination']}
+            if (action == 'apply' and at_destination and manifest.get('durable_moves')
+                    and move.get('move_intent') != intent):
+                raise ValueError('Destino sem intenção durável comprovada: ' + move['destination'])
+            preserved_copy = opdir / 'rollback/imported' / move['destination']
+            if (action == 'rollback' and move.get('action') == 'copy'
+                    and not at_destination and not preserved_copy.exists()):
+                checkpoint = move.get('rename_checkpoints', {}).get('apply')
+                if (move.get('apply_completed') or checkpoint and
+                        (checkpoint.get('complete') or not (root / checkpoint['source']).exists())):
+                    raise ValueError('Importação publicada ausente; reconciliar: ' + move['destination'])
+            if (action == 'rollback' and move.get('action') == 'copy' and not at_destination
+                    and move.get('rollback_intent') and preserved_copy.exists()):
+                directory = preserved_copy
             expected = [dict(row) for row in move['files']]
             if applied and action == 'verify':
                 for edit in manifest['edits']:
@@ -289,7 +502,8 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
                                 row['size_bytes'] = actual_path.stat().st_size
             if not directory.exists() or _library_tree(directory) != expected:
                 raise ValueError(f'Inventário/SHA divergente: {directory}')
-            if action == 'apply' and destination.exists() and (not applied or source.exists()):
+            if (action == 'apply' and destination.exists() and
+                    (not applied or (source.exists() and move.get('action') != 'copy'))):
                 raise ValueError(f'Destino existente preservado: {destination}')
             if action == 'rollback' and source.exists() and at_destination and move.get('action') != 'copy':
                 raise ValueError(f'Origem reapareceu: {source}')
@@ -304,18 +518,36 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
                     if edit['path'].startswith(move['destination'] + '/') and (root / move['source']).exists():
                         path = root / move['source'] / edit['path'][len(move['destination']) + 1:]
                         break
-            allowed = {edit['sha256_before'], edit['sha256_after']} if action == 'rollback' or (action == 'apply' and applied) else {
-                edit['sha256_before'] if action == 'apply' else edit['sha256_after']}
+            allowed = ({edit['sha256_before'], edit['sha256_after']} if action in ('apply', 'rollback')
+                       else {edit['sha256_after']})
             current_sha = _sha256(path) if path.is_file() else None
             if current_sha not in allowed:
                 raise ValueError('Referência mudou: ' + edit['path'])
         if action == 'verify':
+            for index, binding in enumerate(manifest.get('vita3k_bindings', [])):
+                _vita3k_binding_execute(root, opdir, manifest, binding, index, action)
             manifest['status'] = 'completed_verified'
         elif action == 'apply':
+            manifest['status'] = 'applying'
+            manifest['durable_moves'] = True
+            romtool.atomic_json(opdir / 'manifest.json', manifest)
             try:
-                for move in manifest['moves']:
+                for index, move in enumerate(manifest['moves']):
                     source, destination = _library_source(root, move), root / move['destination']
+                    move['move_intent'] = {'source': move['source'], 'destination': move['destination']}
+                    romtool.atomic_json(opdir / 'manifest.json', manifest)
                     if destination.exists() and (not source.exists() or move.get('action') == 'copy'):
+                        checkpoint = move.get('rename_checkpoints', {}).get('apply')
+                        if checkpoint:
+                            _rename_library_path(root, root / checkpoint['source'], destination,
+                                                 move, manifest, opdir, 'apply')
+                        else:
+                            romtool.sync_directory_chain(destination.parent)
+                            romtool.sync_directory_chain(source.parent)
+                        if move.get('action') == 'copy':
+                            _sync_library_copy(destination, move['files'])
+                        move['apply_completed'] = True
+                        romtool.atomic_json(opdir / 'manifest.json', manifest)
                         continue
                     missing = []
                     parent = destination.parent
@@ -333,23 +565,49 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
                     if move.get('action') == 'copy':
                         if any(row['kind'] == 'symlink' for row in move['files']):
                             raise ValueError('Importação Dolphin não admite symlinks')
-                        if source.is_dir():
-                            shutil.copytree(source, destination, symlinks=False)
-                        else:
-                            shutil.copy2(source, destination)
-                        if _library_tree(destination) != move['files'] or _library_tree(source) != move['files']:
+                        staging = opdir / 'staging/library-copies' / str(index)
+                        _library_target(root, staging.relative_to(root).as_posix())
+                        staging.parent.mkdir(parents=True, exist_ok=True)
+                        for phase, checkpoint in list(move.get('rename_checkpoints', {}).items()):
+                            if not phase.startswith('partial-'):
+                                continue
+                            if not checkpoint.get('complete'):
+                                _rename_library_path(root, root / checkpoint['source'],
+                                                     root / checkpoint['destination'], move, manifest, opdir, phase)
+                            retained = (root / checkpoint['destination']).relative_to(opdir).as_posix()
+                            if retained not in move.get('interrupted_copies', []):
+                                move.setdefault('interrupted_copies', []).append(retained)
+                                romtool.atomic_json(opdir / 'manifest.json', manifest)
+                        if staging.exists() and _library_tree(staging) != move['files']:
+                            phase = 'partial-' + uuid.uuid4().hex
+                            partial = opdir / 'rollback/interrupted-copies' / (str(index) + '-' + phase)
+                            partial.parent.mkdir(parents=True, exist_ok=True)
+                            _rename_library_path(root, staging, partial, move, manifest, opdir, phase)
+                            move.setdefault('interrupted_copies', []).append(partial.relative_to(opdir).as_posix())
+                            romtool.atomic_json(opdir / 'manifest.json', manifest)
+                        if not staging.exists():
+                            if source.is_dir():
+                                shutil.copytree(source, staging, symlinks=False)
+                            else:
+                                shutil.copy2(source, staging)
+                        if _library_tree(staging) != move['files'] or _library_tree(source) != move['files']:
                             raise ValueError('Importação divergiu da fonte validada')
+                        _sync_library_copy(staging, move['files'])
+                        if destination.exists():
+                            raise ValueError('Destino da importação apareceu durante a cópia')
+                        _rename_library_path(root, staging, destination, move, manifest, opdir, 'apply')
+                        move['apply_completed'] = True
+                        romtool.atomic_json(opdir / 'manifest.json', manifest)
                         romtool.append_event(operation_id, 'dolphin_data_imported', action='library_apply',
                                              status='applied', source=move['source_absolute'], destination=move['destination'])
                         continue
-                    original_mode = source.stat().st_mode & 0o777
-                    source.chmod(original_mode | 0o200)
-                    try:
-                        source.rename(destination)
-                    finally:
-                        (destination if destination.exists() else source).chmod(original_mode)
+                    _rename_library_path(root, source, destination, move, manifest, opdir, 'apply')
+                    move['apply_completed'] = True
+                    romtool.atomic_json(opdir / 'manifest.json', manifest)
                     romtool.append_event(operation_id, 'runtime_moved', action='library_apply', status='applied',
                                          source=move['source'], destination=move['destination'])
+                for index, binding in enumerate(manifest.get('vita3k_bindings', [])):
+                    _vita3k_binding_execute(root, opdir, manifest, binding, index, action)
                 for edit in manifest['edits']:
                     path = root / edit['path']
                     missing = []
@@ -364,17 +622,19 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
                     data = (opdir / 'proposed' / edit['path']).read_bytes()
                     if hashlib.sha256(data).hexdigest() != edit['sha256_after']:
                         raise ValueError('Snapshot alterado: ' + edit['path'])
-                    temporary = path.with_name(path.name + '.emulator-library-tmp')
-                    with temporary.open('xb') as stream:
-                        stream.write(data)
-                    temporary.chmod(edit['mode'])
-                    os.replace(temporary, path)
+                    edit['write_intent'] = {'sha256': edit['sha256_after']}
+                    romtool.atomic_json(opdir / 'manifest.json', manifest)
+                    romtool.atomic_write_bytes(path, data, mode=edit['mode'])
+                    edit['write_completed'] = True
+                    romtool.atomic_json(opdir / 'manifest.json', manifest)
                 manifest['status'] = 'applied'
             except Exception:
                 manifest['status'] = 'failed'
                 romtool.atomic_json(opdir / 'manifest.json', manifest)
                 raise
         else:
+            manifest['status'] = 'rolling_back'
+            romtool.atomic_json(opdir / 'manifest.json', manifest)
             for edit in reversed(manifest['edits']):
                 path = root / edit['path']
                 if edit.get('after_move') and not path.exists():
@@ -384,39 +644,65 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
                             break
                 if edit['sha256_before'] is None:
                     preserved = opdir / 'rollback/applied-files' / edit['path']
+                    if not path.exists() and not edit.get('write_intent') and manifest.get('durable_moves'):
+                        continue
+                    if not path.exists() and preserved.is_file() and _sha256(preserved) == edit['sha256_after']:
+                        if edit.get('rename_checkpoints', {}).get('rollback-created-file'):
+                            _rename_library_path(root, path, preserved, edit, manifest, opdir, 'rollback-created-file')
+                        continue
                     preserved.parent.mkdir(parents=True, exist_ok=True)
-                    path.rename(preserved)
+                    if preserved.exists():
+                        raise ValueError('Destino de preservação ocupado: ' + edit['path'])
+                    _rename_library_path(root, path, preserved, edit, manifest, opdir, 'rollback-created-file')
                     continue
                 before = (opdir / 'rollback/files' / edit['path']).read_bytes()
                 if hashlib.sha256(before).hexdigest() != edit['sha256_before']:
                     raise ValueError('Preimagem alterada')
-                path.write_bytes(before)
-                path.chmod(edit['mode'])
+                romtool.atomic_write_bytes(path, before, mode=edit['mode'])
+            for index in reversed(range(len(manifest.get('vita3k_bindings', [])))):
+                _vita3k_binding_execute(root, opdir, manifest, manifest['vita3k_bindings'][index], index, action)
             for move in reversed(manifest['moves']):
                 source = root / move['destination']
                 destination = _library_source(root, move)
+                rollback_target = ((opdir / 'rollback/imported' / move['destination']).relative_to(root).as_posix()
+                                   if move.get('action') == 'copy' else move['source'])
+                move['rollback_intent'] = {'source': move['destination'], 'destination': rollback_target}
+                romtool.atomic_json(opdir / 'manifest.json', manifest)
                 if move.get('action') == 'copy':
                     preserved = opdir / 'rollback/imported' / move['destination']
+                    if not source.exists() and not preserved.exists():
+                        # A copy interrupted in staging has never entered the shared library.
+                        # Its original and private staging remain available for inspection.
+                        continue
+                    if not source.exists() and preserved.exists() and _library_tree(preserved) == move['files']:
+                        if move.get('rename_checkpoints', {}).get('rollback'):
+                            _rename_library_path(root, source, preserved, move, manifest, opdir, 'rollback')
+                        continue
                     preserved.parent.mkdir(parents=True, exist_ok=True)
-                    source.rename(preserved)
+                    if preserved.exists():
+                        raise ValueError('Destino de preservação da importação ocupado')
+                    _rename_library_path(root, source, preserved, move, manifest, opdir, 'rollback')
+                    move['rollback_completed'] = True
+                    romtool.atomic_json(opdir / 'manifest.json', manifest)
                     continue
-                if not source.exists() and destination.is_dir():
+                if not source.exists() and destination.exists():
+                    if move.get('rename_checkpoints', {}).get('rollback'):
+                        _rename_library_path(root, source, destination, move, manifest, opdir, 'rollback')
                     continue
-                mode = source.stat().st_mode & 0o777
-                source.chmod(mode | 0o200)
-                try:
-                    source.rename(destination)
-                finally:
-                    (destination if destination.exists() else source).chmod(mode)
+                _rename_library_path(root, source, destination, move, manifest, opdir, 'rollback')
+                move['rollback_completed'] = True
+                romtool.atomic_json(opdir / 'manifest.json', manifest)
             for relative in reversed(manifest.get('created_directories', [])):
                 directory = _library_target(root, relative)
                 if directory.is_dir() and not any(directory.iterdir()):
                     directory.rmdir()
+                    romtool.sync_directory_chain(directory.parent)
             manifest['status'] = 'rolled_back'
         romtool.atomic_json(opdir / 'manifest.json', manifest)
         romtool.append_event(operation_id, 'library_' + action, action='library_' + action,
                              status=manifest['status'], details={'moves': len(manifest['moves'])})
-        romtool.rebuild_history_index()
+        if not manifest.get('history_index_deferred'):
+            romtool.rebuild_history_index()
         return {'operation_id': operation_id, 'status': manifest['status'], 'moves': len(manifest['moves'])}
     finally:
         os.close(lock)
@@ -494,6 +780,416 @@ def native_configuration_plan(root: Path) -> dict:
                          details={'files': len(edits)})
     romtool.rebuild_history_index()
     return {'operation_id': operation_id, 'status': 'prepared', 'edits': len(edits)}
+
+
+def _unfinished_vita3k_plan(root: Path, fingerprint: str, operation_id: str | None):
+    paths = ([romtool.operation_dir(operation_id) / 'manifest.json'] if operation_id else
+             sorted(romtool.OPS_ROOT.glob('emulator-library-vita3k-data-*/manifest.json')))
+    unfinished = []
+    for path in paths:
+        _library_target(root, path.relative_to(root).as_posix())
+        if path.stat().st_size > 1024 * 1024:
+            raise ValueError('Manifesto Vita3K excessivo; preserve para revisão')
+        record = json.loads(path.read_text())
+        if (record.get('kind') != 'emulator_library_migration'
+                or record.get('scope') != 'vita3k_portable_userdata'
+                or record.get('operation_id') != path.parent.name):
+            raise ValueError('Manifesto de preparação Vita3K incompatível')
+        if record.get('status') in ('preparing', 'prepared', 'applying', 'failed', 'applied'):
+            if record.get('recipe_sha256') != fingerprint:
+                raise ValueError('Preparação Vita3K pendente usa outro pin; reconcilie antes de atualizar')
+            unfinished.append(record)
+    if len(unfinished) > 1:
+        raise ValueError('Há preparações Vita3K múltiplas; selecione --operation-id após revisão')
+    return unfinished[0] if unfinished else None
+
+
+def vita3k_data_plan(root: Path, operation_id: str | None = None) -> dict:
+    """Use upstream portable mode with one shared filesystem and a relative binding."""
+    recipe = load_recipes(root).get('runtimes', {}).get('vita3k', {})
+    if (recipe.get('kind') != 'appimage' or recipe.get('install_dir') != 'vita3k'
+            or recipe.get('entry') != 'Vita3K-x86_64.AppImage'):
+        raise ValueError('Vita3K exige a receita AppImage Linux fixada')
+    program = _library_target(root, 'emulator/linux/vita3k/' + recipe['entry'])
+    expected = recipe.get('entry_sha256', recipe.get('source_sha256'))
+    if (not program.is_file() or not os.access(program, os.X_OK)
+            or program.stat().st_size != recipe.get('source_size_bytes')
+            or _sha256(program) != expected):
+        raise ValueError('Instale e verifique o AppImage Vita3K antes dos dados compartilhados')
+    _check_appimage(program)
+    fingerprint = hashlib.sha256(json.dumps(recipe, sort_keys=True).encode()).hexdigest()
+    pending = _unfinished_vita3k_plan(root, fingerprint, operation_id)
+    if pending:
+        operation_id = pending['operation_id']
+        if pending['status'] in ('applying', 'failed', 'applied'):
+            return {'operation_id': operation_id,
+                    'status': ('verification_resume_required' if pending['status'] == 'applied'
+                               else 'application_resume_required')}
+    userdata = _library_target(root, 'emulator/data/Vita3K')
+    link = program.parent / 'portable'
+    literal = os.path.relpath(userdata, link.parent)
+    userdata_present = userdata.exists()
+    if userdata_present:
+        fs = _library_target(root, 'emulator/data/Vita3K/fs')
+        config_path = _library_target(root, 'emulator/data/Vita3K/config.yml')
+        if not userdata.is_dir() or not fs.is_dir() or not config_path.is_file():
+            raise ValueError('Dados Vita3K existentes exigem reconciliação com o layout portátil upstream')
+    if os.path.lexists(link):
+        if (link.is_symlink() and os.readlink(link) == literal and userdata_present
+                and link.resolve(strict=True) == userdata):
+            return {'status': 'already_configured_verified', 'userdata': 'emulator/data/Vita3K',
+                    'relative_binding': literal, 'gameplay_tested': False}
+        raise ValueError('Caminho portable Vita3K existente preservado para reconciliação')
+    if operation_id:
+        opdir = romtool.operation_dir(operation_id)
+        _library_target(root, opdir.relative_to(root).as_posix())
+        manifest_path = opdir / 'manifest.json'
+        if manifest_path.is_symlink():
+            raise ValueError('Manifesto Vita3K simbólico recusado')
+        manifest = json.loads(manifest_path.read_text())
+        if (manifest.get('scope') != 'vita3k_portable_userdata' or manifest.get('operation_id') != operation_id
+                or manifest.get('recipe_sha256') != fingerprint
+                or manifest.get('status') not in ('preparing', 'prepared')):
+            raise ValueError('Preparação Vita3K exige o mesmo pin e estado retomável')
+        if manifest.get('userdata_preexisted') != userdata_present:
+            raise ValueError('Dados Vita3K apareceram ou desapareceram após o plano; preservados')
+    else:
+        operation_id = 'emulator-library-vita3k-data-' + uuid.uuid4().hex[:8]
+        opdir = romtool.operation_dir(operation_id)
+        opdir.mkdir(parents=True, mode=0o700)
+        manifest = {'schema_version': 1, 'kind': 'emulator_library_migration', 'operation_id': operation_id,
+                    'status': 'preparing', 'scope': 'vita3k_portable_userdata', 'created_at': romtool.now(),
+                    'moves': [], 'edits': [], 'vita3k_bindings': [], 'recipe_sha256': fingerprint,
+                    'program_sha256': expected, 'userdata_preexisted': userdata_present,
+                    'gameplay_tested': False, 'history_index_deferred': True}
+        romtool.atomic_json(opdir / 'manifest.json', manifest)
+    moves = []
+    if not userdata_present:
+        staging = _library_target(root, (opdir / 'staging/Vita3K').relative_to(root).as_posix())
+        (staging / 'fs').mkdir(parents=True, exist_ok=True)
+        config_path = staging / 'config.yml'
+        defaults = b'pref-path: fs\ncheck-for-updates: false\ndiscord-rich-presence: false\n'
+        if config_path.exists():
+            if config_path.is_symlink() or config_path.read_bytes() != defaults:
+                raise ValueError('Configuração Vita3K preparada mudou; preserve e reconcilie')
+        else:
+            romtool.atomic_write_bytes(config_path, defaults, mode=0o644)
+        inventory = _library_tree(staging)
+        if {row['path'] for row in inventory} != {'fs', 'config.yml'}:
+            raise ValueError('Staging Vita3K contém dados além da preparação selecionada')
+        _sync_library_copy(staging, inventory)
+        moves.append({'source': staging.relative_to(root).as_posix(),
+                      'destination': 'emulator/data/Vita3K', 'files': inventory})
+    staged = _library_target(root, (opdir / 'bindings').relative_to(root).as_posix()) / '0'
+    staged.parent.mkdir(exist_ok=True)
+    if os.path.lexists(staged):
+        if not staged.is_symlink() or os.readlink(staged) != literal:
+            raise ValueError('Vínculo Vita3K preparado divergiu; preservado')
+    else:
+        os.symlink(literal, staged, target_is_directory=True)
+    romtool.sync_directory_chain(staged.parent)
+    binding = {'source': 'emulator/linux/vita3k/portable', 'destination': 'emulator/data/Vita3K',
+               'literal': literal, 'snapshot': _vita3k_binding_snapshot(staged)}
+    manifest.update(status='prepared', moves=moves, vita3k_bindings=[binding])
+    romtool.atomic_json(opdir / 'manifest.json', manifest)
+    romtool.append_event(operation_id, 'vita3k_data_prepared', action='library_plan', status='prepared',
+                        details={'shared_userdata': 'emulator/data/Vita3K', 'relative_binding': literal,
+                                 'moves': len(moves), 'gameplay_tested': False})
+    return {'operation_id': operation_id, 'status': 'prepared', 'moves': len(moves), 'bindings': 1, 'edits': 0}
+
+
+def vita3k_game_plan(root: Path, app_directory: Path, descriptor: Path,
+                     patch_directory: Path | None = None, operation_id: str | None = None) -> dict:
+    """Bind a selected canonical extracted application without copying game data."""
+    from portable_emulator import vita3k_game_identity
+    app = vita3k_game_identity(root, app_directory)
+    selected = [('app', app)]
+    if patch_directory is not None:
+        patch = vita3k_game_identity(root, patch_directory, 'gp')
+        if patch['title_id'] != app['title_id']:
+            raise ValueError('Patch Vita de outro TITLE_ID preservado')
+        selected.append(('patch', patch))
+    descriptor = Path(os.path.abspath(descriptor))
+    relative = descriptor.relative_to(root).as_posix()
+    _library_target(root, relative)
+    if not descriptor.is_relative_to(root / 'roms/psvita') or descriptor.suffix.lower() != '.psvita':
+        raise ValueError('Descritor Vita exige .psvita na biblioteca canônica')
+    payload = (app['title_id'] + '\n').encode('ascii')
+    if descriptor.exists() and descriptor.read_bytes() != payload:
+        raise ValueError('Descritor Vita existente diferente preservado')
+    userdata = _library_target(root, 'emulator/data/Vita3K')
+    portable = root / 'emulator/linux/vita3k/portable'
+    if (not userdata.is_dir() or not portable.is_symlink()
+            or os.readlink(portable) != os.path.relpath(userdata, portable.parent)
+            or portable.resolve(strict=True) != userdata):
+        raise ValueError('Prepare os dados portáteis Vita3K antes dos aplicativos')
+    choices = {'descriptor': relative, 'title_id': app['title_id'],
+               'applications': [{'role': role, 'destination': identity['directory'].relative_to(root).as_posix(),
+                                 'sfo_sha256': identity['sfo_sha256']} for role, identity in selected]}
+    fingerprint = hashlib.sha256(json.dumps(choices, sort_keys=True).encode()).hexdigest()
+    paths = ([romtool.operation_dir(operation_id) / 'manifest.json'] if operation_id else
+             sorted(romtool.OPS_ROOT.glob('emulator-library-vita3k-game-*/manifest.json')))
+    pending = []
+    for path in paths:
+        _library_target(root, path.relative_to(root).as_posix())
+        if path.stat().st_size > 1024 * 1024:
+            raise ValueError('Manifesto de aplicativo Vita excessivo')
+        record = json.loads(path.read_text())
+        if record.get('kind') != 'emulator_library_migration' or record.get('scope') != 'vita3k_game_bindings':
+            raise ValueError('Manifesto de aplicativo Vita incompatível')
+        if record.get('selection_sha256') == fingerprint and record.get('status') in (
+                'preparing', 'prepared', 'applying', 'failed', 'applied'):
+            pending.append(record)
+        elif operation_id:
+            raise ValueError('Retomada Vita exige a mesma seleção e estado pendente')
+    if len(pending) > 1:
+        raise ValueError('Preparações Vita múltiplas exigem seleção explícita')
+    if pending:
+        record = pending[0]
+        status = {'applying': 'application_resume_required', 'failed': 'application_resume_required',
+                  'applied': 'verification_resume_required'}.get(record['status'], 'prepared')
+        if record['status'] != 'preparing':
+            return {'operation_id': record['operation_id'], 'status': status}
+        operation_id = record['operation_id']
+        opdir = romtool.operation_dir(operation_id)
+        manifest = record
+    else:
+        operation_id = 'emulator-library-vita3k-game-' + uuid.uuid4().hex[:8]
+        opdir = romtool.operation_dir(operation_id)
+        opdir.mkdir(parents=True, mode=0o700)
+        manifest = {'schema_version': 1, 'kind': 'emulator_library_migration',
+                    'operation_id': operation_id, 'created_at': romtool.now(), 'status': 'preparing',
+                    'scope': 'vita3k_game_bindings', 'title_id': app['title_id'], 'selection': choices,
+                    'selection_sha256': fingerprint, 'moves': [], 'edits': [], 'vita3k_bindings': [],
+                    'history_index_deferred': True, 'gameplay_tested': False}
+        romtool.atomic_json(opdir / 'manifest.json', manifest)
+    bindings = []
+    existing = []
+    for role, identity in selected:
+        link = root / 'emulator/data/Vita3K/fs/ux0' / role / app['title_id']
+        _library_target(root, link.parent.relative_to(root).as_posix())
+        target = identity['directory']
+        literal = os.path.relpath(target, link.parent)
+        if os.path.lexists(link):
+            if not link.is_symlink() or os.readlink(link) != literal or link.resolve(strict=True) != target:
+                raise ValueError('Aplicativo Vita instalado diferente preservado: ' + str(link))
+            existing.append(link.relative_to(root).as_posix())
+            bindings.append({'role': role, 'source': link.relative_to(root).as_posix(),
+                             'destination': target.relative_to(root).as_posix(), 'literal': literal,
+                             'sfo_sha256': identity['sfo_sha256'], 'snapshot': _vita3k_binding_snapshot(link),
+                             'preexisting': True, 'apply_intent': True})
+            continue
+        staged = opdir / 'bindings' / str(len(bindings))
+        staged.parent.mkdir(exist_ok=True)
+        if os.path.lexists(staged):
+            if not staged.is_symlink() or os.readlink(staged) != literal:
+                raise ValueError('Vínculo preparado Vita diferente preservado')
+        else:
+            staged.symlink_to(literal, target_is_directory=True)
+        romtool.sync_directory_chain(staged.parent)
+        bindings.append({'role': role, 'source': link.relative_to(root).as_posix(),
+                         'destination': target.relative_to(root).as_posix(), 'literal': literal,
+                         'sfo_sha256': identity['sfo_sha256'], 'snapshot': _vita3k_binding_snapshot(staged)})
+    edits = []
+    if not descriptor.exists():
+        proposal = opdir / 'proposed' / relative
+        romtool.atomic_write_bytes(proposal, payload, mode=0o644)
+        edits.append({'path': relative, 'sha256_before': None,
+                      'sha256_after': hashlib.sha256(payload).hexdigest(), 'mode': 0o644})
+    configured = not edits and len(existing) == len(bindings)
+    manifest.update(status='completed_verified' if configured else 'prepared', edits=edits,
+                    vita3k_bindings=bindings, existing_bindings=existing)
+    romtool.atomic_json(opdir / 'manifest.json', manifest)
+    romtool.append_event(operation_id, 'vita3k_game_prepared', action='library_plan', status='prepared',
+                        details={'title_id': app['title_id'], 'bindings': len(bindings), 'descriptor': relative,
+                                 'gameplay_tested': False})
+    return {'operation_id': operation_id, 'status': 'already_configured_verified' if configured else 'prepared',
+            'bindings': len(bindings),
+            'edits': len(edits), 'title_id': app['title_id']}
+
+
+def supermodel_data_plan(root: Path) -> dict:
+    """Give upstream its portable working directory and share package resources."""
+    installed = install_package(root, 'supermodel', 'linux')
+    if installed['status'] != 'already_installed_verified':
+        raise ValueError('Instale e verifique o pacote Supermodel antes de preparar os dados')
+    program = _library_target(root, installed['entry']).parent
+    destination = _library_target(root, 'emulator/data/Supermodel')
+    links = {'Assets': program / 'Assets', 'Config/Music.xml': program / 'Config/Music.xml'}
+    expected = {name: os.path.relpath(source, (destination / name).parent)
+                for name, source in links.items()}
+    if destination.exists():
+        config = destination / 'Config'
+        if (not config.is_dir() or config.is_symlink() or
+                any(not (destination / name).is_symlink() or os.readlink(destination / name) != target
+                    for name, target in expected.items())):
+            raise ValueError('Dados Supermodel existentes exigem reconciliação; preservados')
+        return {'status': 'already_configured_verified', 'userdata': 'emulator/data/Supermodel'}
+    operation_id = 'emulator-library-supermodel-data-' + uuid.uuid4().hex[:8]
+    opdir = romtool.operation_dir(operation_id)
+    staging = opdir / 'staging/Supermodel'
+    (staging / 'Config').mkdir(parents=True)
+    for name, target in expected.items():
+        source = links[name]
+        if source.is_symlink() or not source.exists():
+            raise ValueError('Recurso Supermodel ausente ou simbólico: ' + str(source))
+        os.symlink(target, staging / name, target_is_directory=source.is_dir())
+    inventory = _library_tree(staging)
+    _sync_library_copy(staging, inventory)
+    manifest = {'schema_version': 1, 'kind': 'emulator_library_migration', 'operation_id': operation_id,
+                'status': 'prepared', 'created_at': romtool.now(), 'edits': [],
+                'moves': [{'source': staging.relative_to(root).as_posix(),
+                           'destination': destination.relative_to(root).as_posix(), 'files': inventory}],
+                'scope': 'supermodel_shared_userdata_and_relative_package_resources',
+                'package_operation_id': installed['operation_id'], 'gameplay_tested': False}
+    romtool.atomic_json(opdir / 'manifest.json', manifest)
+    romtool.append_event(operation_id, 'supermodel_data_prepared', action='library_plan', status='prepared')
+    romtool.rebuild_history_index()
+    return {'operation_id': operation_id, 'status': 'prepared', 'moves': 1, 'edits': 0}
+
+
+def bluemsx_cbios_plan(root: Path, operation_id: str | None = None,
+                      from_directory: Path | None = None) -> dict:
+    """Prepare the pinned, freely licensed cartridge machine for the library executor."""
+    config = load_recipes(root)
+    recipe = config.get('bluemsx_cbios', {})
+    destination_name = 'bios/Machines/MSX2 - C-BIOS'
+    names = {'config.ini', 'cbios_main_msx2.rom', 'cbios_logo_msx2.rom',
+             'cbios_sub.rom', 'cbios.txt', 'blueMSX-license.txt'}
+    files = recipe.get('files', [])
+    database = recipe.get('database', {})
+    if (recipe.get('destination') != destination_name or len(files) != len(names)
+            or {row['path'] for row in files} != names
+            or any(not 0 < row['size_bytes'] <= 65536 or len(row['sha256']) != 64 for row in files)):
+        raise ValueError('Receita C-BIOS incompleta ou fora do escopo da máquina selecionada')
+    if (database.get('path') != 'msxromdb.xml'
+            or database.get('destination') != 'bios/Databases/msxromdb.xml'
+            or not 0 < database.get('size_bytes', 0) <= 4 * 1024**2
+            or len(database.get('sha256', '')) != 64):
+        raise ValueError('Receita da base de cartuchos blueMSX incompleta')
+    destination = _library_target(root, destination_name)
+    expected_content = sorted([{'path': row['path'], 'kind': 'file',
+                                'size_bytes': row['size_bytes'], 'sha256': row['sha256']}
+                               for row in files], key=lambda row: row['path'])
+    machine_present = destination.exists()
+    if machine_present:
+        if (not destination.is_dir() or {path.name for path in destination.iterdir()} != names
+                or any((destination / row['path']).is_symlink()
+                       or not (destination / row['path']).is_file()
+                       or (destination / row['path']).stat().st_size != row['size_bytes'] for row in files)):
+            raise ValueError('Máquina C-BIOS existente diverge da receita; preserve e reconcilie seus dados')
+        current = [{key: value for key, value in row.items() if key != 'mode'}
+                   for row in _library_tree(destination)]
+        if current != expected_content:
+            raise ValueError('Máquina C-BIOS existente diverge da receita; preserve e reconcilie seus dados')
+    database_target = _library_target(root, database['destination'])
+    database_present = database_target.exists()
+    existing_database = None
+    if database_present:
+        if not database_target.is_file() or database_target.stat().st_size > 4 * 1024**2:
+            raise ValueError('Base de cartuchos existente exige reconciliação; preservada')
+        with database_target.open('rb') as stream:
+            data = stream.read(4 * 1024**2 + 1)
+        if len(data) > 4 * 1024**2:
+            raise ValueError('Base de cartuchos cresceu durante a leitura; preservada')
+        parsed = ET.fromstring(data)
+        if parsed.tag != 'softwaredb' or parsed.find('software') is None:
+            raise ValueError('Base de cartuchos sem registros softwaredb; preservada')
+        existing_database = {'path': database['destination'], 'size_bytes': len(data),
+                             'sha256': hashlib.sha256(data).hexdigest(), 'status': 'existing_valid_xml_preserved'}
+    if machine_present and database_present:
+        return {'status': 'already_configured_verified', 'machine': destination_name,
+                'files': len(files), 'database': existing_database, 'gameplay_tested': False}
+    fingerprint = hashlib.sha256(json.dumps(recipe, sort_keys=True).encode()).hexdigest()
+    if operation_id:
+        opdir = romtool.operation_dir(operation_id)
+        _library_target(root, opdir.relative_to(root).as_posix())
+        path = opdir / 'manifest.json'
+        if path.is_symlink():
+            raise ValueError('Manifesto C-BIOS simbólico recusado')
+        manifest = json.loads(path.read_text())
+        if (manifest.get('scope') != 'bluemsx_cbios_cartridge_machine'
+                or manifest.get('operation_id') != operation_id
+                or manifest.get('recipe_sha256') != fingerprint
+                or manifest.get('status') not in ('preparing', 'preparation_failed', 'prepared')):
+            raise ValueError('Aquisição C-BIOS não pode ser retomada com essa receita ou estado')
+    else:
+        operation_id = 'emulator-library-bluemsx-cbios-' + uuid.uuid4().hex[:8]
+        opdir = romtool.operation_dir(operation_id)
+        opdir.mkdir(parents=True, mode=0o700)
+        manifest = {'schema_version': 1, 'kind': 'emulator_library_migration', 'operation_id': operation_id,
+                    'status': 'preparing', 'created_at': romtool.now(), 'edits': [], 'moves': [],
+                    'scope': 'bluemsx_cbios_cartridge_machine', 'recipe_sha256': fingerprint,
+                    'recipe': recipe, 'gameplay_tested': False, 'history_index_deferred': True}
+        romtool.atomic_json(opdir / 'manifest.json', manifest)
+    staging = _library_target(root, (opdir / 'staging/MSX2 - C-BIOS').relative_to(root).as_posix())
+    staged_database = _library_target(root, (opdir / 'staging/Databases/msxromdb.xml').relative_to(root).as_posix())
+    downloads = _library_target(root, (opdir / 'downloads').relative_to(root).as_posix())
+    if not machine_present:
+        staging.mkdir(parents=True, exist_ok=True)
+    if not database_present:
+        staged_database.parent.mkdir(parents=True, exist_ok=True)
+    downloads.mkdir(exist_ok=True)
+    manifest['status'] = 'preparing'
+    romtool.atomic_json(opdir / 'manifest.json', manifest)
+    try:
+        selected = [(staging / row['path'], row) for row in files] if not machine_present else []
+        if not database_present:
+            selected.append((staged_database, database))
+        for target, row in selected:
+            if os.path.lexists(target):
+                if (target.is_symlink() or not target.is_file()
+                        or target.stat().st_size != row['size_bytes'] or _sha256(target) != row['sha256']):
+                    raise ValueError('Arquivo preparado C-BIOS divergente; preservado: ' + str(target))
+                continue
+            candidate = downloads / (uuid.uuid4().hex + '-' + row['path'])
+            if from_directory is None:
+                _download(row['source_url'], candidate, row['size_bytes'], set(config['allowed_download_hosts']))
+            else:
+                source = from_directory / row['path']
+                if source.is_symlink() or not source.is_file() or source.stat().st_size != row['size_bytes']:
+                    raise ValueError('Fonte C-BIOS local ausente, simbólica ou divergente: ' + str(source))
+                with source.open('rb') as left, candidate.open('xb') as right:
+                    data = left.read(row['size_bytes'] + 1)
+                    if len(data) != row['size_bytes']:
+                        raise ValueError('Fonte C-BIOS local mudou de tamanho durante a leitura')
+                    right.write(data)
+                    right.flush()
+                    os.fsync(right.fileno())
+            if candidate.stat().st_size != row['size_bytes'] or _sha256(candidate) != row['sha256']:
+                raise ValueError('Tamanho/SHA-256 C-BIOS divergiu; fonte preservada em ' + str(candidate))
+            candidate.chmod(0o644)
+            _library_rename_exclusive(candidate, target)
+            romtool.sync_directory_chain(target.parent)
+        moves = []
+        if not machine_present:
+            inventory = _library_tree(staging)
+            content = [{key: value for key, value in row.items() if key != 'mode'} for row in inventory]
+            if content != expected_content:
+                raise ValueError('Staging C-BIOS contém arquivos divergentes da seleção fixada')
+            _sync_library_copy(staging, inventory)
+            moves.append({'source': staging.relative_to(root).as_posix(),
+                          'destination': destination_name, 'files': inventory})
+        if not database_present:
+            parsed = ET.parse(staged_database).getroot()
+            if parsed.tag != 'softwaredb' or parsed.find('software') is None:
+                raise ValueError('Base de cartuchos preparada sem registros softwaredb')
+            inventory = _library_tree(staged_database)
+            _sync_library_copy(staged_database, inventory)
+            moves.append({'source': staged_database.relative_to(root).as_posix(),
+                          'destination': database['destination'], 'files': inventory})
+        manifest.update(status='prepared', moves=moves, preserved_database=existing_database)
+        manifest.pop('preparation_error', None)
+        romtool.atomic_json(opdir / 'manifest.json', manifest)
+        romtool.append_event(operation_id, 'bluemsx_cbios_prepared', action='library_plan', status='prepared',
+                            details={'files': len(files), 'recipe_sha256': fingerprint,
+                                     'cartridge_machine': True, 'gameplay_tested': False})
+        return {'operation_id': operation_id, 'status': 'prepared', 'moves': len(moves), 'edits': 0,
+                'machine': destination_name, 'files': len(files)}
+    except Exception as exc:
+        manifest.update(status='preparation_failed', preparation_error=str(exc))
+        romtool.atomic_json(opdir / 'manifest.json', manifest)
+        raise
 
 
 def dolphin_data_plan(root: Path, config_only: bool = False) -> dict:
@@ -585,7 +1281,9 @@ def _package_member(value: str) -> Path:
     value = value.replace('\\', '/')
     path = Path(value)
     if (not value or value in ('.', '..') or value.startswith('/') or PureWindowsPath(value).drive or
-        any(part in ('..', '.') or ':' in part or part.endswith((' ', '.')) for part in path.parts)):
+        any(part in ('..', '.') or part.endswith((' ', '.')) or
+            any(ord(character) < 32 or character in '<>:"|?*' for character in part)
+            for part in path.parts)):
         raise ValueError(f'Membro inseguro: {value}')
     reserved = {'con', 'prn', 'aux', 'nul', *(f'com{i}' for i in range(1, 10)),
                 *(f'lpt{i}' for i in range(1, 10))}
@@ -624,6 +1322,42 @@ def _extract_package(source: Path, destination: Path, recipe: dict) -> None:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     with bundle.open(info) as src, target.open('xb') as out:
                         shutil.copyfileobj(src, out, 1 << 20)
+    elif recipe['format'] == 'tar_gz_tree':
+        members = []
+        total = 0
+        with tarfile.open(source, 'r:gz') as bundle:
+            for info in bundle:
+                relative = _package_member(info.name.rstrip('/'))
+                key = relative.as_posix().casefold()
+                if key in names or not (info.isfile() or info.isdir()) or info.sparse:
+                    raise ValueError('Membro duplicado, especial ou link: ' + info.name)
+                names.add(key)
+                total += info.size
+                if len(names) > 10000 or info.size < 0 or total > limit:
+                    raise ValueError('Arquivo excede o limite de extração')
+                members.append((info, relative))
+            if not members:
+                raise ValueError('Arquivo sem membros')
+            files = {relative.as_posix().casefold() for info, relative in members if info.isfile()}
+            if any(parent.as_posix().casefold() in files
+                   for _info, relative in members for parent in relative.parents if parent != Path('.')):
+                raise ValueError('Membro usa arquivo como diretório')
+            # Reading the gzip stream through EOF checks its trailer CRC too.
+            with gzip.open(source, 'rb') as stream:
+                while stream.read(1 << 20):
+                    pass
+            destination.mkdir()
+            for info, relative in members:
+                target = destination / relative
+                if info.isdir():
+                    target.mkdir(parents=True, exist_ok=True)
+                else:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with bundle.extractfile(info) as src, target.open('xb') as out:
+                        shutil.copyfileobj(src, out, 1 << 20)
+                    if target.stat().st_size != info.size:
+                        raise ValueError('Membro incompleto: ' + info.name)
+                    target.chmod(info.mode & 0o777)
     elif recipe['format'] == '7z_tree':
         extractor = shutil.which('7z') or shutil.which('7zz')
         if not extractor:
@@ -1006,7 +1740,8 @@ def _probe(path: Path, recipe: dict, scratch: Path) -> dict:
 
 def install_runtime(root: Path, runtime_id: str, confirmed: bool, from_file: Path | None = None,
                     allow_host_duplicate: bool = False, flatpak_query=None,
-                    run_declared_probe: bool = True, target_platform: str = 'linux') -> dict:
+                    run_declared_probe: bool = True, target_platform: str = 'linux',
+                    defer_history_index: bool = False) -> dict:
     if not confirmed:
         raise ValueError("Instalação exige --apply explícito")
     config = load_recipes(root, target_platform)
@@ -1094,6 +1829,7 @@ def install_runtime(root: Path, runtime_id: str, confirmed: bool, from_file: Pat
                    "game_launch_tested": False}
         operation = romtool.command_record_change(SimpleNamespace(
             change_type=CHANGE_TYPE, details_json=json.dumps(details, ensure_ascii=False),
+            defer_history_index=defer_history_index,
             reason=f"Instalar {recipe['display_name']} {recipe['version']} portátil a partir da release oficial fixada."))
         opid = operation["operation_id"]
         if status == "installed_verified":
@@ -1107,7 +1843,8 @@ def install_runtime(root: Path, runtime_id: str, confirmed: bool, from_file: Pat
                              destination=details["installation_path"], sha256_after=entry_sha,
                              sha256_before=details["previous_entry_sha256"], size_after=details["entry_size_bytes"],
                              details={"runtime_id": runtime_id, "version": recipe["version"]})
-        romtool.rebuild_history_index()
+        if not defer_history_index:
+            romtool.rebuild_history_index()
         if from_file == incoming and incoming.is_file():
             incoming.unlink()
         return {"operation_id": opid, **details, "used_by": _used_by(root, recipe)}

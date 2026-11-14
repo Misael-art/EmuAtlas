@@ -43,6 +43,19 @@ def module(name, filename):
 inputs = module("retrofe_input_observer", "input-debug-overlay.py")
 display = module("retrofe_display_preferences", "display-profile.py")
 transition = module("retrofe_clean_exit", "theme-transition.py")
+feedback = module("retrofe_session_feedback", "session-feedback.py")
+
+
+def controller_backend(root):
+    directory = root.resolve().parents[1] / "tools/roms"
+    if str(directory) not in sys.path:
+        sys.path.insert(0, str(directory))
+    spec = importlib.util.spec_from_file_location("retrofe_controller_routing", directory / "controller_session.py")
+    routing = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(routing)
+    # Resolve the same configuration dependencies used by assignment callbacks.
+    importlib.import_module("emulator_controls")
+    return routing
 
 
 def navigation_contract(root, theme_id=None):
@@ -58,8 +71,9 @@ def navigation_contract(root, theme_id=None):
     if contract.get("provider", "launcher") != "launcher":
         raise RuntimeError("O tema não oferece o provedor de Opções/saída supervisionado.")
     bindings = inputs.parse_controls(root / "controls.conf")
-    # Indexed SDL bindings must not shadow the wildcard Start reservation.
-    tokens = [OPTIONS_KEY, OPTIONS_BUTTON, *[f"joy{i}Button7" for i in range(16)]]
+    # The launcher projects each observed SDL mapping before starting the engine.
+    # Raw button 7 can be L3 on a mapped controller.
+    tokens = [OPTIONS_KEY]
     if inputs.resolve_actions(bindings, tokens):
         raise RuntimeError("Start/F10 conflitam com bindings do RetroFE.")
     if inputs.resolve_actions(bindings, ["Q"]) != ["quit"]:
@@ -94,12 +108,21 @@ class OptionsPanel:
         if not self.target:
             raise RuntimeError("Janela RetroFE não encontrada; painel não será aberto em outro monitor.")
         bindings = inputs.parse_controls(root / "controls.conf")
-        collisions = inputs.resolve_actions(bindings, [OPTIONS_KEY, OPTIONS_BUTTON])
+        collisions = inputs.resolve_actions(bindings, [OPTIONS_KEY])
         if collisions:
             raise RuntimeError(f"Start/F10 ainda têm ações do engine: {collisions}")
         self.window = tk.Tk(className="RetroFEOptions")
         self.window.withdraw()
         self.sdl = inputs.SDLInput()
+        # Reserve the observed logical Start as well as the unmapped fallback.
+        for index, mapping in self.sdl.mappings.items():
+            start = mapping.get("start", "")
+            if start.startswith("b") and start[1:].isdigit():
+                tokens = [f"joy{index}Button{start[1:]}", f"joyButton{start[1:]}"]
+                if inputs.resolve_actions(bindings, tokens):
+                    self.sdl.close()
+                    self.window.destroy()
+                    raise RuntimeError("O Start observado conflita com uma ação do RetroFE.")
         try:
             self.keyboard = inputs.X11KeyboardInput()
         except Exception:
@@ -147,8 +170,55 @@ class OptionsPanel:
         self.drawn = None
         self.last_window_check = 0.0
         self.front_active = False
+        self.routing = controller_backend(self.root_path)
+        from mobile_controller import Client
+        self.mobile = Client(self.root_path.parents[1])
+        self.feedback = feedback.SessionFeedback(self.window, root=self.root_path.parents[1],
+            on_assign=self.reassign_player, on_identify=self.identify_controller, on_add=self.mobile.pairing)
+        self.player_order = []
+        self.player_devices = []
+        self.preferences = {"schema": 1, "revision": 0, "slots": None, "models": {}}
+        self.last_player_scan = 0.0
         self.window.after(30, self.tick)
         self.log("ready", options_key=OPTIONS_KEY, options_button=OPTIONS_BUTTON)
+
+    def refresh_players(self):
+        rows = self.routing.input_inventory()
+        try:
+            self.preferences = self.routing.load_preferences(self.root_path.parents[1])
+        except (ValueError, OSError) as exc:
+            self.feedback.notice = str(exc)
+        mobile = {r['controller_id']: r for r in self.mobile.clients}
+        self.player_devices = [{**row,
+            "controller_id": self.routing.device_key(row),
+            "display_name": mobile.get(self.routing.device_key(row), {}).get('name', row['name']),
+            "online": mobile.get(self.routing.device_key(row), {}).get('online', True),
+            "routable": bool(self.routing.source_mapping(row, self.sdl.devices.values())),
+            "model_override": self.preferences["models"].get(self.routing.device_key(row))}
+            for row in rows if row["kind"] in {"deck", "external"}]
+        mapped = [row for row in self.player_devices if row["routable"]]
+        output = windows.active_output_name()
+        self.player_order = self.routing.slots(mapped, self.routing.dock_mode(output),
+                                               self.player_order, self.preferences["slots"],
+                                               self.routing.player_capacity(self.root_path.parents[1]))
+        available = {row["path"]: row for row in rows}
+        self.feedback.set_devices(self.player_devices,
+            [self.routing.device_key(available[path]) if path else None for path in self.player_order],
+            keyboard=not any(self.player_order))
+
+    def reassign_player(self, source_id, player):
+        self.refresh_players()
+        self.preferences = self.routing.assign_player(self.root_path.parents[1], self.player_devices,
+            self.player_order, source_id, player, self.preferences["revision"])
+        self.refresh_players()
+
+    def identify_controller(self, source_id, model):
+        self.refresh_players()
+        if source_id not in {self.routing.device_key(row) for row in self.player_devices}:
+            raise ValueError("O controle foi desconectado.")
+        self.preferences = self.routing.identify_controller(self.root_path.parents[1],
+            source_id, model, self.preferences["revision"])
+        self.refresh_players()
 
     def log(self, event, **values):
         print(json.dumps({"time": time.strftime("%Y-%m-%dT%H:%M:%S"), "event": event,
@@ -166,7 +236,7 @@ class OptionsPanel:
                 ("Continuar", "Voltar à mesma seleção", "resume", True),
                 ("Tema", "Escolher a aparência do frontend", "themes", True),
                 ("Tela", "Proporção e resolução", "display", True),
-                ("Controle", "Configurar o gamepad no Steam Input", "controls", True),
+                ("Controles", "Dispositivos P1–P4 e entrada opcional", "controllers", True),
                 ("Mídia e metadados", "Faltantes, conversão ES-DE e Skraper", "media", True),
                 ("Como navegar", "Botões, letras e favoritos", "guide", True),
                 ("Sair do RetroFE", "Exige confirmação", "exit", True),
@@ -190,9 +260,13 @@ class OptionsPanel:
                     ("Converter metadados do ES-DE", "Só preenche o que falta; vale na próxima abertura", "media:metadata", True),
                     ("Baixar mídias com Skraper", "Fecha o RetroFE, abre o Skraper e volta ao terminar", "media:skraper", True),
                     ("Voltar às opções", "", "root", True)]
+        if self.screen == "controllers":
+            return [("Ver P1–P4", "Mostrar os controles previstos para o próximo jogo", "players", True),
+                    ("Steam Input (opcional)", "Abre o Steam para configurar seu perfil Desktop", "controls", True),
+                    ("Voltar às opções", "", "root", True)]
         if self.screen == "exit":
             return [("Continuar jogando", "Cancelar e voltar à biblioteca", "resume", True),
-                    ("Encerrar o RetroFE", "O perfil Desktop será restaurado", "confirm_exit", True)]
+                    ("Encerrar o RetroFE", "Voltar ao Desktop", "confirm_exit", True)]
         return [("Voltar às opções", "", "root", True)]
 
     def show(self, screen="root"):
@@ -311,19 +385,23 @@ class OptionsPanel:
         if now < self.ignore_until or self.busy or self.closing:
             return
         if not self.opened:
-            if self.front_active and (OPTIONS_KEY in tokens or OPTIONS_BUTTON in tokens):
+            start = "gamepad:start" in tokens or ("gamepad:mapped" not in tokens and OPTIONS_BUTTON in tokens)
+            if self.front_active and (OPTIONS_KEY in tokens or start):
                 self.show()
             return
         if not source.startswith("SDL"):
             return  # Focused Tk handles keyboard once; XInput2 is the global opener.
         self.ignore_until = now + .13
-        if OPTIONS_BUTTON in tokens or "joyButton1" in tokens:
+        mapped = "gamepad:mapped" in tokens
+        if "gamepad:start" in tokens or "gamepad:b" in tokens or (not mapped and (OPTIONS_BUTTON in tokens or "joyButton1" in tokens)):
             self.back()
-        elif "joyButton0" in tokens:
+        elif "gamepad:a" in tokens or (not mapped and "joyButton0" in tokens):
             self.confirm()
-        elif any(t.endswith(("Hat0Up", "Hat0Left", "Axis1-", "Axis0-")) for t in tokens):
+        elif any(t in {"gamepad:dpup", "gamepad:dpleft", "gamepad:lefty-", "gamepad:leftx-"} or
+                 (not mapped and t.endswith(("Hat0Up", "Hat0Left", "Axis1-", "Axis0-"))) for t in tokens):
             self.move(-1)
-        elif any(t.endswith(("Hat0Down", "Hat0Right", "Axis1+", "Axis0+")) for t in tokens):
+        elif any(t in {"gamepad:dpdown", "gamepad:dpright", "gamepad:lefty+", "gamepad:leftx+"} or
+                 (not mapped and t.endswith(("Hat0Down", "Hat0Right", "Axis1+", "Axis0+"))) for t in tokens):
             self.move(1)
 
     def move(self, direction):
@@ -344,7 +422,10 @@ class OptionsPanel:
             self.drawn = None
             return
         self.log("select", screen=self.screen, label=label, action=action)
-        if action in {"themes", "display", "guide", "exit", "root", "media"}:
+        if action == "players":
+            self.feedback.show_players()
+            self.close()
+        elif action in {"themes", "display", "guide", "exit", "root", "media", "controllers"}:
             self.show(action)
         elif action == "resume":
             self.close()
@@ -390,7 +471,7 @@ class OptionsPanel:
         w, h = self.width, self.height
         scale = max(.55, min(w / 1280, h / 800, 1.7))
         margin = round(60 * scale)
-        title = {"root": "OPÇÕES", "themes": "TEMA", "display": "TELA", "guide": "COMO NAVEGAR", "exit": "ENCERRAR SESSÃO"}[self.screen]
+        title = {"root": "OPÇÕES", "themes": "TEMA", "display": "TELA", "guide": "COMO NAVEGAR", "exit": "ENCERRAR SESSÃO", "media": "MÍDIA E METADADOS", "controllers": "CONTROLES"}[self.screen]
         c.configure(bg=self.contract.get("surface", "#090e15"))
         accent = self.contract.get("accent", "#75c8f7")
         c.create_rectangle(margin, margin, w-margin, h-margin, fill=self.contract.get("panel", "#0e1924"), outline="#284557", width=1)
@@ -436,10 +517,10 @@ class OptionsPanel:
                 self.opened = False
                 self.closing = None
                 self.log("close", action="focus-left-session")
-            if self.opened:
-                target = windows.window_by_id(self.target.window_id)
-                if target and target.client != self.target.client:
-                    self.target = target
+            target = windows.window_by_id(self.target.window_id)
+            if target and target.client != self.target.client:
+                self.target = target
+                if self.opened:
                     rect = target.client
                     self.width, self.height = rect.width, rect.height
                     self.window.geometry(f"{rect.width}x{rect.height}{rect.x:+d}{rect.y:+d}")
@@ -451,6 +532,15 @@ class OptionsPanel:
             self.window.quit()
             return
         self.sdl.poll(self.event if (self.opened or self.front_active) else None, {})
+        players = {self.routing.device_key(row): n for n, path in enumerate(self.player_order)
+                   for row in self.player_devices if row['path'] == path}
+        self.mobile.sync(self.opened or self.front_active, players, self.reassign_player)
+        if now - self.last_player_scan > 1:
+            self.last_player_scan = now
+            self.refresh_players()
+        rect = self.target.client
+        self.feedback.update(self.front_active and not self.opened,
+                             (rect.x, rect.y, rect.width, rect.height), now)
         if self.closing and now-self.closing[0] > .2 and self.release_buttons():
             self.finish_close(self.closing[1])
         try:
@@ -473,9 +563,7 @@ class OptionsPanel:
         self.window.after(20, self.tick)
 
     def shutdown(self):
-        self.keyboard.close()
-        self.sdl.close()
-        self.window.destroy()
+        self.window.quit()
 
 
 def main():
@@ -484,14 +572,22 @@ def main():
     parser.add_argument("--app-pid", type=int)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--check-contract", action="store_true")
+    parser.add_argument("--prepare-controls", action="store_true")
     parser.add_argument("--theme", help="valida o contrato do tema de destino")
     parser.add_argument("--ready-file", type=Path)
     parser.add_argument("--quit", action="store_true", help="saída normal por Q, somente na janela em foco")
     args = parser.parse_args()
+    if args.prepare_controls:
+        sys.path.insert(0, str(args.root.resolve().parents[1] / "tools/roms"))
+        import emulator_controls
+        print(json.dumps(emulator_controls.prepare_retrofe(args.root.resolve().parents[1])))
+        return
     if args.check or args.check_contract:
         if args.check and (not windows.backend_available() or not all(shutil.which(name) for name in ("xinput", "xmodmap"))):
             raise RuntimeError("Options requer backend X11/XWayland, wmctrl, xdotool, xprop, xinput e xmodmap.")
         theme, _ = navigation_contract(args.root, args.theme)
+        if args.check:
+            controller_backend(args.root)
         print(f"[OPÇÕES] {theme['label']}: Start/F10 e saída confirmada disponíveis.")
         return
     if not args.app_pid:
@@ -515,7 +611,10 @@ def main():
         if args.ready_file:
             args.ready_file.unlink(missing_ok=True)
         panel.keyboard.close()
+        panel.mobile.close()
         panel.sdl.close()
+        panel.feedback.close()
+        panel.window.destroy()
         if panel.xdisplay:
             panel.xlib.XCloseDisplay(panel.xdisplay)
 

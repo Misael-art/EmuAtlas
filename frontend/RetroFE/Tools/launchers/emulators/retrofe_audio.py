@@ -39,10 +39,15 @@ def set_background_music_paused(paused: bool) -> None:
 
 
 def run_with_music_paused(command: Sequence[str], cwd: Path, env: Mapping[str, str] | None = None,
-                          system_id: str | None = None) -> int:
+                          system_id: str | None = None, journey: dict | None = None) -> int:
     """Run an emulator while muting the frontend's separate music stream."""
     set_background_music_paused(True)
     try:
+        if journey and os.name == 'nt':
+            sys.path.insert(0, str(Path(__file__).resolve().parents[5] / "tools/roms"))
+            from save_journey import run_unrouted
+            return run_unrouted(Path(__file__).resolve().parents[5], command,
+                                dict(env) if env is not None else dict(os.environ), journey)
         if system_id and os.name != 'nt':
             root = Path(__file__).resolve().parents[3]
             if env is not None:
@@ -53,7 +58,7 @@ def run_with_music_paused(command: Sequence[str], cwd: Path, env: Mapping[str, s
                 command = [shutil.which("env") or "env", *removed, *differences, *command]
             command = [sys.executable, str(root / "Tools/launchers/retrofe/steam-input.py"),
                        "--root", str(root), "session-run", "--system-id", system_id, "--", *command]
-            env = None
+            env = {**os.environ, "EMUATLAS_RETROARCH_JOURNEY": json.dumps(journey)} if journey else None
         return subprocess.run(command, cwd=cwd, env=dict(env) if env is not None else None, check=False).returncode
     finally:
         set_background_music_paused(False)

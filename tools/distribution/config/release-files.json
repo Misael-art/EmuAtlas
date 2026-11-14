@@ -642,6 +642,139 @@
     {
       "source": "tools/distribution/repository/github/ci.yml",
       "target": "tools/distribution/repository/github/ci.yml"
+    },
+    {
+      "source": "tools/roms/tests/test_atomic_json.py",
+      "target": "tools/roms/tests/test_atomic_json.py"
+    },
+    {
+      "source": "tools/roms/docs/media-continuation.md",
+      "target": "tools/roms/docs/media-continuation.md"
+    },
+    {
+      "source": "tools/roms/tests/test_media_stray_status.py",
+      "target": "tools/roms/tests/test_media_stray_status.py"
+    },
+    {
+      "source": "tools/roms/tests/test_launch_subjects.py",
+      "target": "tools/roms/tests/test_launch_subjects.py"
+    },
+    {
+      "source": "tools/roms/disc_sets.py",
+      "target": "tools/roms/disc_sets.py"
+    },
+    {
+      "source": "tools/roms/tests/test_disc_sets.py",
+      "target": "tools/roms/tests/test_disc_sets.py"
+    },
+    {
+      "source": "tools/roms/tests/test_launch_entries_projection.py",
+      "target": "tools/roms/tests/test_launch_entries_projection.py"
+    },
+    {
+      "source": "tools/roms/tests/test_asset_catalog_policy.py",
+      "target": "tools/roms/tests/test_asset_catalog_policy.py"
+    },
+    {
+      "source": "tools/roms/tests/test_input_recovery_unit.py",
+      "target": "tools/roms/tests/test_input_recovery_unit.py"
+    },
+    {
+      "source": "frontend/RetroFE/Tools/launchers/retrofe/session-feedback.py",
+      "target": "frontend/RetroFE/Tools/launchers/retrofe/session-feedback.py"
+    },
+    {
+      "source": "frontend/RetroFE/Config/controller-artwork.json",
+      "target": "frontend/RetroFE/Config/controller-artwork.json"
+    },
+    {
+      "source": "tools/roms/mobile_controller.py",
+      "target": "tools/roms/mobile_controller.py"
+    },
+    {
+      "source": "tools/roms/mobile-controller.html",
+      "target": "tools/roms/mobile-controller.html"
+    },
+    {
+      "source": "tools/roms/mobile-controller.css",
+      "target": "tools/roms/mobile-controller.css"
+    },
+    {
+      "source": "tools/roms/mobile-controller.js",
+      "target": "tools/roms/mobile-controller.js"
+    },
+    {
+      "source": "tools/roms/tests/test_mobile_controller.py",
+      "target": "tools/roms/tests/test_mobile_controller.py"
+    },
+    {
+      "source": "docs/business/assets/branding/controller-mobile.svg",
+      "target": "docs/business/assets/branding/controller-mobile.svg"
+    },
+    {
+      "source": "tools/roms/save_journey.py",
+      "target": "tools/roms/save_journey.py"
+    },
+    {
+      "source": "tools/roms/save_journey_ui.py",
+      "target": "tools/roms/save_journey_ui.py"
+    },
+    {
+      "source": "tools/roms/tests/test_save_journey.py",
+      "target": "tools/roms/tests/test_save_journey.py"
+    },
+    {
+      "source": "tools/roms/docs/save-journey.md",
+      "target": "tools/roms/docs/save-journey.md"
+    },
+    {
+      "source": "tools/roms/tests/test_media_session.py",
+      "target": "tools/roms/tests/test_media_session.py"
+    },
+    {
+      "source": "frontend/pegasus-frontend/launch.sh",
+      "target": "frontend/pegasus-frontend/launch.sh",
+      "mode": "0755"
+    },
+    {
+      "source": "frontend/pegasus-frontend/README.md",
+      "target": "frontend/pegasus-frontend/README.md"
+    },
+    {
+      "source": "tools/roms/tests/test_pegasus_media_projection.py",
+      "target": "tools/roms/tests/test_pegasus_media_projection.py"
+    },
+    {
+      "source": "tools/distribution/tests/test_retrofe_build.py",
+      "target": "tools/distribution/tests/test_retrofe_build.py"
+    },
+    {
+      "source": "tools/roms/tests/test_catalog_projection.py",
+      "target": "tools/roms/tests/test_catalog_projection.py"
+    },
+    {
+      "source": "tools/roms/tests/test_variant_registry_recovery.py",
+      "target": "tools/roms/tests/test_variant_registry_recovery.py"
+    },
+    {
+      "source": "tools/roms/tests/test_rom_archive_normalization.py",
+      "target": "tools/roms/tests/test_rom_archive_normalization.py"
+    },
+    {
+      "source": "tools/roms/tests/test_steam_save_links.py",
+      "target": "tools/roms/tests/test_steam_save_links.py"
+    },
+    {
+      "source": "tools/roms/tests/test_runtime_install.py",
+      "target": "tools/roms/tests/test_runtime_install.py"
+    },
+    {
+      "source": "tools/roms/tests/test_variant_organization.py",
+      "target": "tools/roms/tests/test_variant_organization.py"
+    },
+    {
+      "source": "tools/distribution/templates/tools/roms/config/tooling.json",
+      "target": "tools/distribution/templates/tools/roms/config/tooling.json"
     }
   ]
 }

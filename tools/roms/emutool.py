@@ -246,13 +246,14 @@ def _probe_runtime_entry(runtime_id: str, system: dict, entry: dict) -> dict[str
     if not isinstance(args, list) or not args or not all(isinstance(arg, str) for arg in args):
         return {"runtime_id": runtime_id, "available": False, "status": "probe_not_configured", "command": executable}
     try:
-        environment = romtool.host_runtime_probe_environment(entry)
+        environment = romtool.host_runtime_probe_environment(entry, program_dir=Path(executable).parent)
         result = subprocess.run([executable, *args], capture_output=True, text=True, errors="replace",
-                                 check=False, timeout=30, env=environment)
+                                 check=False, timeout=30, env=environment,
+                                 cwd=romtool.host_runtime_probe_directory(entry))
     except subprocess.TimeoutExpired as error:
         return {"runtime_id": runtime_id, "available": False, "status": "probe_timed_out",
                 "command": executable, "probe_args": args,
-                "output": str(error.stdout or "")[-1000:]}
+                "output": romtool.subprocess_output_text(error.stdout)[-1000:]}
     except (OSError, ValueError) as error:
         return {"runtime_id": runtime_id, "available": False, "status": "probe_failed",
                 "command": executable, "error": f"{type(error).__name__}: {error}"}
@@ -1541,7 +1542,7 @@ def runtime_probe(
             result.update(status="runtime_probe_not_configured", runtime=executable)
             return result
         try:
-            probe_env = romtool.host_runtime_probe_environment(system)
+            probe_env = romtool.host_runtime_probe_environment(system, program_dir=Path(executable).parent)
             probe = subprocess.run(
                 [executable, *probe_args],
                 capture_output=True,
@@ -1550,11 +1551,12 @@ def runtime_probe(
                 check=False,
                 timeout=30,
                 env=probe_env,
+                cwd=romtool.host_runtime_probe_directory(system),
             )
         except subprocess.TimeoutExpired as error:
             result.update(status="runtime_probe_timed_out", runtime=executable,
                           runtime_probe=probe_args, probe_timeout_seconds=30,
-                          runtime_probe_output=(error.stdout or "")[-1000:])
+                          runtime_probe_output=romtool.subprocess_output_text(error.stdout)[-1000:])
             return result
         except (OSError, ValueError) as error:
             result.update(status="runtime_probe_failed", runtime=executable,
@@ -1785,6 +1787,17 @@ def main() -> int:
     library_actions.add_parser('plan')
     library_actions.add_parser('windows-config-plan')
     library_actions.add_parser('model2-config-plan')
+    library_actions.add_parser('supermodel-data-plan')
+    vita_data = library_actions.add_parser('vita3k-data-plan')
+    vita_data.add_argument('--operation-id', help='retoma preparação portátil interrompida')
+    vita_game = library_actions.add_parser('vita3k-game-plan')
+    vita_game.add_argument('--app-directory', required=True, type=Path)
+    vita_game.add_argument('--patch-directory', type=Path)
+    vita_game.add_argument('--descriptor', required=True, type=Path)
+    vita_game.add_argument('--operation-id', help='retoma a mesma seleção interrompida')
+    cbios_plan = library_actions.add_parser('bluemsx-cbios-plan')
+    cbios_plan.add_argument('--operation-id', help='retoma aquisição interrompida da mesma receita')
+    cbios_plan.add_argument('--from-directory', type=Path, help='usa os arquivos oficiais locais fixados por SHA-256')
     library_actions.add_parser('dolphin-data-plan')
     library_actions.add_parser('dolphin-config-plan')
     for action in ('apply', 'verify', 'rollback'):
@@ -1847,6 +1860,8 @@ def main() -> int:
     install_apply_parser.add_argument("--from-file", type=Path, help="arquivo oficial já baixado (verificado pelo SHA-256 da receita)")
     install_apply_parser.add_argument("--apply", action="store_true")
     install_apply_parser.add_argument("--allow-host-duplicate", action="store_true", help="instala mesmo com o emulador presente no host")
+    install_apply_parser.add_argument('--defer-history-index', action='store_true',
+                                      help='registra a instalação agora e adia o índice integral para romtool history')
     install_asset_parser = install_actions.add_parser("asset", help="instala arquivo de suporte fixado (não sobrescreve); exige --apply")
     install_asset_parser.add_argument("--asset-id", required=True)
     install_asset_parser.add_argument("--apply", action="store_true")
@@ -1856,7 +1871,17 @@ def main() -> int:
     args = parser.parse_args()
     if args.command == 'library':
         try:
-            result = (runtime_install.model2_configuration_plan(ROOT) if args.library_action == 'model2-config-plan' else
+            result = (runtime_install.vita3k_game_plan(ROOT, args.app_directory.absolute(),
+                                                     args.descriptor.absolute(),
+                                                     args.patch_directory.absolute() if args.patch_directory else None,
+                                                     args.operation_id)
+                      if args.library_action == 'vita3k-game-plan' else
+                      runtime_install.vita3k_data_plan(ROOT, args.operation_id)
+                      if args.library_action == 'vita3k-data-plan' else
+                      runtime_install.bluemsx_cbios_plan(ROOT, args.operation_id, args.from_directory)
+                      if args.library_action == 'bluemsx-cbios-plan' else
+                      runtime_install.supermodel_data_plan(ROOT) if args.library_action == 'supermodel-data-plan' else
+                      runtime_install.model2_configuration_plan(ROOT) if args.library_action == 'model2-config-plan' else
                       runtime_install.dolphin_data_plan(ROOT, config_only=args.library_action == 'dolphin-config-plan')
                       if args.library_action in ('dolphin-data-plan', 'dolphin-config-plan') else
                       runtime_install.native_configuration_plan(ROOT) if args.library_action == 'windows-config-plan' else
@@ -1898,7 +1923,8 @@ def main() -> int:
                         for row in result["runtimes"]]}
             elif args.install_action == "apply":
                 result = runtime_install.install_runtime(ROOT, args.runtime_id, args.apply, args.from_file,
-                                                         args.allow_host_duplicate, target_platform=args.platform)
+                                                         args.allow_host_duplicate, target_platform=args.platform,
+                                                         defer_history_index=args.defer_history_index)
             elif args.install_action == "asset":
                 result = runtime_install.install_asset(ROOT, args.asset_id, args.apply)
             else:

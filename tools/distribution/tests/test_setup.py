@@ -1,4 +1,5 @@
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -10,8 +11,11 @@ import sys
 import tarfile
 import tempfile
 import time
+from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+import xml.etree.ElementTree as ET
+from unittest.mock import Mock, patch
+import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import setup as s
@@ -36,6 +40,172 @@ class SetupTests(unittest.TestCase):
         config['components']['a']['requires'] = ['b']
         with self.assertRaises(ValueError):
             s.graph(config)
+
+    def test_native_runtime_package_reuses_receipt_and_prepares_shared_data(self):
+        runtime = Mock()
+        runtime.load_recipes.return_value = {}
+        runtime.install_package.return_value = {'status': 'already_installed_verified', 'operation_id': 'package'}
+        runtime.supermodel_data_plan.return_value = {'status': 'prepared', 'operation_id': 'shared-data'}
+        with patch.dict(sys.modules, {'runtime_install': runtime, 'romtool': SimpleNamespace(PROJECT_ROOT=self.root)}), \
+                patch.object(self.engine, 'acquire') as acquire:
+            result = self.engine.runtime({'runtime_id': 'supermodel', 'package_platform': 'linux'})
+        self.assertEqual(result['status'], 'reused')
+        acquire.assert_not_called()
+        runtime.library_execute.assert_any_call(self.root, 'shared-data', 'apply', True)
+        runtime.library_execute.assert_any_call(self.root, 'shared-data', 'verify')
+
+    def test_native_runtime_package_uses_pinned_source_and_preserves_existing_data(self):
+        runtime = Mock()
+        recipe = {'source_url': 'https://github.com/example/pinned.tar.gz', 'source_size_bytes': 12,
+                  'source_sha256': 'a' * 64}
+        runtime.load_recipes.return_value = {'packages': {'linux': {'supermodel': recipe}},
+                                            'allowed_download_hosts': ['github.com']}
+        runtime.install_package.side_effect = [{'status': 'prepared'},
+                                               {'status': 'installed_verified', 'operation_id': 'package'}]
+        runtime.supermodel_data_plan.return_value = {'status': 'already_configured_verified'}
+        source = self.root / 'pinned-source'
+        with patch.dict(sys.modules, {'runtime_install': runtime, 'romtool': SimpleNamespace(PROJECT_ROOT=self.root)}), \
+                patch.object(self.engine, 'acquire', return_value=source) as acquire:
+            result = self.engine.runtime({'runtime_id': 'supermodel', 'package_platform': 'linux'})
+        self.assertEqual(result['status'], 'installed')
+        self.assertEqual(acquire.call_args.args[0]['sha256'], recipe['source_sha256'])
+        runtime.install_package.assert_called_with(self.root, 'supermodel', 'linux', True, from_file=source)
+        runtime.library_execute.assert_not_called()
+
+    def test_bluemsx_machine_prepared_for_reused_verified_and_installed_cores(self):
+        for mode in ('host', 'portable', 'install'):
+            with self.subTest(mode=mode):
+                runtime = Mock()
+                entry = self.root / ('emulator/linux/cores-' + mode) / 'bluemsx_libretro.so'
+                payload = b'own synthetic core'
+                recipe = {'entry': entry.name, 'install_dir': 'cores-' + mode,
+                          'source_url': 'https://example.invalid/core.zip', 'source_size_bytes': 12,
+                          'source_sha256': 'a' * 64, 'entry_sha256': hashlib.sha256(payload).hexdigest()}
+                runtime.load_recipes.return_value = {'runtimes': {'core-bluemsx': recipe},
+                                                     'allowed_download_hosts': ['example.invalid']}
+                runtime.host_flatpaks.return_value = ({}, True)
+                runtime.scan_host.return_value = ['own-host-core'] if mode == 'host' else []
+                runtime.install_runtime.return_value = {'operation_id': 'core-install'}
+                runtime.bluemsx_cbios_plan.return_value = {'status': 'prepared', 'operation_id': 'machine'}
+                runtime.library_execute.return_value = {'status': 'completed_verified'}
+                if mode == 'portable':
+                    entry.parent.mkdir(parents=True)
+                    entry.write_bytes(payload)
+                with patch.dict(sys.modules, {'runtime_install': runtime, 'romtool': SimpleNamespace(PROJECT_ROOT=self.root)}), \
+                        patch.object(self.engine, 'acquire', return_value=self.root / 'source') as acquire:
+                    result = self.engine.runtime({'runtime_id': 'core-bluemsx'})
+                self.assertEqual(result['status'], {'host': 'reused', 'portable': 'verified', 'install': 'installed'}[mode])
+                self.assertEqual(result['shared_data']['status'], 'completed_verified')
+                runtime.bluemsx_cbios_plan.assert_called_once_with(self.root)
+                runtime.library_execute.assert_any_call(self.root, 'machine', 'apply', True)
+                runtime.library_execute.assert_any_call(self.root, 'machine', 'verify')
+                if mode != 'install':
+                    acquire.assert_not_called()
+
+    def test_vita_runtime_prepares_shared_portable_data_after_install(self):
+        runtime = Mock()
+        recipe = {'entry': 'Vita3K-x86_64.AppImage', 'install_dir': 'vita3k', 'format': 'appimage',
+                  'source_url': 'https://example.invalid/Vita3K.AppImage',
+                  'source_size_bytes': 12, 'source_sha256': 'b' * 64}
+        runtime.load_recipes.return_value = {'runtimes': {'vita3k': recipe},
+                                            'allowed_download_hosts': ['example.invalid']}
+        runtime.host_flatpaks.return_value = ({}, True)
+        runtime.scan_host.return_value = []
+        runtime.install_runtime.return_value = {'operation_id': 'vita-package'}
+        runtime.vita3k_data_plan.return_value = {'status': 'prepared', 'operation_id': 'vita-data'}
+        runtime.library_execute.return_value = {'status': 'completed_verified'}
+        with patch.dict(sys.modules, {'runtime_install': runtime, 'romtool': SimpleNamespace(PROJECT_ROOT=self.root)}), \
+                patch.object(self.engine, 'acquire', return_value=self.root / 'source'):
+            result = self.engine.runtime({'runtime_id': 'vita3k'})
+        self.assertEqual(result['status'], 'installed')
+        self.assertEqual(result['shared_data']['status'], 'completed_verified')
+        runtime.vita3k_data_plan.assert_called_once_with(self.root)
+        runtime.library_execute.assert_any_call(self.root, 'vita-data', 'apply', True)
+        runtime.library_execute.assert_any_call(self.root, 'vita-data', 'verify')
+
+    def make_wheel(self, directory, name, version):
+        path = directory / f'{name}-{version}-py3-none-any.whl'
+        with zipfile.ZipFile(path, 'w') as archive:
+            archive.writestr(f'{name}-{version}.dist-info/METADATA',
+                             f'Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n')
+        return path
+
+    def prepare_python_fixture(self, item=None):
+        item = item or {'kind': 'python', 'packages': ['Fixture==1.0']}
+        def run(command, **kwargs):
+            if 'wheel' in command:
+                directory = Path(command[command.index('--wheel-dir') + 1])
+                self.make_wheel(directory, 'Fixture', '1.0')
+                self.make_wheel(directory, 'transitive', '2.0')
+        with patch.object(self.engine, 'run', side_effect=run) as commands:
+            directory = self.engine.prepare_wheelhouse('python-tools', item, Path('/fixture/python'))
+        return item, directory, commands
+
+    def test_python_wheelhouse_locks_transitives_and_reuses_without_acquisition(self):
+        item, directory, commands = self.prepare_python_fixture()
+        manifest = s.verify_wheelhouse(directory, item)
+        self.assertEqual(len(manifest['files']), 2)
+        self.assertIn('transitive==2.0 --hash=sha256:', (directory / 'requirements.txt').read_text())
+        self.assertIn('--only-binary=:all:', commands.call_args.args[0])
+        with patch.object(self.engine, 'run', side_effect=AssertionError('cached closure must be reused')):
+            self.assertEqual(self.engine.prepare_wheelhouse('python-tools', item, Path('/fixture/python')), directory)
+        with patch.object(s, 'python_host', return_value={'abi': 'other host'}):
+            with self.assertRaisesRegex(ValueError, 'outro host'):
+                s.verify_wheelhouse(directory, item)
+
+    def test_changed_wheel_lock_or_extra_file_prevents_reuse(self):
+        item, directory, _ = self.prepare_python_fixture()
+        wheel = next(directory.glob('*.whl'))
+        original = wheel.read_bytes()
+        wheel.write_bytes(original + b'changed')
+        with self.assertRaises(ValueError):
+            s.verify_wheelhouse(directory, item)
+        wheel.write_bytes(original)
+        lock = directory / 'requirements.txt'
+        requirements = lock.read_bytes()
+        lock.write_bytes(requirements + b'other==1\n')
+        with self.assertRaises(ValueError):
+            s.verify_wheelhouse(directory, item)
+        lock.write_bytes(requirements)
+        (directory / 'unexpected').write_text('preserve')
+        with self.assertRaises(ValueError):
+            s.verify_wheelhouse(directory, item)
+
+    def test_python_install_entry_uses_only_verified_wheels_and_runs_pip_check(self):
+        item, directory, _ = self.prepare_python_fixture()
+        python = self.root / 'tools/distribution/.venv/bin/python'
+        python.parent.mkdir(parents=True)
+        python.write_text('fixture')
+        with patch.object(self.engine, 'run') as commands:
+            result = self.engine.action('python-tools', item)
+        install = commands.call_args_list[0].args[0]
+        for option in ['--no-index', '--require-hashes', '--only-binary=:all:']:
+            self.assertIn(option, install)
+        self.assertEqual(commands.call_args_list[-1].args[0][-2:], ['pip', 'check'])
+        self.assertEqual(result['locked_packages'], 2)
+        self.assertEqual(result['wheelhouse_sha256'], w.digest(directory / 'manifest.json'))
+
+    def test_python_preparation_rejects_unpinned_requirements_and_undeclared_source_builds(self):
+        with patch.object(self.engine, 'run') as run:
+            for item in [{'packages': ['Fixture>=1']},
+                         {'packages': ['Fixture==1.0'], 'source_build_packages': ['unknown']}]:
+                with self.assertRaises(ValueError):
+                    self.engine.prepare_wheelhouse('python-tools', item, Path('/fixture/python'))
+            run.assert_not_called()
+
+    def test_interrupted_wheel_publication_reuses_verified_published_closure(self):
+        sync = s.romtool.sync_directory_chain
+        def fail_after_publication(directory):
+            if directory.parent.name == 'wheelhouse' and (directory / 'manifest.json').is_file():
+                raise OSError('fixture sync failure after rename')
+            sync(directory)
+        with patch.object(s.romtool, 'sync_directory_chain', side_effect=fail_after_publication):
+            with self.assertRaises(OSError):
+                self.prepare_python_fixture()
+        item = {'kind': 'python', 'packages': ['Fixture==1.0']}
+        with patch.object(self.engine, 'run', side_effect=AssertionError('no new download after publication')):
+            directory = self.engine.prepare_wheelhouse('python-tools', item, Path('/fixture/python'))
+        self.assertEqual(len(s.verify_wheelhouse(directory, item)['files']), 2)
 
     def test_failed_parent_blocks_dependant_but_not_independent_component_and_resume_rechecks(self):
         self.engine.config = {'components': {'first': {'kind': 'fixture'},
@@ -184,6 +354,10 @@ class SetupTests(unittest.TestCase):
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination)
         configure(self.engine)
+        layout = self.root / 'frontend/RetroFE/layouts/Workspace'
+        for name in ('layout.xml', 'splash.xml'):
+            self.assertEqual(ET.parse(layout / name).getroot().tag, 'layout')
+        self.assertIsNotNone(ET.parse(layout / 'splash.xml').find('statusText'))
         result = subprocess.run([sys.executable,
             str(self.root / 'tools/roms/materialize-collection-media-paths.py'), 'check-runtime'],
             cwd=self.root, capture_output=True, text=True, timeout=30)
@@ -250,6 +424,23 @@ class ReuseProvenanceTests(unittest.TestCase):
             second = self.engine.archive('emu', self.item)
         self.assertEqual((second['status'], second['receipt']), ('reused', 'verified'))
         self.assertEqual(before, {p: p.stat().st_mtime_ns for p in (self.root / 'tools/emu').iterdir()})
+
+    def test_zip_archive_uses_the_native_extractor_and_preserves_customer_data(self):
+        archive = self.root / 'official.zip'
+        with zipfile.ZipFile(archive, 'w') as bundle:
+            bundle.writestr('emu', Path(shutil.which('true')).read_bytes())
+            bundle.writestr('LICENSE.md', 'upstream license fixture')
+        item = {**self.item, 'format': 'zip', 'member_map': {'emu': 'emu', 'LICENSE.md': 'UPSTREAM-LICENSE.md'}}
+        customer = self.root / 'tools/emu/config/settings.txt'
+        customer.parent.mkdir(parents=True)
+        customer.write_text('customer preferences')
+        with patch.object(self.engine, 'acquire', return_value=archive):
+            result = self.engine.archive('emu', item)
+        self.assertEqual(result['status'], 'installed')
+        self.assertEqual(customer.read_text(), 'customer preferences')
+        self.assertEqual((self.root / 'tools/emu/UPSTREAM-LICENSE.md').read_text(), 'upstream license fixture')
+        with patch.object(self.engine, 'publish', side_effect=AssertionError('reuse should preserve files')):
+            self.assertEqual(self.engine.archive('emu', item)['status'], 'reused')
 
     def test_changed_member_or_recipe_invalidates_reuse(self):
         self.engine.archive('emu', self.item)

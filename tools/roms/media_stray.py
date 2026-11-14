@@ -8,12 +8,21 @@ freed disk space.
 from __future__ import annotations
 
 import datetime as dt
+import errno
 import hashlib
 import json
 import os
 import re
+import shutil
+import stat
 import uuid
-from pathlib import Path
+from collections import Counter
+
+try:
+    from . import media_session
+except ImportError:
+    import media_session
+from pathlib import Path, PureWindowsPath
 
 SAFE_SEGMENT = re.compile(r"^[a-z0-9][a-z0-9_+-]{0,63}$")
 QUARANTINE_ACTION = "quarantine_duplicate"
@@ -151,20 +160,49 @@ PROMOTABLE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".mp4", ".pdf"}
 PROMOTE_ACTIONS = {"promote_to_canonical", "promote_as_alternate"}
 
 
-def _rom_stems(project: Path, system_id: str) -> dict[str, list[str]]:
+def _runtime_records(project: Path, system_id: str) -> list[dict]:
+    profile_path = project / "frontend/RetroFE/Config/profiles/host-linux.json"
+    if not profile_path.is_file():
+        return []
+    profile = json.loads(profile_path.read_text())
+    return [item for section in ("systems", "collections")
+            for item in profile.get(section, {}).values() if item.get("rom_subdir") == system_id]
+
+
+def _rom_stems(project: Path, system_id: str, *, allow_unconfigured: bool = False) -> dict[str, list[str]]:
+    project = Path(project).resolve()
     root = project / "roms" / system_id
     stems: dict[str, list[str]] = {}
     if root.is_symlink() or not root.is_dir():
         return stems
-    catalog = json.loads((project / "frontend/RetroFE/Config/platform-catalog.json").read_text())
+    catalog_path = project / "frontend/RetroFE/Config/platform-catalog.json"
+    catalog = json.loads(catalog_path.read_text()) if catalog_path.exists() or not allow_unconfigured else {}
     record = next((item for item in catalog.get("systems", []) if item.get("id") == system_id), {})
     extensions = {str(value).casefold().lstrip(".") for value in record.get("extensions", [])}
+    allow_any_extensions = allow_unconfigured and not extensions
+    include_directories = True
+    configured = _runtime_records(project, system_id)
+    if configured:
+        runtime_extensions = set()
+        for item in configured:
+            values = item.get("extensions", [])
+            if isinstance(values, str):
+                values = values.split(",")
+            runtime_extensions.update(str(value).strip().casefold().lstrip(".") for value in values if str(value).strip())
+        if runtime_extensions:
+            allow_any_extensions = False
+            extensions = extensions & runtime_extensions if extensions else runtime_extensions
+        include_directories = any(item.get("accepts_directories") is True for item in configured)
+    tracks = media_session._track_paths(root, include_playlists=True)
     for current, dirs, files in os.walk(root, followlinks=False):
         here = Path(current)
         dirs[:] = [name for name in dirs if not (here / name).is_symlink()]
         for name in files + dirs:
             path = here / name
-            if not path.is_dir() and path.suffix.casefold().lstrip(".") not in extensions:
+            if path in tracks or (path.is_dir() and not include_directories):
+                continue
+            if (not path.is_dir() and path.suffix.casefold().lstrip(".") not in extensions
+                    and not allow_any_extensions):
                 continue
             stem = path.stem if path.is_file() or path.is_symlink() else path.name
             stems.setdefault(stem, []).append(path.relative_to(project).as_posix())
@@ -187,7 +225,8 @@ def _alternate_target(canonical: Path, sha: str, reserved: set[str]) -> tuple[Pa
 
 
 def _promotion(project: Path, item: dict, api, stems_cache: dict, reserved: set[str],
-               create_categories: set[str] | None = None, pdf_linearization_review: bool = False) -> dict:
+               create_categories: set[str] | None = None, pdf_linearization_review: bool = False,
+               pdf_stream_eol_review: bool = False) -> dict:
     if item["action"] not in {"preserve_absent", "preserve_different"}:
         return item
     if item.get("category") not in PROMOTABLE_CATEGORIES:
@@ -196,7 +235,9 @@ def _promotion(project: Path, item: dict, api, stems_cache: dict, reserved: set[
     if source.suffix.lower() not in PROMOTABLE_EXTENSIONS:
         return {**item, "promotion_blocker": "extensão sem validação de decodificação configurada"}
     system_id = item["system_id"]
-    stems = stems_cache.setdefault(system_id, _rom_stems(project, system_id))
+    if system_id not in stems_cache:
+        stems_cache[system_id] = _rom_stems(project, system_id)
+    stems = stems_cache[system_id]
     matches = stems.get(source.stem, [])
     if item.get("variant_subdir"):
         scope_parent = project / "roms" / system_id / item["variant_subdir"]
@@ -222,7 +263,8 @@ def _promotion(project: Path, item: dict, api, stems_cache: dict, reserved: set[
     if item.get("variant_subdir") and Path(matches[0]).parent.as_posix() != f"roms/{system_id}/{item['variant_subdir']}":
         return {**item, "promotion_blocker": "a ROM com este basename não está na pasta de variante da mídia aninhada"}
     try:
-        validation = api["media_session"]._validate(source, api, pdf_linearization_review=pdf_linearization_review)
+        validation = api["media_session"]._validate(source, api, pdf_linearization_review=pdf_linearization_review,
+                                                  pdf_stream_eol_review=pdf_stream_eol_review)
     except Exception as exc:  # noqa: BLE001 - recorded as evidence, the file stays in place
         return {**item, "promotion_blocker": f"validação integral falhou: {type(exc).__name__}: {str(exc)[:200]}"}
     canonical = project / "media" / item["relative_path"]
@@ -266,6 +308,50 @@ def _save(api, manifest: dict) -> None:
     api["atomic_json"](path, manifest)
 
 
+def _make_directories(path: Path) -> None:
+    missing = []
+    current = path
+    while not current.exists():
+        missing.append(current)
+        current = current.parent
+    for directory in reversed(missing):
+        directory.mkdir()
+        media_session._syncdir(directory.parent)
+
+
+def _durable_move(source: Path, destination: Path, item: dict, manifest: dict, api) -> None:
+    project = Path(api["PROJECT_ROOT"])
+    for path in (source, destination):
+        if ".." in path.relative_to(project).parts:
+            raise ValueError("Movimento fora da raiz do projeto")
+        for parent in path.parents:
+            if parent == project:
+                break
+            if parent.is_symlink():
+                raise ValueError(f"Movimento atravessa symlink ancestral: {parent}")
+    intent = {"source": source.relative_to(api["PROJECT_ROOT"]).as_posix(),
+              "destination": destination.relative_to(api["PROJECT_ROOT"]).as_posix()}
+    if not os.path.lexists(source):
+        if item.get("move_intent") != intent or destination.is_symlink() or not destination.is_file():
+            raise ValueError(f"Movimento sem origem ou intenção comprovada: {source}")
+        if _sha256(destination) != item["sha256"]:
+            raise ValueError(f"Destino da retomada mudou: {destination}")
+    else:
+        if os.path.lexists(destination):
+            raise ValueError(f"Destino ocupado desde o plano: {destination}")
+        if source.is_symlink() or not source.is_file() or _sha256(source) != item["sha256"]:
+            raise ValueError(f"Origem do movimento mudou: {source}")
+        if source.stat().st_dev != destination.parent.stat().st_dev:
+            raise OSError("Movimento cross-device bloqueado")
+        item["move_intent"] = intent
+        _save(api, manifest)
+        os.rename(source, destination)
+    media_session._syncdir(source.parent)
+    media_session._syncdir(destination.parent)
+    if _sha256(destination) != item["sha256"]:
+        raise ValueError(f"Verificação posterior do movimento falhou: {destination}")
+
+
 def _counts(items: list[dict]) -> dict:
     counts: dict[str, int] = {}
     bytes_by_action: dict[str, int] = {}
@@ -279,7 +365,7 @@ def _counts(items: list[dict]) -> dict:
 
 def plan(api, promote: bool = False, system_id: str | None = None, nested_variants: bool = False,
          create_categories: list[str] | None = None, nested_game_paths: bool = False,
-         pdf_linearization_review: bool = False) -> dict:
+         pdf_linearization_review: bool = False, pdf_stream_eol_review: bool = False) -> dict:
     project = Path(api["PROJECT_ROOT"])
     reviewed_categories = set(create_categories or [])
     known_systems = _system_ids(project)
@@ -317,17 +403,20 @@ def plan(api, promote: bool = False, system_id: str | None = None, nested_varian
         if promote:
             stems_cache: dict = {}
             reserved: set[str] = set()
-            items = [_promotion(project, item, api, stems_cache, reserved, reviewed_categories, pdf_linearization_review) for item in items]
+            items = [_promotion(project, item, api, stems_cache, reserved, reviewed_categories,
+                                pdf_linearization_review, pdf_stream_eol_review) for item in items]
     operation_id = _operation_id()
     manifest = {
         "schema_version": 1, "operation_id": operation_id, "kind": "media_stray",
         "created_at": api["now"](), "status": "prepared", "read_only": True,
+        "quarantine_layout": "source_relative",
         "source_root": "roms/media", "canonical_root": "media", "promote": promote, "scope_system_id": system_id, "nested_variants": nested_variants,
         "reviewed_create_categories": sorted(reviewed_categories), "created_category_directories": [],
         "nested_game_paths": nested_game_paths,
         "tool_source_sha256": _sha256(Path(__file__)),
         "validator_source_sha256": _sha256(Path(api["media_session"].__file__)) if promote else None,
         "pdf_linearization_review": pdf_linearization_review,
+        "pdf_stream_eol_review": pdf_stream_eol_review,
         "permanent_deletion": False, "symlink_left_behind": False,
         "references": _references(project), "summary": _counts(items), "items": items,
         "limits": [
@@ -346,7 +435,7 @@ def plan(api, promote: bool = False, system_id: str | None = None, nested_varian
 
 
 def _load(api, operation_id: str) -> tuple[dict, Path]:
-    if not re.fullmatch(r"[A-Za-z0-9._-]+", operation_id):
+    if operation_id in {".", ".."} or not re.fullmatch(r"[A-Za-z0-9._-]+", operation_id):
         raise ValueError("ID de operação inválido")
     path = Path(api["operation_dir"](operation_id)) / "manifest.json"
     manifest = json.loads(path.read_text(encoding="utf-8"))
@@ -355,23 +444,181 @@ def _load(api, operation_id: str) -> tuple[dict, Path]:
     return manifest, path
 
 
-def _snapshot_lists(api, operation: Path) -> None:
+def _journal_diagnosis(manifest: dict, operation: Path) -> dict:
+    journal = operation / "events.jsonl"
+    issues = []
+    last = None
+    lifecycle = {"media_stray_applied": "completed_verified", "media_stray_rolled_back": "rolled_back"}
+    if journal.is_symlink():
+        return {"last_lifecycle_event": None, "issues": ["journal_symlink"]}
+    try:
+        with journal.open(encoding="utf-8") as stream:
+            for number, line in enumerate(stream, 1):
+                if not line.strip():
+                    continue
+                try:
+                    event = json.loads(line)
+                    if not isinstance(event, dict):
+                        raise ValueError("evento não é objeto JSON")
+                except ValueError:
+                    issues.append(f"invalid_journal_record line={number}")
+                    continue
+                if event.get("operation_id", manifest["operation_id"]) != manifest["operation_id"]:
+                    issues.append(f"foreign_journal_record line={number}")
+                    continue
+                if not isinstance(event.get("event"), str):
+                    issues.append(f"invalid_journal_record line={number}")
+                    continue
+                if event.get("event") in lifecycle:
+                    last = {key: event.get(key) for key in ("event", "status", "timestamp")}
+    except FileNotFoundError:
+        pass
+    except (OSError, UnicodeError) as exc:
+        issues.append(f"unreadable_journal {type(exc).__name__}")
+    if last:
+        expected = lifecycle[last["event"]]
+        reversing = manifest["status"] == "rolling_back" and manifest.get("rollback_intent") and last["event"] == "media_stray_applied"
+        if manifest["status"] != expected and not reversing:
+            issues.append(f"journal_manifest_status_mismatch manifest={manifest['status']} journal={expected}")
+        if last["status"] not in (None, expected):
+            issues.append(f"journal_event_status_mismatch event={last['event']}")
+    return {"last_lifecycle_event": last, "issues": issues}
+
+
+def _path_kind(project: Path, relative: str | None) -> str:
+    if not isinstance(relative, str) or not relative or "\x00" in relative:
+        return "unsafe_path"
+    path = Path(relative)
+    if path.is_absolute() or PureWindowsPath(relative).drive or ".." in path.parts or not path.parts:
+        return "unsafe_path"
+    target = project / path
+    current = project
+    for part in path.parts:
+        current /= part
+        try:
+            info = current.lstat()
+        except FileNotFoundError:
+            return "missing"
+        except OSError:
+            return "unreadable"
+        if stat.S_ISLNK(info.st_mode):
+            return "symlink" if current == target else "ancestor_symlink"
+    if stat.S_ISREG(info.st_mode):
+        return "regular"
+    return "other"
+
+
+def _quarantine_destination(operation, manifest, item):
+    relative = item["relative_path"]
+    if manifest.get("quarantine_layout") == "source_relative":
+        relative = Path(item["project_relative"]).relative_to("roms/media")
+    return operation / "rollback/originals" / relative
+
+
+def status(operation_id: str, api) -> dict:
+    """Inspect recorded paths and local events without reading media payloads."""
+    manifest, manifest_path = _load(api, operation_id)
+    project = Path(api["PROJECT_ROOT"])
+    operation = manifest_path.parent
+    journal = _journal_diagnosis(manifest, operation)
+    issues = list(journal["issues"])
+    if manifest["status"] not in {"prepared", "applying", "completed_verified", "rolling_back", "rolled_back"}:
+        issues.append("unrecognized_manifest_status")
+    items = []
+    for item in manifest["items"]:
+        action = item["action"]
+        moved = action in {"promoted", "quarantined"}
+        expected_source = "missing" if moved else "regular"
+        if action == "preserve_symlink":
+            expected_source = "symlink"
+        paths = {"source": (item["project_relative"], expected_source)}
+        if action in PROMOTE_ACTIONS | {"promoted"}:
+            paths["destination"] = (item.get("destination_relative"), "regular" if moved else "missing")
+        elif action in {QUARANTINE_ACTION, "quarantined"}:
+            rollback = _quarantine_destination(operation, manifest, item).relative_to(project)
+            paths["destination"] = (item.get("rollback_relative", rollback.as_posix()), "regular" if moved else "missing")
+            paths["canonical"] = (item.get("canonical_relative"), "regular")
+        diagnosis = {"relative_path": item["relative_path"], "action": action, "paths": {}, "issues": []}
+        if action not in PROMOTE_ACTIONS | {QUARANTINE_ACTION, "promoted", "quarantined"} and not action.startswith("preserve_"):
+            diagnosis["issues"].append("unknown_item_action")
+        if manifest["status"] == "completed_verified" and action in PROMOTE_ACTIONS | {QUARANTINE_ACTION}:
+            diagnosis["issues"].append("completed_manifest_has_planned_move")
+        for role, (relative, expected) in paths.items():
+            kind = _path_kind(project, relative)
+            diagnosis["paths"][role] = {"path": relative, "kind": kind, "expected": expected}
+            if kind != expected:
+                diagnosis["issues"].append(f"{role}_state_mismatch expected={expected} observed={kind}")
+        diagnosis["status"] = "diverged" if diagnosis["issues"] else "matches_recorded_paths"
+        issues.extend(f"{item['relative_path']} {issue}" for issue in diagnosis["issues"])
+        items.append(diagnosis)
+    return {
+        "operation_id": operation_id, "kind": "media_stray", "manifest": str(manifest_path),
+        "status": "reconciliation_required" if issues else "consistent_metadata",
+        "item_count": len(items), "items": items, "issues": issues[:20],
+        "summary": {"manifest_status": manifest["status"], "issue_count": len(issues),
+                    "source_kinds": dict(Counter(item["paths"]["source"]["kind"] for item in items)),
+                    "destination_kinds": dict(Counter(item["paths"]["destination"]["kind"] for item in items if "destination" in item["paths"]))},
+        "evidence": {"read_only": True, "payload_hashes_checked": False, "global_records_checked": False,
+                     "last_lifecycle_event": journal["last_lifecycle_event"]},
+    }
+
+
+def _copy_metadata(source: Path, target: Path) -> None:
+    try:
+        media_session.clone(source, target)
+        target.chmod(stat.S_IMODE(source.stat().st_mode))
+    except OSError as exc:
+        if exc.errno not in {errno.EOPNOTSUPP, errno.EXDEV, errno.ENOTTY, errno.EINVAL}:
+            raise
+        target.unlink(missing_ok=True)
+        shutil.copy2(source, target)
+
+
+def _snapshot_lists(api, operation: Path) -> dict:
     output = Path(api["OUTPUT_ROOT"])
     rollback = operation / "rollback"
     rollback.mkdir(parents=True, exist_ok=True)
+    snapshots = {}
+    recorded, _ = _load(api, operation.name)
     for name in ("catalogo-arquivos.csv", "pendencias-integridade-dependencias.csv", "estado-final-verificacao.json"):
         source = output / name
         target = rollback / name
         if source.is_file() and not source.is_symlink() and not target.exists():
-            os.link(source, target) if source.stat().st_dev == rollback.stat().st_dev else target.write_bytes(source.read_bytes())
+            _copy_metadata(source, target)
+        if target.is_symlink():
+            raise ValueError(f"Preimagem por symlink recusada: {target}")
+        if target.is_file():
+            with target.open('rb') as stream:
+                os.fsync(stream.fileno())
+            snapshots[name] = _sha256(target)
+            expected = recorded.get("metadata_before_sha256", {}).get(name)
+            if expected is None:
+                expected = _sha256(source)
+            if snapshots[name] != expected:
+                raise ValueError(f"Preimagem incompleta ou alterada exige reconciliação: {name}")
+    media_session._syncdir(rollback)
+    media_session._syncdir(operation)
+    return snapshots
 
 
-def _update_lists(api, manifest: dict) -> None:
+def _update_lists(api, manifest: dict, *, update_state: bool = True) -> None:
     if "OUTPUT_ROOT" not in api or "write_csv_atomic" not in api:
         return
     output = Path(api["OUTPUT_ROOT"])
     completed = {item["project_relative"]: item for item in manifest["items"]
                  if item["action"] in {"promoted", "quarantined"}}
+    project = Path(api["PROJECT_ROOT"])
+    source_index = {str(project / relative): (relative, item) for relative, item in completed.items()}
+    target_index = {}
+    pending_index = {}
+    for relative, item in completed.items():
+        target = item.get("destination_relative") if item["action"] == "promoted" else item["rollback_relative"]
+        target_index.setdefault(str(project / target), []).append((relative, item))
+        # Older plans retained the original flat path alongside a nested source.
+        # The manifest supplies both paths, and the case hash must disambiguate.
+        paths = {relative, "roms/media/" + item["relative_path"]}
+        for path in paths:
+            pending_index.setdefault(path, []).append(item)
     catalog_path = output / "catalogo-arquivos.csv"
     if completed and catalog_path.is_file():
         import csv
@@ -379,17 +626,23 @@ def _update_lists(api, manifest: dict) -> None:
             reader = csv.DictReader(stream)
             fields, rows = list(reader.fieldnames or []), list(reader)
         seen = set()
-        project = Path(api["PROJECT_ROOT"])
         for row in rows:
-            for relative, item in completed.items():
-                source = str(project / relative)
-                if (row.get("current_absolute_path") or row.get("absolute_path")) != source:
-                    continue
-                target = item.get("destination_relative") if item["action"] == "promoted" else item["rollback_relative"]
-                row.update(current_absolute_path=str(project / target), current_sha256=item["sha256"],
-                           current_size_bytes=item["size_bytes"], current_operation_id=manifest["operation_id"],
-                           current_path_status="mídia canônica verificada" if item["action"] == "promoted" else "quarentena reversível")
-                seen.add(relative)
+            current = row.get("current_absolute_path") or row.get("absolute_path")
+            for relative, item in target_index.get(current, []):
+                if (row.get("current_sha256") or row.get("sha256")) == item["sha256"]:
+                    seen.add(relative)
+            match = source_index.get(current)
+            if match is None:
+                continue
+            relative, item = match
+            recorded_sha = row.get("current_sha256") or row.get("sha256")
+            if recorded_sha and recorded_sha != item["sha256"]:
+                continue
+            target = item.get("destination_relative") if item["action"] == "promoted" else item["rollback_relative"]
+            row.update(current_absolute_path=str(project / target), current_sha256=item["sha256"],
+                       current_size_bytes=item["size_bytes"], current_operation_id=manifest["operation_id"],
+                       current_path_status="mídia canônica verificada" if item["action"] == "promoted" else "quarentena reversível")
+            seen.add(relative)
         for relative, item in completed.items():
             if relative in seen or item["action"] != "promoted":
                 continue
@@ -405,6 +658,8 @@ def _update_lists(api, manifest: dict) -> None:
                     "current_size_bytes": item["size_bytes"], "current_operation_id": manifest["operation_id"],
                     "current_path_status": "mídia canônica verificada"}
             rows.append({key: value for key, value in data.items() if key in fields})
+            # Several historical sources can share one canonical payload.
+            seen.update(key for key, candidate in target_index[str(target)] if candidate["sha256"] == item["sha256"])
         api["write_csv_atomic"](catalog_path, rows, fields)
     pending_path = output / "pendencias-integridade-dependencias.csv"
     if pending_path.is_file():
@@ -419,11 +674,17 @@ def _update_lists(api, manifest: dict) -> None:
         existing = {(row.get("source"), row.get("case_source_relative"), row.get("case_sha256")) for row in rows}
         for row in rows:
             relative = row.get("case_source_relative") or row.get("path")
-            item = completed.get(relative)
-            if item is not None and row.get("source") == "roms-media-stray":
+            candidates = pending_index.get(relative, [])
+            case_hash = row.get("case_sha256")
+            matches = [item for item in candidates if item["sha256"] == case_hash] if case_hash else [
+                item for item in candidates if item["project_relative"] == relative]
+            if len(matches) == 1 and row.get("source") == "roms-media-stray":
+                item = matches[0]
                 target = item.get("destination_relative") if item["action"] == "promoted" else item["rollback_relative"]
+                original_operation = item.get("source_operation_id", manifest["operation_id"])
                 row.update(path=target, status="resolvido: " + item["action"],
-                           next_step="Resultado verificado; rollback pelo manifesto " + manifest["operation_id"])
+                           case_sha256=item["sha256"],
+                           next_step="Resultado verificado; rollback pelo manifesto " + original_operation)
         for item in manifest["items"]:
             if item["action"] in {QUARANTINE_ACTION, "quarantined", "promoted"}:
                 continue
@@ -438,7 +699,7 @@ def _update_lists(api, manifest: dict) -> None:
             })
         api["write_csv_atomic"](pending_path, rows, fields)
     state_path = output / "estado-final-verificacao.json"
-    if state_path.is_file() and not state_path.is_symlink():
+    if update_state and state_path.is_file() and not state_path.is_symlink():
         state = json.loads(state_path.read_text(encoding="utf-8"))
         state["media_stray"] = {"as_of": api["now"](), "operation_id": manifest["operation_id"],
                                 "status": manifest["status"], "summary": manifest["summary"],
@@ -450,6 +711,9 @@ def apply(operation_id: str, confirmed: bool, api) -> dict:
     if not confirmed:
         raise ValueError("Aplicação exige --apply")
     manifest, _path = _load(api, operation_id)
+    journal = _journal_diagnosis(manifest, _path.parent)
+    if journal["issues"]:
+        raise ValueError("Diário exige reconciliação antes de aplicar. Consulte media stray status. " + journal["issues"][0])
     if manifest.get("tool_source_sha256") and manifest["tool_source_sha256"] != _sha256(Path(__file__)):
         raise ValueError("A ferramenta mudou desde o plano; prepare outro plano de mídia stray")
     if manifest.get("validator_source_sha256") and manifest["validator_source_sha256"] != _sha256(Path(api["media_session"].__file__)):
@@ -458,23 +722,24 @@ def apply(operation_id: str, confirmed: bool, api) -> dict:
         raise ValueError(f"Plano não aplicável: {manifest['status']}")
     project = Path(api["PROJECT_ROOT"])
     operation = Path(api["operation_dir"](operation_id))
-    _snapshot_lists(api, operation)
-    manifest["status"] = "applying"
-    _save(api, manifest)
-    rollback_root = operation / "rollback" / "originals"
     running = []
-    for probe in ("retrofe_processes_running", "esde_processes_running"):
+    for probe in ("retrofe_processes_running", "esde_processes_running", "pegasus_processes_running"):
         if api.get(probe):
             running += list(api[probe]() or [])
-    if running and any(item["action"] in PROMOTE_ACTIONS for item in manifest["items"]):
+    if running and any(item["action"] in PROMOTE_ACTIONS | {QUARANTINE_ACTION} for item in manifest["items"]):
         raise RuntimeError("Feche RetroFE/ES-DE antes de promover mídia")
-    for index, item in enumerate(manifest["items"]):
+    snapshots = _snapshot_lists(api, operation)
+    manifest.setdefault("metadata_before_sha256", snapshots)
+    manifest["status"] = "applying"
+    _save(api, manifest)
+    for item in manifest["items"]:
         if item["action"] in PROMOTE_ACTIONS:
             source = project / item["project_relative"]
             destination = project / item["destination_relative"]
-            if os.path.lexists(destination):
+            recovering = not os.path.lexists(source) and item.get("move_intent", {}).get("destination") == item["destination_relative"]
+            if os.path.lexists(destination) and not recovering:
                 raise ValueError(f"Destino ocupado desde o plano; nada sobrescrito: {item['destination_relative']}")
-            if not source.is_file() or source.is_symlink() or _sha256(source) != item["sha256"]:
+            if not recovering and (not source.is_file() or source.is_symlink() or _sha256(source) != item["sha256"]):
                 raise ValueError(f"Bytes mudaram desde o plano: {item['relative_path']}")
             current = project / "media"
             if current.is_symlink() or not current.is_dir():
@@ -491,45 +756,52 @@ def apply(operation_id: str, confirmed: bool, api) -> dict:
                 if category not in manifest.get("reviewed_create_categories", []):
                     raise ValueError(f"Criação de categoria não revisada: {category}")
                 for directory in missing:
-                    directory.mkdir()
                     relative = directory.relative_to(project).as_posix()
-                    manifest["created_category_directories"].append(relative)
+                    if relative not in manifest["created_category_directories"]:
+                        manifest["created_category_directories"].append(relative)
                     _save(api, manifest)
+                    directory.mkdir()
+                    media_session._syncdir(directory.parent)
                     api["append_event"](operation_id, "media_category_created", action="mkdir", status="created",
                                         details={"project_relative": relative})
-            if source.stat().st_dev != destination.parent.stat().st_dev:
-                raise OSError(f"Movimento cross-device bloqueado: {item['relative_path']}")
-            os.rename(source, destination)
+            _durable_move(source, destination, item, manifest, api)
             item.update(action="promoted", promoted_as=item["action"], status="promoted")
-            if index % 50 == 0:
-                _save(api, manifest)
+            _save(api, manifest)
             continue
         if item["action"] != QUARANTINE_ACTION:
             continue
         source = project / item["project_relative"]
         canonical = project / item["canonical_relative"]
-        destination = rollback_root / item["relative_path"]
-        if destination.exists():
+        destination = _quarantine_destination(operation, manifest, item)
+        recovering = not os.path.lexists(source) and item.get("move_intent", {}).get("destination") == destination.relative_to(project).as_posix()
+        if os.path.lexists(destination) and not recovering:
             raise ValueError(f"Rollback já contém {item['relative_path']}")
-        if not source.is_file() or source.is_symlink() or not canonical.is_file() or canonical.is_symlink():
+        if (not recovering and (not source.is_file() or source.is_symlink())) or not canonical.is_file() or canonical.is_symlink():
             raise ValueError(f"Precondição ausente: {item['relative_path']}")
-        if _sha256(source) != item["sha256"] or _sha256(canonical) != item["canonical_sha256"]:
+        if (not recovering and _sha256(source) != item["sha256"]) or _sha256(canonical) != item["canonical_sha256"]:
             raise ValueError(f"Bytes mudaram desde o plano: {item['relative_path']}")
-        if source.stat().st_ino == canonical.stat().st_ino and source.stat().st_dev == canonical.stat().st_dev:
+        if not recovering and source.stat().st_ino == canonical.stat().st_ino and source.stat().st_dev == canonical.stat().st_dev:
             raise ValueError(f"Hardlink detectado na aplicação: {item['relative_path']}")
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        os.rename(source, destination)
+        _make_directories(destination.parent)
+        media_session._syncdir(destination.parent)
+        _durable_move(source, destination, item, manifest, api)
         item.update(action="quarantined", status="quarantined",
                     rollback_relative=destination.relative_to(project).as_posix())
-        if index % 100 == 0:
-            _save(api, manifest)
+        _save(api, manifest)
     for directory in sorted((project / "roms" / "media").rglob("*"), reverse=True):
         if directory.is_dir() and not directory.is_symlink() and not any(directory.iterdir()):
             directory.rmdir()
+            media_session._syncdir(directory.parent)
+    checked = verify(operation_id, api)
+    if checked["status"] != "verified":
+        raise ValueError(f"Verificação final da mídia falhou: {checked['failed']}")
     manifest.update(status="completed_verified", completed_at=api["now"](), summary=_counts(manifest["items"]),
                     symlink_left_behind=False, permanent_deletion=False)
-    _save(api, manifest)
     _update_lists(api, manifest)
+    media_session._syncdir(Path(api["OUTPUT_ROOT"]))
+    manifest["metadata_after_sha256"] = {name: _sha256(Path(api["OUTPUT_ROOT"]) / name)
+                                        for name in manifest["metadata_before_sha256"]}
+    _save(api, manifest)
     api["append_event"](operation_id, "media_stray_applied", action="media_stray_apply", status=manifest["status"],
                         details={"summary": manifest["summary"]})
     api["rebuild_history_index"]()
@@ -572,39 +844,84 @@ def rollback(operation_id: str, confirmed: bool, api) -> dict:
     if not confirmed:
         raise ValueError("Rollback exige --rollback")
     manifest, _path = _load(api, operation_id)
-    if manifest["status"] != "completed_verified":
-        raise ValueError("Rollback exige operação verificada")
+    partial = manifest["status"] == "applying" and not manifest.get("metadata_after_sha256")
+    if manifest["status"] not in {"completed_verified", "rolling_back"} and not partial:
+        raise ValueError("Rollback exige operação verificada ou aplicação parcial comprovada")
     project = Path(api["PROJECT_ROOT"])
+    output = Path(api.get("OUTPUT_ROOT", ""))
+    operation = Path(api["operation_dir"](operation_id))
+    snapshots = [name for name in ("catalogo-arquivos.csv", "pendencias-integridade-dependencias.csv", "estado-final-verificacao.json")
+                 if (operation / "rollback" / name).is_file()]
+    expected_metadata = manifest.get("rollback_metadata_expected_sha256") or manifest.get("metadata_after_sha256")
+    if partial:
+        expected_metadata = manifest.get("metadata_before_sha256")
+        for item in manifest["items"]:
+            if item["action"] in PROMOTE_ACTIONS | {QUARANTINE_ACTION} and item.get("move_intent"):
+                if not os.path.lexists(project / item["project_relative"]):
+                    raise ValueError("Movimento sem checkpoint exige reconciliação antes do rollback parcial")
+    if snapshots and not expected_metadata:
+        raise ValueError("Rollback de metadados legado exige reconciliação das pós-imagens")
+    running = []
+    for probe in ("retrofe_processes_running", "esde_processes_running", "pegasus_processes_running"):
+        if api.get(probe):
+            running += list(api[probe]() or [])
+    if running:
+        raise RuntimeError("Feche RetroFE/ES-DE antes de reverter mídia")
+    for name in snapshots:
+        if _sha256(operation / "rollback" / name) != manifest["metadata_before_sha256"][name]:
+            raise ValueError(f"Preimagem de metadados mudou: {name}")
+        current = _sha256(output / name)
+        allowed = {expected_metadata[name]}
+        if manifest["status"] == "rolling_back":
+            allowed.add(manifest["metadata_before_sha256"][name])
+        if current not in allowed:
+            raise ValueError(f"Metadados posteriores precisam ser preservados: {name}")
+    manifest["rollback_metadata_expected_sha256"] = expected_metadata
+    manifest["status"] = "rolling_back"
+    manifest["rollback_intent"] = True
+    _save(api, manifest)
     for item in reversed(manifest["items"]):
         if item["action"] == "promoted":
             source, destination = project / item["destination_relative"], project / item["project_relative"]
-            if os.path.lexists(destination) or not source.is_file() or source.is_symlink() or _sha256(source) != item["sha256"]:
+            recovering = not os.path.lexists(source) and item.get("move_intent", {}).get("destination") == item["project_relative"]
+            if not recovering and (os.path.lexists(destination) or not source.is_file() or source.is_symlink() or _sha256(source) != item["sha256"]):
                 raise ValueError(f"Estado mudou desde a promoção; rollback recusado: {item['relative_path']}")
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            os.rename(source, destination)
+            _make_directories(destination.parent)
+            _durable_move(source, destination, item, manifest, api)
             item.update(action=item["promoted_as"], status="rolled_back")
+            _save(api, manifest)
             continue
         if item["action"] != "quarantined":
             continue
         source = project / item["rollback_relative"]
         destination = project / item["project_relative"]
-        if destination.exists() or destination.is_symlink():
+        recovering = not os.path.lexists(source) and item.get("move_intent", {}).get("destination") == item["project_relative"]
+        if os.path.lexists(destination) and not recovering:
             raise ValueError(f"Destino stray reapareceu; rollback recusado: {item['project_relative']}")
-        if not source.is_file() or source.is_symlink() or _sha256(source) != item["sha256"]:
+        if not recovering and (not source.is_file() or source.is_symlink() or _sha256(source) != item["sha256"]):
             raise ValueError(f"Pré-imagem divergente: {item['relative_path']}")
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        os.rename(source, destination)
+        _make_directories(destination.parent)
+        _durable_move(source, destination, item, manifest, api)
         item.update(action=QUARANTINE_ACTION, status="rolled_back")
+        _save(api, manifest)
     for relative in reversed(manifest.get("created_category_directories", [])):
         directory = project / relative
         if directory.is_dir() and not directory.is_symlink() and not any(directory.iterdir()):
             directory.rmdir()
-    output = Path(api.get("OUTPUT_ROOT", ""))
-    operation = Path(api["operation_dir"](operation_id))
     for name in ("catalogo-arquivos.csv", "pendencias-integridade-dependencias.csv", "estado-final-verificacao.json"):
         preimage = operation / "rollback" / name
         if preimage.is_file() and (output / name).is_file():
-            os.replace(preimage, output / name)
+            temporary = operation / "rollback" / (name + ".restore")
+            if temporary.exists():
+                if temporary.is_symlink() or _sha256(temporary) != manifest["metadata_before_sha256"][name]:
+                    raise ValueError(f"Temporário de restauração exige revisão: {temporary}")
+            else:
+                _copy_metadata(preimage, temporary)
+                with temporary.open('rb') as stream:
+                    os.fsync(stream.fileno())
+            os.replace(temporary, output / name)
+            temporary.unlink(missing_ok=True)
+            media_session._syncdir(output)
     manifest.update(status="rolled_back", summary=_counts(manifest["items"]))
     _save(api, manifest)
     api["append_event"](operation_id, "media_stray_rolled_back", action="media_stray_rollback", status="rolled_back",
@@ -618,9 +935,12 @@ def dispatch(args, api) -> dict:
     if command == "plan":
         return plan(api, getattr(args, "promote", False), getattr(args, "system_id", None),
                     getattr(args, "nested_variants", False), getattr(args, "create_category", None),
-                    getattr(args, "nested_game_paths", False), getattr(args, "pdf_linearization_review", False))
+                    getattr(args, "nested_game_paths", False), getattr(args, "pdf_linearization_review", False),
+                    getattr(args, "pdf_stream_eol_review", False))
     if command == "apply":
         return apply(args.operation_id, args.apply, api)
+    if command == "status":
+        return status(args.operation_id, api)
     if command == "verify":
         return verify(args.operation_id, api)
     if command == "rollback":

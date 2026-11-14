@@ -60,6 +60,78 @@ def runtime_id(system: dict) -> str | None:
     return None
 
 
+def vita3k_game_identity(root: Path, directory: Path, category: str = 'gd') -> dict:
+    """Read the native identity of an extracted game kept in the canonical library."""
+    root = root.resolve()
+    platform = root / 'roms/psvita'
+    directory = Path(os.path.abspath(directory))
+    if category not in ('gd', 'gp') or not directory.is_relative_to(platform):
+        raise ValueError('O aplicativo Vita precisa permanecer em roms/psvita')
+    for path in (platform, directory, directory / 'sce_sys/param.sfo', directory / 'eboot.bin'):
+        cursor = root
+        for part in path.relative_to(root).parts:
+            cursor /= part
+            if cursor.is_symlink():
+                raise ValueError('Dependência Vita por symlink fora do vínculo gerenciado: ' + str(cursor))
+    metadata = directory / 'sce_sys/param.sfo'
+    executable = directory / 'eboot.bin'
+    if (not directory.is_dir() or not metadata.is_file() or metadata.stat().st_size > 1024 * 1024
+            or not executable.is_file() or executable.stat().st_size == 0):
+        raise ValueError('Aplicativo Vita exige param.sfo limitado e eboot.bin regular não vazio')
+    try:
+        from romtool import parse_sfo
+    except ModuleNotFoundError:
+        from tools.roms.romtool import parse_sfo
+    data = metadata.read_bytes()
+    identity = parse_sfo(data)
+    title_id = identity.get('TITLE_ID', '')
+    if not re.fullmatch(r'[A-Z]{4}[0-9]{5}', title_id) or identity.get('CATEGORY') != category:
+        raise ValueError('TITLE_ID ou categoria do param.sfo Vita incompatível')
+    return {'title_id': title_id, 'category': category, 'directory': directory,
+            'eboot': executable, 'sfo_sha256': hashlib.sha256(data).hexdigest()}
+
+
+def vita3k_launch_identity(root: Path, descriptor: Path) -> dict:
+    """Resolve an ES-DE .psvita descriptor through a relative canonical app binding."""
+    root = root.resolve()
+    descriptor = Path(os.path.abspath(descriptor))
+    platform = root / 'roms/psvita'
+    if not descriptor.is_relative_to(platform) or descriptor.suffix.lower() != '.psvita':
+        raise ValueError('Vita3K exige uma entrada .psvita em roms/psvita')
+    cursor = root
+    for part in descriptor.relative_to(root).parts:
+        cursor /= part
+        if cursor.is_symlink():
+            raise ValueError('Descritor Vita por symlink recusado')
+    if not descriptor.is_file() or descriptor.stat().st_size > 32:
+        raise ValueError('Descritor Vita ausente ou excessivo')
+    title_id = descriptor.read_text(encoding='ascii').strip()
+    if not re.fullmatch(r'[A-Z]{4}[0-9]{5}', title_id):
+        raise ValueError('O descritor .psvita deve conter somente um TITLE_ID')
+    parent = root / 'emulator/data/Vita3K/fs/ux0'
+    for role, category in [('app', 'gd'), ('patch', 'gp')]:
+        folder = parent / role
+        cursor = root
+        for part in folder.relative_to(root).parts:
+            cursor /= part
+            if cursor.is_symlink():
+                raise ValueError('Pasta nativa Vita redirecionada fora do vínculo folha')
+        link = folder / title_id
+        if role == 'patch' and not os.path.lexists(link):
+            continue
+        if not link.is_symlink() or os.path.isabs(os.readlink(link)):
+            raise ValueError('Aplicativo Vita exige vínculo relativo à biblioteca canônica')
+        target = link.resolve(strict=True)
+        if os.readlink(link) != os.path.relpath(target, folder):
+            raise ValueError('Vínculo Vita divergiu do caminho relativo canônico')
+        identity = vita3k_game_identity(root, target, category)
+        if identity['title_id'] != title_id:
+            raise ValueError('TITLE_ID do vínculo Vita divergiu do descritor')
+        if role == 'app':
+            app = identity
+    return app
+
+
 def configuration_files(root: Path) -> dict[str, bytes]:
     config = json.loads((root / 'tools/roms/config/portable-runtimes.json').read_text())
     files = {}
@@ -389,6 +461,54 @@ def main(argv=None):
     if args.runtime:
         command += ['--runtime', args.runtime]
     return subprocess.run(command, cwd=ROOT, check=False).returncode
+
+
+MANAGED_LAUNCH_ALIASES = {
+    # runtime_id -> (alias suffix, required leaf name of the target). F04: only these leaf aliases are
+    # followed; every other symlink in a collection item stays rejected.
+    "eden-nx2": (".exefs", "main"),
+}
+
+
+def validate_managed_launch_alias(raw_item: Path, platform_root: Path, system: dict) -> tuple[Path | None, str]:
+    """Return the vetted target of a managed relative launch alias, or an explicit refusal."""
+    contract = MANAGED_LAUNCH_ALIASES.get(str(system.get("runtime_id", "")))
+    if not contract or contract[0].lstrip(".") not in system.get("launch_inputs", []):
+        return None, "O perfil desta plataforma não declara aliases de lançamento gerenciados."
+    suffix, leaf = contract
+    if raw_item.suffix != suffix or raw_item.parent != platform_root:
+        return None, f"Alias gerenciado precisa ser {suffix} diretamente em {platform_root}."
+    if platform_root.is_symlink() or any(parent.is_symlink() for parent in platform_root.parents):
+        return None, "A raiz da plataforma ou um ancestral é symlink; alias recusado."
+    literal = os.readlink(raw_item)
+    literal_path = Path(literal)
+    if literal_path.is_absolute() or ".." in literal_path.parts or not literal_path.parts:
+        return None, f"Alias precisa ser relativo e interno à plataforma: {literal}"
+    component = platform_root
+    for part in literal_path.parts:
+        component = component / part
+        if component.is_symlink():
+            return None, f"Alvo do alias contém outro symlink (loop/redirecionamento recusado): {component}"
+    try:
+        target = (platform_root / literal_path).resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None, f"Alvo do alias ausente ou em loop: {literal}"
+    if not target.is_relative_to(platform_root.resolve()) or target.name != leaf or not target.is_file():
+        return None, f"Alvo do alias precisa ser {leaf} regular dentro da plataforma: {target}"
+    try:
+        with target.open("rb") as stream:
+            magic = stream.read(4)
+        npdm = (target.parent / "main.npdm").read_bytes()
+    except OSError as exc:
+        return None, f"ExeFS ilegível: {exc}"
+    if magic != b"NSO0":
+        return None, "main do alias não é NSO0."
+    if len(npdm) < 0x80 or npdm[:4] != b"META":
+        return None, "main.npdm ausente ou sem META."
+    offset = int.from_bytes(npdm[0x70:0x74], "little")
+    if offset + 24 > len(npdm) or npdm[offset:offset + 4] != b"ACI0":
+        return None, "main.npdm sem ACI0 válido."
+    return target, ""
 
 
 if __name__ == '__main__':

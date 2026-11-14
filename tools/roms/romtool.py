@@ -7,6 +7,7 @@ import csv
 import datetime as dt
 import concurrent.futures
 import contextlib
+import errno
 from functools import lru_cache
 import hashlib
 import json
@@ -209,10 +210,115 @@ def operation_dir(operation_id: str) -> Path:
 
 
 def atomic_json(path: Path, value: dict) -> None:
+    """Publish complete JSON after syncing its bytes, then sync POSIX directories."""
+    payload = (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    atomic_write_bytes(path, payload)
+
+
+def sync_directory_chain(directory: Path) -> None:
+    """Persist directory entries, including directories created by the caller."""
+    if os.name == "nt":
+        return
+    directory = directory.absolute()
+    for current in (directory, *directory.parents):
+        descriptor = os.open(current, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+
+def _copy_windows_acl(source: Path, destination: Path) -> None:
+    """Copy and verify DACL bytes and inheritance before writing staged data."""
+    import ctypes
+    from ctypes import wintypes
+    api = ctypes.WinDLL("advapi32", use_last_error=True)
+    get_security = api.GetFileSecurityW
+    get_security.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p,
+                             wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    get_security.restype = wintypes.BOOL
+    set_security = api.SetFileSecurityW
+    set_security.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p]
+    set_security.restype = wintypes.BOOL
+
+    def descriptor(path):
+        size = wintypes.DWORD()
+        get_security(str(path), 4, None, 0, ctypes.byref(size))
+        if not size.value:
+            raise ctypes.WinError(ctypes.get_last_error())
+        buffer = ctypes.create_string_buffer(size.value)
+        if not get_security(str(path), 4, buffer, size.value, ctypes.byref(size)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        raw = buffer.raw
+        if len(raw) < 20:
+            raise OSError("Descritor de acesso Windows incompleto")
+        control = struct.unpack_from("<H", raw, 2)[0]
+        offset = struct.unpack_from("<L", raw, 16)[0]
+        acl = b""
+        if offset:
+            if offset < 20 or offset + 8 > len(raw):
+                raise OSError("Offset de DACL Windows inválido")
+            length = struct.unpack_from("<H", raw, offset + 2)[0]
+            if length < 8 or offset + length > len(raw):
+                raise OSError("DACL Windows incompleta")
+            acl = raw[offset:offset + length]
+        return buffer, (control & 0x1004, acl)
+
+    security, expected = descriptor(source)
+    inheritance = 0x80000000 if expected[0] & 0x1000 else 0x20000000
+    if not set_security(str(destination), 4 | inheritance, security):
+        raise ctypes.WinError(ctypes.get_last_error())
+    if descriptor(destination)[1] != expected:
+        raise OSError("DACL Windows diverge da origem; publicação recusada")
+
+
+def _copy_replacement_acl(source: Path, destination: Path) -> None:
+    if sys.platform == "win32":
+        _copy_windows_acl(source, destination)
+    elif sys.platform.startswith("linux"):
+        for name in ("system.posix_acl_access", "system.nfs4_acl"):
+            try:
+                value = os.getxattr(source, name, follow_symlinks=False)
+            except OSError as exc:
+                if exc.errno not in {errno.ENODATA, errno.ENOTSUP}:
+                    raise
+                try:
+                    os.removexattr(destination, name, follow_symlinks=False)
+                except OSError as absent:
+                    if absent.errno not in {errno.ENODATA, errno.ENOTSUP}:
+                        raise
+            else:
+                os.setxattr(destination, name, value, follow_symlinks=False)
+                if os.getxattr(destination, name, follow_symlinks=False) != value:
+                    raise OSError("ACL diverge da origem; publicação recusada")
+
+
+def atomic_write_bytes(path: Path, payload: bytes, mode: int | None = None) -> None:
+    """Publish bytes with exclusive staging and durable POSIX directory entries."""
+    try:
+        previous = path.lstat()
+    except FileNotFoundError:
+        previous = None
+    if previous is not None and not stat.S_ISREG(previous.st_mode):
+        raise ValueError(f"Destino de publicação precisa ser arquivo regular: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_name(path.name + ".tmp")
-    temp.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(temp, path)
+    if mode is None and previous is not None:
+        mode = stat.S_IMODE(previous.st_mode)
+    temp = path.with_name(f".romtool-{uuid.uuid4().hex}.tmp")
+    stream = temp.open("xb")
+    try:
+        with stream:
+            if previous is not None:
+                _copy_replacement_acl(path, temp)
+            if mode is not None:
+                os.chmod(temp, mode)
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp, path)
+        sync_directory_chain(path.parent)
+    finally:
+        temp.unlink(missing_ok=True)
 
 
 def append_event(operation_id: str, event: str, **values) -> None:
@@ -231,6 +337,7 @@ def append_event(operation_id: str, event: str, **values) -> None:
             stream.write(line)
             stream.flush()
             os.fsync(stream.fileno())
+        sync_directory_chain(path.parent)
 
 
 def path_snapshot(path: Path, include_hash: bool = True, allow_leaf_symlink: bool = False) -> dict:
@@ -283,12 +390,9 @@ def path_snapshot(path: Path, include_hash: bool = True, allow_leaf_symlink: boo
 def steam_save_link_is_registered(source: Path, target: Path, appid: str) -> bool:
     try:
         state = json.loads((OUTPUT_ROOT / "estado-final-verificacao.json").read_text(encoding="utf-8"))
-        game = state.get("steam_centralization", {}).get("games", {}).get(str(appid), {})
-        saves = game.get("saves", {})
-        return any(Path(row.get("source_path", "")).absolute() == source.absolute()
-                   and Path(row.get("canonical_path", "")).resolve(strict=False) == target.resolve(strict=False)
-                   and row.get("status") == "centralized"
-                   for row in saves.values())
+        return any(ident == str(appid) and left == source.absolute()
+                   and right.resolve(strict=False) == target.resolve(strict=False)
+                   for ident, _, left, right in steam_centralizer.registered_save_paths(state, PROJECT_ROOT))
     except (OSError, ValueError, TypeError, AttributeError):
         return False
 
@@ -296,11 +400,8 @@ def steam_save_link_is_registered(source: Path, target: Path, appid: str) -> boo
 def steam_game_has_centralized_saves(appid: str, game_root: Path) -> bool:
     try:
         state = json.loads((OUTPUT_ROOT / "estado-final-verificacao.json").read_text(encoding="utf-8"))
-        game = state.get("steam_centralization", {}).get("games", {}).get(str(appid), {})
-        for save in game.get("saves", {}).values():
-            if save.get("status") != "centralized":
-                continue
-            if is_within(Path(save.get("source_path", "")), game_root):
+        for ident, _, source, _ in steam_centralizer.registered_save_paths(state, PROJECT_ROOT):
+            if ident == str(appid) and is_within(source, game_root):
                 return True
     except (OSError, ValueError, TypeError, AttributeError):
         pass
@@ -526,11 +627,18 @@ def verify_gdi(path: Path) -> dict:
             "tracks": tracks, "missing": missing, "issues": issues}
 
 
+def subprocess_output_text(value: str | bytes | None) -> str:
+    """TimeoutExpired can retain bytes even when the process uses text mode."""
+    if isinstance(value, bytes):
+        return value.decode('utf-8', errors='replace')
+    return value or ''
+
+
 def run_validator(argv: list[str], full_output: bool = False, *, env: dict[str, str] | None = None,
-                  timeout: float | None = None) -> dict:
+                  timeout: float | None = None, cwd: Path | None = None) -> dict:
     try:
         result = subprocess.run(argv, capture_output=True, text=True, errors="replace", check=False,
-                                env=env, timeout=timeout)
+                                env=env, timeout=timeout, cwd=cwd)
         stdout, stderr = result.stdout, result.stderr
         if not full_output:
             stdout, stderr = stdout[-12000:], stderr[-4000:]
@@ -539,34 +647,53 @@ def run_validator(argv: list[str], full_output: bool = False, *, env: dict[str, 
         return {"returncode": None, "error": f"validator unavailable: {argv[0]}"}
     except subprocess.TimeoutExpired as error:
         return {"returncode": None, "timed_out": True,
-                "stdout": (error.stdout or "")[-12000:], "stderr": (error.stderr or "")[-4000:]}
+                "stdout": subprocess_output_text(error.stdout)[-12000:],
+                "stderr": subprocess_output_text(error.stderr)[-4000:]}
 
 
-def host_runtime_probe_environment(row: dict) -> dict[str, str] | None:
-    templates = row.get("environment", {})
-    if not templates:
-        return None
-    if not isinstance(templates, dict):
-        raise ValueError("O environment do perfil command precisa ser um objeto")
-    env = os.environ.copy()
+def host_runtime_userdata_root(row: dict) -> Path | None:
     userdata_subdir = row.get("userdata_subdir")
     userdata_root = None
     if userdata_subdir:
         relative = Path(str(userdata_subdir))
-        if relative.is_absolute() or any(part in {"", ".", ".."} for part in relative.parts):
+        if relative.is_absolute() or not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
             raise ValueError("userdata_subdir inválido durante a sonda de runtime")
         userdata_base = PROJECT_ROOT / "emulator" / "data"
         userdata_root = (userdata_base / relative).resolve()
         if not is_within(userdata_root, userdata_base.resolve()):
             raise ValueError("userdata_subdir saiu de UserData durante a sonda de runtime")
         cursor = userdata_base
-        if cursor.is_symlink():
+        if userdata_base.parent.is_symlink() or cursor.is_symlink():
             raise ValueError("UserData é symlink durante a sonda de runtime")
         for part in relative.parts:
             cursor = cursor / part
             if cursor.is_symlink():
                 raise ValueError(f"Componente symlink em userdata_subdir: {cursor}")
+    return userdata_root
+
+
+def host_runtime_probe_directory(row: dict) -> Path | None:
+    if not row.get('probe_working_directory'):
+        return None
+    userdata_root = host_runtime_userdata_root(row)
+    if row['probe_working_directory'] != '{userdata}' or userdata_root is None:
+        raise ValueError('Diretório da sonda exige {userdata} e userdata_subdir')
+    if not userdata_root.is_dir():
+        raise ValueError('Prepare os dados compartilhados antes da sonda de runtime')
+    return userdata_root
+
+
+def host_runtime_probe_environment(row: dict, *, program_dir: Path | None = None) -> dict[str, str] | None:
+    templates = row.get("environment", {})
+    if not templates:
+        return None
+    if not isinstance(templates, dict):
+        raise ValueError("O environment do perfil command precisa ser um objeto")
+    env = os.environ.copy()
+    userdata_root = host_runtime_userdata_root(row)
     values = {"userdata": str(userdata_root)} if userdata_root else {}
+    if program_dir is not None:
+        values['program_dir'] = str(program_dir.resolve())
     for name, template in templates.items():
         if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
             raise ValueError(f"Variável inválida no ambiente do perfil: {name!r}")
@@ -737,6 +864,14 @@ def verify_one(path: Path, list_archive_contents: bool = False) -> dict:
                 result.update({"validator": "7z_test", "status": "ok" if checked.get("returncode") == 0 else "archive_error",
                                "returncode": checked.get("returncode"), "output": checked.get("stdout", ""),
                                "error": checked.get("error", checked.get("stderr", ""))})
+        except ArchivePasswordRequired as exc:
+            result.update({'validator': 'python_zipfile_metadata_only',
+                           'status': 'encrypted_archive_password_required',
+                           'member_count': len(exc.members),
+                           'encrypted_member_count': sum(bool(member['encrypted']) for member in exc.members),
+                           'full_crc_verified': False, 'error': str(exc)})
+            if list_archive_contents:
+                result['archive_members'] = exc.members
         except Exception as exc:
             result.update({"validator": "archive_test_and_list", "status": "archive_error",
                            "error": f"{type(exc).__name__}: {exc}"})
@@ -1315,24 +1450,32 @@ def run_inventory(roots: list[Path], output_dir: Path, with_hash: bool) -> dict:
     return {**manifest, "csv": str(csv_path), "manifest": str(opdir / "manifest.json")}
 
 
+class ArchivePasswordRequired(ValueError):
+    def __init__(self, members: list[dict]):
+        super().__init__('ZIP cifrado exige senha para validar os CRCs; original preservado')
+        self.members = members
+
+
 def archive_members(path: Path) -> dict:
     detected = detect_archive_format(path)
     archive_format = detected["format"]
     if archive_format == "zip":
         members = []
         with zipfile.ZipFile(path) as archive:
-            bad = archive.testzip()
-            if bad is not None:
-                raise ValueError(f"ZIP não passou CRC no membro: {bad}")
             for info in archive.infolist():
                 name = info.filename.replace("\\", "/")
                 rel = PurePosixPath(name)
                 mode = (info.external_attr >> 16) & 0xFFFF
-                if rel.is_absolute() or ".." in rel.parts or stat.S_ISLNK(mode):
+                if rel.is_absolute() or ".." in rel.parts or re.match(r'^[A-Za-z]:', name) or stat.S_ISLNK(mode):
                     raise ValueError(f"Membro ZIP inseguro: {name}")
                 members.append({"path": name.rstrip("/"), "directory": info.is_dir(),
                                 "size_bytes": info.file_size, "packed_size_bytes": info.compress_size,
                                 "crc32": f"{info.CRC:08x}", "encrypted": bool(info.flag_bits & 0x1)})
+            if any(member['encrypted'] for member in members):
+                raise ArchivePasswordRequired(members)
+            bad = archive.testzip()
+            if bad is not None:
+                raise ValueError(f"ZIP não passou CRC no membro: {bad}")
         return {"validator": "python_zipfile_crc", "status": "ok", "archive_format": "zip",
                 "archive_signature_detection": detected, "members": members,
                 "content_classification": classify_archive_contents([str(path)], members)}
@@ -1492,6 +1635,7 @@ def host_runtime_format_evidence(system_id: str, extension: str, *, probe: bool 
         return {**evidence, "supported": False, "status": "format_not_listed_by_host_profile"}
     if probe:
         probe_env = None
+        probe_cwd = None
         if adapter in {"mame", "mame_named"}:
             executable = shutil.which(str(profile.get("mame_executable", "mame")))
             argv = [executable, "-version"] if executable else []
@@ -1511,13 +1655,14 @@ def host_runtime_format_evidence(system_id: str, extension: str, *, probe: bool 
                     if executable.is_file() and os.access(executable, os.X_OK)
                     and isinstance(probe_args, list) and all(isinstance(x, str) for x in probe_args)
                     else [])
-            probe_env = host_runtime_probe_environment(row)
+            probe_env = host_runtime_probe_environment(row, program_dir=executable.parent)
+            probe_cwd = host_runtime_probe_directory(row)
             evidence["runtime_probe_environment_keys"] = sorted((row.get("environment") or {}).keys())
         else:
             argv = []
         if not argv:
             return {**evidence, "supported": False, "status": "runtime_probe_not_configured"}
-        checked = run_validator(argv, env=probe_env, timeout=30)
+        checked = run_validator(argv, env=probe_env, timeout=30, cwd=probe_cwd)
         evidence["runtime_probe"] = argv
         evidence["runtime_probe_returncode"] = checked.get("returncode")
         evidence["runtime_probe_output"] = checked.get("stdout", "")[:1000]
@@ -1935,8 +2080,22 @@ def esde_processes_running() -> list[dict]:
     return running
 
 
+def pegasus_processes_running() -> list[dict]:
+    running = []
+    for process in Path('/proc').glob('[0-9]*'):
+        try:
+            executable = os.readlink(process / 'exe')
+        except OSError:
+            continue
+        name = Path(executable.removesuffix(' (deleted)')).name.casefold()
+        if name in {'pegasus-fe', 'pegasus-fe.exe', 'pegasus-frontend', 'pegasus-frontend.exe'}:
+            running.append({'pid': int(process.name), 'executable': executable})
+    return running
+
+
 def frontend_processes_running() -> dict[str, list[dict]]:
-    return {"retrofe": retrofe_processes_running(), "esde": esde_processes_running()}
+    return {"retrofe": retrofe_processes_running(), "esde": esde_processes_running(),
+            "pegasus": pegasus_processes_running()}
 
 
 def validate_game_media_source(path: Path, *, allow_leaf_symlink: bool = False) -> None:
@@ -2851,7 +3010,7 @@ def plan_actions(plan_path: Path) -> dict:
                     raise ValueError(f"Payload planejado para rekey não confere em hash/título: {destination}")
                 if payload_key in planned_media_payloads and not (reuses_existing or reuses_planned):
                     raise ValueError(f"Payload canônico rekey do mesmo título já aparece no plano: {source}")
-                if str(destination) in planned_media_targets and not reuses_planned:
+                if str(destination) in planned_media_targets and not (reuses_existing or reuses_planned):
                     raise ValueError(f"Destino canônico aparece mais de uma vez no plano: {destination}")
                 if reuses_existing:
                     if not destination.is_file() or destination.is_symlink() or sha256_file(destination) != pre["sha256"]:
@@ -3611,9 +3770,10 @@ def move_steam_save(item: dict, operation_id: str) -> None:
         item["transfer_method"] = "copy_verify_then_same_device_rename"
 
     try:
-        os.symlink(str(destination), source, target_is_directory=is_directory)
+        link_target = steam_centralizer.save_link_target(source, destination, PROJECT_ROOT)
+        os.symlink(link_target, source, target_is_directory=is_directory)
         link_state = path_snapshot(source, include_hash=True, allow_leaf_symlink=True)
-        if link_state.get("kind") != "symlink" or link_state.get("symlink_target") != str(destination):
+        if link_state.get("kind") != "symlink" or link_state.get("symlink_target") != link_target:
             raise RuntimeError(f"Symlink do save criado com alvo inesperado: {source}")
         if source.resolve(strict=True) != destination.resolve(strict=True):
             raise RuntimeError(f"Symlink do save não resolve ao destino canônico: {source}")
@@ -3663,13 +3823,13 @@ def move_steam_save(item: dict, operation_id: str) -> None:
     item["after"] = steam_payload_snapshot(destination)
     if item["after"]["sha256"] != item["before"]["sha256"]:
         raise RuntimeError(f"Hash do save Steam divergiu depois da centralização: {destination}")
-    if item["steam_link_after"].get("symlink_target") != str(destination):
+    if not steam_centralizer.save_link_matches(source, destination, PROJECT_ROOT):
         raise RuntimeError(f"Link do save Steam perdeu o alvo canônico: {source}")
 
 
 def restore_steam_save(item: dict, operation_id: str) -> str:
     source, destination = Path(item["source"]), Path(item["destination"])
-    if not source.is_symlink() or os.readlink(source) != str(destination):
+    if not steam_centralizer.save_link_matches(source, destination, PROJECT_ROOT):
         raise ValueError(f"Rollback de save Steam recusado; link original mudou: {source}")
     if steam_centralizer.steam_processes_running():
         raise RuntimeError("Feche o Steam e todos os jogos antes de reverter saves")
@@ -3720,7 +3880,8 @@ def restore_steam_save(item: dict, operation_id: str) -> str:
             else:
                 temp.unlink(missing_ok=True)
         if not os.path.lexists(source) and destination.exists():
-            os.symlink(str(destination), source, target_is_directory=destination.is_dir())
+            os.symlink(steam_centralizer.save_link_target(source, destination, PROJECT_ROOT), source,
+                       target_is_directory=destination.is_dir())
         raise
 
 
@@ -4162,7 +4323,9 @@ def rollback_operation(operation_id: str, confirmed: bool) -> dict:
             continue
         if is_steam_move or is_steam_save_move:
             ensure_allowed(destination)
-            if not source.is_symlink() or os.readlink(source) != str(destination):
+            valid_link = (steam_centralizer.save_link_matches(source, destination, PROJECT_ROOT)
+                          if is_steam_save_move else source.is_symlink() and os.readlink(source) == str(destination))
+            if not valid_link:
                 raise ValueError(f"Rollback Steam recusado; caminho original não aponta ao destino registrado: {source}")
             if is_steam_move:
                 pass
@@ -5536,10 +5699,14 @@ def command_record_change(args) -> dict:
         "change_type": args.change_type, "reason": args.reason, "details": details,
         "project_files_changed": False,
     }
+    deferred = getattr(args, 'defer_history_index', False)
+    if deferred:
+        manifest['history_index_refresh'] = 'deferred'
     atomic_json(opdir / "manifest.json", manifest)
     append_event(operation_id, "environment_change_recorded", action=args.change_type,
                  status="completed", details={"reason": args.reason, **details})
-    rebuild_history_index()
+    if not deferred:
+        rebuild_history_index()
     return manifest
 
 
@@ -5566,20 +5733,49 @@ def command_record_artifacts(args) -> dict:
             "size_bytes": st.st_size,
             "sha256": sha256_file(path),
         })
-    operation_id = f"artifacts-{dt.datetime.now().strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    resume_id = getattr(args, "operation_id", None)
+    operation_id = resume_id or f"artifacts-{dt.datetime.now().strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    if not operation_id.startswith("artifacts-"):
+        raise ValueError("A retomada exige o ID artifacts- informado pela gravação anterior")
     opdir = operation_dir(operation_id)
-    opdir.mkdir(parents=True, exist_ok=False)
+    reject_symlink_components(opdir)
+    opdir.mkdir(parents=True, exist_ok=bool(resume_id))
     manifest = {
         "schema_version": "1.0", "operation_id": operation_id, "kind": "change",
-        "title": args.change_type, "created_at": now(), "completed_at": now(),
-        "status": "completed", "read_only": True, "project_files_changed": True,
+        "title": args.change_type, "created_at": now(),
+        "status": "recording", "read_only": True, "project_files_changed": True,
         "reason": args.reason, "items": artifacts,
         "details": {"change_type": args.change_type, "artifact_count": len(artifacts)},
     }
-    atomic_json(opdir / "manifest.json", manifest)
-    append_event(operation_id, "project_artifacts_recorded", action=args.change_type,
-                 status="completed", details={"reason": args.reason, "artifacts": artifacts})
-    rebuild_history_index()
+    defer_history_index = getattr(args, "defer_history_index", False)
+    manifest_path = opdir / "manifest.json"
+    if resume_id and manifest_path.exists():
+        reject_symlink_components(manifest_path)
+        previous = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if (previous.get("kind") != "change" or previous.get("operation_id") != operation_id
+                or previous.get("items") != artifacts or previous.get("title") != args.change_type
+                or previous.get("reason") != args.reason):
+            raise ValueError("Artefatos ou finalidade divergem do registro interrompido; origem preservada")
+        manifest = previous
+        manifest["record_resume_count"] = manifest.get("record_resume_count", 0) + 1
+        manifest["status"] = "recording"
+    if defer_history_index:
+        manifest["history_index_refresh"] = "deferred"
+    else:
+        manifest.pop("history_index_refresh", None)
+    try:
+        atomic_json(manifest_path, manifest)
+        append_event(operation_id, "project_artifacts_record_resumed" if resume_id else "project_artifacts_recorded",
+                     action=args.change_type, status="completed",
+                     details={"reason": args.reason, "artifacts": artifacts})
+        manifest["status"] = "completed"
+        manifest["completed_at"] = now()
+        atomic_json(manifest_path, manifest)
+        if not defer_history_index:
+            rebuild_history_index()
+    except OSError as exc:
+        raise OSError(f"Registro {operation_id} interrompido; consulte manifesto/diários e retome "
+                      f"com record-artifacts --operation-id {operation_id} e os mesmos argumentos: {exc}") from exc
     return manifest
 
 
@@ -6721,7 +6917,7 @@ def command_steam_saves_verify(args) -> dict:
                "source_kind": steam.get("source_kind", ""), "source_path": str(source),
                "canonical_path": str(destination), "status": "verification_failed", "issues": []}
         try:
-            if not source.is_symlink() or os.readlink(source) != str(destination):
+            if not steam_centralizer.save_link_matches(source, destination, PROJECT_ROOT):
                 raise ValueError("symlink Steam original ausente ou com alvo alterado")
             if source.resolve(strict=True) != destination.resolve(strict=True):
                 raise ValueError("symlink Steam original não resolve ao save canônico")
@@ -6950,6 +7146,15 @@ def build_parser() -> argparse.ArgumentParser:
                                            help="classifica conteúdo de uma listagem já salva sem reler archives")
     archive_classify.add_argument("--operation-id", required=True,
                                   help="operação verify concluída que contém archive-members.jsonl")
+    discs = commands.add_parser("discs", help="playlists M3U de conjuntos identificados e ordenados")
+    discs_commands = discs.add_subparsers(dest="discs_command", required=True)
+    discs_plan = discs_commands.add_parser("plan")
+    discs_plan.add_argument("--file", required=True)
+    for action in ("apply", "verify", "rollback"):
+        command = discs_commands.add_parser(action)
+        command.add_argument("--operation-id", required=True)
+        if action in {"apply", "rollback"}:
+            command.add_argument("--" + action, action="store_true")
     plan = commands.add_parser("plan", help="pré-valida um plano JSON; não altera a biblioteca")
     plan.add_argument("--file", required=True)
     apply = commands.add_parser("apply", help="executa um plano preparado; exige --apply")
@@ -7017,10 +7222,15 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--change-type", required=True)
     record.add_argument("--reason", required=True)
     record.add_argument("--details-json", required=True)
+    record.add_argument("--defer-history-index", action="store_true",
+                        help="registra diário e manifesto agora; adia o índice integral para history")
     artifacts = commands.add_parser("record-artifacts", help="registra hashes de arquivos do projeto no histórico")
     artifacts.add_argument("--change-type", required=True)
     artifacts.add_argument("--reason", required=True)
     artifacts.add_argument("--artifacts-json", required=True)
+    artifacts.add_argument("--operation-id", help="retoma o mesmo registro interrompido, conferindo artefatos e finalidade")
+    artifacts.add_argument("--defer-history-index", action="store_true",
+                           help="registra artefatos e diário agora; adia a reconstrução integral para history")
     steam_shortcuts_parser = commands.add_parser(
         "steam-shortcuts", help="cadastra RetroFE/ES-DE como jogos não-Steam e lança via Big Picture")
     steam_shortcuts_commands = steam_shortcuts_parser.add_subparsers(
@@ -7146,6 +7356,8 @@ def build_parser() -> argparse.ArgumentParser:
                                   help="seleção explícita de categoria canônica ausente; exige --promote, validação integral e ROM única")
     media_stray_plan.add_argument("--nested-game-paths", action="store_true",
                                   help="achata mídia aninhada somente com pasta relativa de ROM existente e associação exata nesse escopo")
+    media_stray_plan.add_argument("--pdf-stream-eol-review", action="store_true",
+                                 help="revisa somente warnings CR no início de streams PDF; exige render integral e preserva os bytes")
     media_stray_plan.add_argument("--pdf-linearization-review", action="store_true",
                                   help="aceita somente warnings conhecidos de linearização após render integral de todas as páginas; bytes preservados")
     media_stray_apply = media_stray_commands.add_parser("apply")
@@ -7153,6 +7365,8 @@ def build_parser() -> argparse.ArgumentParser:
     media_stray_apply.add_argument("--apply", action="store_true")
     media_stray_verify = media_stray_commands.add_parser("verify")
     media_stray_verify.add_argument("--operation-id", required=True)
+    media_stray_status = media_stray_commands.add_parser("status", help="consulta manifesto, eventos e presença dos caminhos selecionados")
+    media_stray_status.add_argument("--operation-id", required=True)
     media_stray_rollback = media_stray_commands.add_parser("rollback")
     media_stray_rollback.add_argument("--operation-id", required=True)
     media_stray_rollback.add_argument("--rollback", action="store_true")
@@ -7273,6 +7487,8 @@ def build_parser() -> argparse.ArgumentParser:
     steam_rollback.add_argument("--rollback", action="store_true")
     steam_saves = steam_commands.add_parser("saves", help="descobre e centraliza saves Steam Cloud/Auto-Cloud")
     steam_saves_commands = steam_saves.add_subparsers(dest="steam_saves_command", required=True)
+    if steam_centralizer is not None:
+        steam_centralizer.add_save_links_parser(steam_saves_commands)
     steam_saves_discover = steam_saves_commands.add_parser("discover", help="inventa saves sem alterar as origens")
     steam_saves_discover.add_argument("--offline", action="store_true")
     steam_saves_discover.add_argument("--no-mounted-scan", action="store_true")
@@ -7304,6 +7520,12 @@ def main(argv: list[str] | None = None) -> int:
                     result = storage_dedupe.dispatch(args, globals())
             else:
                 result = storage_dedupe.dispatch(args, globals())
+        elif args.command == "discs":
+            if __package__:
+                from . import disc_sets
+            else:
+                import disc_sets
+            result = disc_sets.dispatch(args, globals())
         elif args.command == "inventory":
             result = run_inventory([Path(x) for x in args.root], Path(args.out), args.hash)
         elif args.command == "verify":
@@ -7428,7 +7650,15 @@ def main(argv: list[str] | None = None) -> int:
             elif args.steam_command == "watch":
                 result = command_steam_watch(args)
             elif args.steam_command == "saves":
-                if args.steam_saves_command == "discover":
+                if args.steam_saves_command == "links":
+                    if args.steam_save_links_command == "plan":
+                        result = steam_centralizer.save_links_plan(args, globals())
+                    elif args.steam_save_links_command == "verify":
+                        result = steam_centralizer.save_links_verify(args, globals())
+                    else:
+                        result = steam_centralizer.save_links_execute(
+                            args, globals(), rollback=args.steam_save_links_command == "rollback")
+                elif args.steam_saves_command == "discover":
                     result = command_steam_saves_discover(args)
                 elif args.steam_saves_command == "plan":
                     result = command_steam_saves_plan(args)
@@ -7481,6 +7711,10 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         if args.command == "steam-shortcuts" and result.get("status") == "diverged":
             return 1
+        if (args.command == "media" and getattr(args, "media_command", None) == "stray"
+                and getattr(args, "media_stray_command", None) == "status"
+                and result.get("status") == "reconciliation_required"):
+            return 3
         if (args.command == "media" and getattr(args, "media_command", None) == "esde"
                 and (getattr(args, "esde_media_command", None) == "validate"
                      or (getattr(args, "esde_media_command", None) == "aliases" and getattr(args, "esde_aliases_command", None) in {"ensure", "verify"}))

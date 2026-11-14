@@ -26,6 +26,103 @@ def load(name, path):
 
 
 class BindingsTests(unittest.TestCase):
+    def test_supermodel_maps_observed_buttons_hats_and_inverted_axes(self):
+        self.assertEqual(controls.supermodel_input(4, 'b6'), 'JOY5_BUTTON7')
+        self.assertEqual(controls.supermodel_input(4, 'h0.1'), 'JOY5_POV1_UP')
+        self.assertEqual(controls.supermodel_input(7, 'a1~'), 'JOY8_YAXIS_INV')
+        self.assertEqual(controls.supermodel_input(7, 'a1~', -1), 'JOY8_YAXIS_POS')
+        for invalid in ['', 'a6', 'h0.3', 'b-1']:
+            with self.assertRaises(ValueError):
+                controls.supermodel_input(0, invalid)
+
+    def test_supermodel_routes_two_native_players_and_preserves_other_settings(self):
+        mapping = {'start': 'b6', 'back': 'b4', 'a': 'b0', 'b': 'b1', 'x': 'b2', 'y': 'b3',
+                   'dpup': 'h0.1', 'dpright': 'h0.2', 'dpdown': 'h0.4', 'dpleft': 'h0.8',
+                   'leftx': 'a0', 'lefty': 'a1'}
+        pads = [{'index': 4, 'mapping': mapping}, {'index': 7, 'mapping': mapping},
+                {'index': 9, 'mapping': mapping}]
+        before = (b'# personal\r\n[Global]\r\nNetwork = 0\r\n'
+                  b'InputTrigger = "KEY_K,MOUSE_LEFT_BUTTON,JOY1_BUTTON5"\r\n'
+                  b'[swtrilgy]\r\nPowerPCFrequency = 50\r\n')
+        after = controls.supermodel_controls(before, pads)
+        self.assertIn(b'InputTrigger = "KEY_K,MOUSE_LEFT_BUTTON,JOY5_BUTTON1"', after)
+        self.assertIn(b'InputStart2 = "KEY_2,JOY8_BUTTON7"', after)
+        self.assertIn(b'InputGunUp = "KEY_UP,JOY5_POV1_UP,JOY5_YAXIS_NEG"', after)
+        self.assertIn(b'InputAnalogGunX2 = "JOY8_XAXIS"', after)
+        self.assertIn(b'InputAnalogJoyX = "MOUSE_XAXIS,JOY5_XAXIS"', after)
+        self.assertIn(b'Network = 0\r\n', after)
+        self.assertIn(b'[swtrilgy]\r\nPowerPCFrequency = 50\r\n', after)
+        self.assertNotIn(b'JOY10_', after)
+        self.assertEqual(controls.supermodel_controls(after, pads), after)
+
+    def test_eight_routed_ports_are_ordered_and_missing_or_duplicate_ports_fail(self):
+        pads = [{'name':f'Emulation P{n+1}', 'index':n} for n in range(8)]
+        with patch.dict(os.environ, {'EMULATION_PLAYER_CAPACITY':'8'}):
+            self.assertEqual(controls.routed_players(list(reversed(pads))), pads)
+            for invalid in (pads[:-1], pads + [pads[0]]):
+                with self.assertRaises(RuntimeError):
+                    controls.routed_players(invalid)
+
+    def test_retroarch_configures_the_eighth_port_and_keeps_console_capacity_local(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            profile = root / controls.PROFILE
+            profile.parent.mkdir(parents=True)
+            profile.write_text(json.dumps({'collections':{'sms':{'rom_subdir':'sms','adapter':'retroarch'}},
+                'retroarch':{'config_path':'UserData/retroarch/retroarch.cfg','userdata_root':'UserData/retroarch'}}))
+            config = root / controls.HOST / 'UserData/retroarch/retroarch.cfg'
+            config.parent.mkdir(parents=True)
+            config.write_text('# personal settings\n')
+            pads = [{'name':f'Emulation P{n+1}', 'index':n, 'vendor':0x1209, 'product':0xE101+n} for n in range(8)]
+            with patch.object(controls, 'prior_bytes', return_value=None):
+                changes = controls.proposals(root, pad=pads[0], pads=pads, routed=True, system_id='sms', frontends=False)
+            data = next(item['after'] for item in changes if item['path'].endswith('retroarch.cfg'))
+            self.assertIn(b'input_player8_joypad_index = "7"', data)
+            self.assertIn(b'input_max_users = "8"', data)
+            self.assertTrue(any(item['path'].endswith('emulation-player8.cfg') for item in changes))
+
+    def test_retrofe_reserves_real_start_and_maps_each_pad_independently(self):
+        before = b'up = Up,joy0Hat0Up\nselect = Return,joy0Button0\nback = Escape,joy0Button1\nfavPlaylist = F,joyButton6\npageUp = A,joy0Button9\nquit = Q\n'
+        pads = [{'index':0, 'mapping':{'start':'b6','back':'b4','a':'b0','b':'b1','dpup':'h0.1','lefty':'a1','leftstick':'b7'}},
+                {'index':1, 'mapping':{'start':'b11','back':'b10','a':'b0','b':'b1','dpup':'h0.1','lefty':'a1','leftstick':'b13'}}]
+        after = controls.retrofe_controls(before, pads)
+        self.assertIn(b'favPlaylist = F,joy2Button6,joy3Button6,joy4Button6,joy5Button6,joy6Button6,joy7Button6,joy8Button6,joy9Button6,joy0Button4,joy1Button10', after)
+        self.assertIn(b'pageUp = A,joy0Button7,joy1Button13', after)
+        self.assertIn(b'select = Return,joy0Button0,joy1Button0', after)
+        self.assertIn(b'quit = Q\n', after)
+        self.assertNotIn(b'joy0Button6', after)
+        self.assertNotIn(b'joy1Button11', after)
+        self.assertEqual(controls.retrofe_controls(after, pads), after)
+
+    def test_eighth_future_mobile_pad_can_navigate_with_deck_already_present(self):
+        deck = {'index':0, 'mapping':{'a':'b0','start':'b12'}}
+        data = controls.retrofe_controls(b'select = Return,joyButton0\n', [deck])
+        self.assertIn(b'joy8Button0', data)
+        self.assertNotIn(b'joy0Button12', data)
+
+    def test_retrofe_projection_keeps_bom_crlf_keyboard_and_custom_actions(self):
+        before = b'\xef\xbb\xbfselect = Return,joy0Button0\r\ncustom = F9\r\n# personal\r\n'
+        after = controls.retrofe_controls(before, [{'index':0,'mapping':{'a':'b3'}}])
+        self.assertIn(b'\xef\xbb\xbfselect = Return,joy0Button3\r\ncustom = F9\r\n# personal\r\n', after)
+
+    def test_retrofe_mapping_supports_inverted_axes_and_button_dpad(self):
+        after = controls.retrofe_controls(b'up = Up\ndown = Down\n',
+            [{'index':0,'mapping':{'dpup':'b16','dpdown':'b17','lefty':'a2~'}}])
+        self.assertIn(b'up = Up,joy0Button16,joy0Axis2+', after)
+        self.assertIn(b'down = Down,joy0Button17,joy0Axis2-', after)
+
+    def test_retrofe_ambiguous_duplicate_action_is_preserved(self):
+        with self.assertRaises(ValueError):
+            controls.retrofe_controls(b'select = Return\nselect = Space\n', [])
+
+    def test_retrofe_custom_start_conflict_blocks_before_writing(self):
+        with self.assertRaisesRegex(ValueError, 'Start SDL'):
+            controls.retrofe_controls(b'custom = joyButton12\n', [{'index':0,'mapping':{'start':'b12'}}])
+
+    def test_retrofe_new_bindings_follow_a_complete_line(self):
+        after = controls.retrofe_controls(b'# personal', [{'index':0,'mapping':{'a':'b3'}}])
+        self.assertEqual(after, b'# personal\nselect = joy0Button3\n')
+
     def test_keyboard_and_sdl_are_alternatives_not_a_chord(self):
         original = b"; personal preference\r\n[Pad1]\r\nCross = Keyboard/K\r\n[Pad2]\r\nType = None\r\n"
         data = controls.ini_update(original, {"Pad1": {"Cross": "SDL-0/A"}}, append=True)
@@ -216,7 +313,8 @@ class LaunchEnvelopeTests(unittest.TestCase):
             result = child.wait()
             self.assertFalse(remaining())
             return result
-        with patch.object(Path, "read_text", return_value="I: Vendor=28de Product=1205"), \
+        with patch.dict(os.environ, {"RETROFE_INPUT_BACKEND": "steam"}), \
+             patch.object(Path, "read_text", return_value="I: Vendor=28de Product=1205"), \
              patch.object(steam.runpy, "run_path", return_value={"detect_session_mode": lambda: "desktop-kde"}), \
              patch.object(steam, "ensure_recovery_guard"), \
              patch.object(steam.steam_desktop_session, "snapshot", return_value={"owners": {"parent": {}}}), \

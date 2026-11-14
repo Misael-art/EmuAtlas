@@ -31,6 +31,6 @@ Papéis: responsável pelo produto define escopo e suporte; engenharia mantém i
 
 ## Limites da versão inicial
 
-O pacote contém ferramentas e templates, além do instalador de 59 componentes do host. Não contém a biblioteca pessoal nem reconstrói automaticamente todos os temas/BIOS/perfis particulares. Runtimes adicionais reutilizam `emutool`/runtime_install por receitas pinadas, com rastreio de dependências. A obtenção automática de mídia exige uma origem licenciada/configurada por cliente. O binário RetroFE possui receita de compilação; temas comerciais continuam dependendo de direitos e insumos aprovados. Switch 2 permanece experimental e fora da oferta homologada.
+O pacote contém ferramentas e templates, além do instalador de 63 componentes do host. Não contém a biblioteca pessoal nem reconstrói automaticamente todos os temas/BIOS/perfis particulares. Runtimes adicionais reutilizam `emutool`/runtime_install por receitas pinadas, com rastreio de dependências. A obtenção automática de mídia exige uma origem licenciada/configurada por cliente. O binário RetroFE possui receita de compilação; temas comerciais continuam dependendo de direitos e insumos aprovados. Switch 2 permanece experimental e fora da oferta homologada.
 
 Documentos técnicos: [arquitetura](architecture.md), [operações](operations.md), [distribuição](distribution-policy.md), [qualidade](quality-and-roadmap.md), [release](releasing.md).
