@@ -1098,5 +1098,28 @@
       },
       "maximum_expanded_bytes": 536870912
     }
+  ],
+  "cd_profiles": [
+    {
+      "id": "duckstation-chd-cd",
+      "systems": [
+        "psx"
+      ],
+      "runtime": "DuckStation",
+      "tool_executable": "chdman",
+      "codecs": "cdlz,cdzl,cdfl",
+      "hunk_bytes": 19584,
+      "minimum_gain_bytes": 1048576,
+      "minimum_gain_ratio": 0.01,
+      "timeout_seconds": 2400,
+      "source_format": "CUE with BINARY raw 2352-byte MODE1, MODE2 and AUDIO tracks; physical INDEX 00 pregaps",
+      "validation": "chdman verify, split-BIN extraction, exact ordered raw track SHA-256, sector count, mode and INDEX 01 offset",
+      "rollback_mode": "preserved_original_set",
+      "runtime_evidence": [
+        "https://docs.mamedev.org/tools/chdman.html",
+        "https://github.com/stenzek/duckstation/blob/v0.1-12442/README.md"
+      ],
+      "functional_validation": "native_gameplay_disc_swap_saves_and_return_pending"
+    }
   ]
 }

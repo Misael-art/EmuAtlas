@@ -111,6 +111,14 @@ M3U é a extensão de playlist de múltiplos discos usada pelos runtimes compat�
 
 ## Playlists de conjuntos selecionados
 
+### Compactação de CD PSX
+
+`romtool compact cd plan --system-id psx --source 'Jogo/Jogo.cue'` prepara um conjunto selecionado pelo perfil `duckstation-chd-cd`. O perfil admite BIN com setores brutos de 2352 bytes, modos MODE1/2352, MODE2/2352, AUDIO e pregaps físicos INDEX 00. Cada aplicação usa um job, os codecs CD do chdman e hunks de 19584 bytes. A validação executa `chdman verify`, reconstrói as faixas e compara SHA-256, setores, modos e deslocamentos INDEX 01.
+
+Revise o plano e execute `compact cd apply --operation-id <id> --apply`. `compact cd verify` repete a prova integral. `compact cd rollback --operation-id <id> --rollback` restaura os CUE/BIN e os metadados sob precondições atuais. O executor durável existente preserva os originais, atualiza gamelists/M3U e admite retomada de publicação parcial. SBI homônimo conserva seus bytes e caminho. Trilhas compartilhadas e diretivas sem perfil exigem revisão explícita.
+
+O manifesto distingue redução da biblioteca ativa e variação física com originais retidos. Depois da publicação, use `project-catalog plan --operation-id <id>` e revise/aplique/verifique a projeção. Reverta essa projeção antes de reverter o CD se os metadados ainda corresponderem às preimagens. Meça recursos para o candidato e sua reconstrução. O aceite funcional de jogos, troca de discos, saves e retorno permanece registrado por plataforma.
+
 `romtool discs plan --file <pedido.json>` gera a playlist a partir dos discos explicitamente identificados e numerados no pedido. O documento declara `system_id`, `playlist`, `disc_count`, `identity_evidence`, `runtime_evidence` e uma lista `discs` com `path`, `disc_number` e `identity_evidence` por membro. Os caminhos são relativos à pasta da plataforma. A ferramenta confere o catálogo e as capacidades declaradas do runtime, recusa nomes incompatíveis com Windows, arquivos repetidos, trilhas dependentes e descritores incompletos, e registra os SHA-256 integrais dos discos e das dependências CUE/GDI. Archives exigem suporte explícito ao formato dentro da playlist, conforme a seção de disquetes ZIP.
 
 A aplicação exige `romtool discs apply --operation-id <id> --apply`. A publicação mantém os discos nos caminhos existentes, cria o M3U sem sobrescrever arquivos e sincroniza os bytes e o diretório. A retomada confirma o payload e os arquivos do plano. `romtool discs verify --operation-id <id>` revalida hashes e referências. `romtool discs rollback --operation-id <id> --rollback` preserva a playlist em `rollback-playlist.m3u` na operação, com checkpoint de reversão recuperável.

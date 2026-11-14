@@ -7182,6 +7182,17 @@ def build_parser() -> argparse.ArgumentParser:
     rollback.add_argument("--rollback", action="store_true")
     compact = commands.add_parser("compact", help="planeja e valida conversões lossless nativas do emulador")
     compact_commands = compact.add_subparsers(dest="compact_command", required=True)
+    compact_cd = compact_commands.add_parser("cd", help="converte um conjunto CUE/BIN com prova integral por faixa")
+    cd_commands = compact_cd.add_subparsers(dest="cd_command", required=True)
+    cd_plan = cd_commands.add_parser("plan")
+    cd_plan.add_argument("--system-id", required=True)
+    cd_plan.add_argument("--source", required=True, help="CUE relativo à pasta da plataforma")
+    cd_plan.add_argument("--profile", default="duckstation-chd-cd")
+    for action in ("apply", "verify", "rollback"):
+        cd_action = cd_commands.add_parser(action)
+        cd_action.add_argument("--operation-id", required=True)
+        if action != "verify":
+            cd_action.add_argument("--" + action, action="store_true")
     compact_plan = compact_commands.add_parser("plan", help="audita todos os arquivos e cria plano sem alterar ROMs")
     compact_plan.add_argument("--root", default=str(PROJECT_ROOT / "roms"))
     compact_plan.add_argument('--system-id',action='append',help='limita a plataformas explícitas sem perder a raiz canônica; repetível')
@@ -7548,7 +7559,13 @@ def main(argv: list[str] | None = None) -> int:
             with media_session.write_lock(globals()):
                 result = rollback_operation(args.operation_id, args.rollback)
         elif args.command == "compact":
-            if args.compact_command == "plan":
+            if args.compact_command == "cd":
+                try:
+                    from . import cd_compaction
+                except ImportError:
+                    import cd_compaction
+                result = cd_compaction.dispatch(args, globals())
+            elif args.compact_command == "plan":
                 result = command_compact_plan(args)
             elif args.compact_command == "apply":
                 if getattr(args,'allow_active_frontend',False):

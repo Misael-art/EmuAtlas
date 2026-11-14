@@ -775,6 +775,14 @@
     {
       "source": "tools/distribution/templates/tools/roms/config/tooling.json",
       "target": "tools/distribution/templates/tools/roms/config/tooling.json"
+    },
+    {
+      "source": "tools/roms/cd_compaction.py",
+      "target": "tools/roms/cd_compaction.py"
+    },
+    {
+      "source": "tools/roms/tests/test_cd_compaction.py",
+      "target": "tools/roms/tests/test_cd_compaction.py"
     }
   ]
 }

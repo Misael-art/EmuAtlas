@@ -184,6 +184,8 @@ Os emuladores usam a [estrutura portátil em emulator/](emulator/README.md), com
 
 ## Estado do projeto
 
+Conjuntos PSX em CUE/BIN podem ser compactados para CHD pelo perfil selecionado de CD. A validação reconstrói todas as faixas e confere seus setores, áudio e pregaps. Os originais ficam preservados para reversão e as referências de gamelists e M3U acompanham a mudança. O guia de continuidade descreve o fluxo e seus limites. [Gestão de mídia e discos](tools/roms/docs/media-continuation.md)
+
 | Implementado | Validação que permanece necessária |
 | :--- | :--- |
 | Instalador, dependências e retomada por componente. | Instalação integral em máquina limpa por distribuição. |
