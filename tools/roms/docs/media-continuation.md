@@ -220,3 +220,11 @@ O plano de nomes No-Intro confere os arquivos associados por basename exato ante
 A evidência guarda tamanho e SHA-256 dos bytes validados. A aplicação repete a validação antes de mover a ROM e recusa arquivos ou destinos alterados. Planos antigos sem prova integral de mídia visual exigem novo planejamento. Cada original continua protegido pela reversão existente.
 
 A instalação vazia materializa `tools/roms/config/tooling.json` a partir de um template com os perfis aprovados de mídia e seus limites de qualidade. Registros de ferramentas observadas, arquivos pessoais e histórico do host pertencem à instalação que os produziu. A configuração local existente continua protegida pelas verificações de conflito do instalador.
+
+## Retomada de renomes de assets
+
+O organizador existente oferece `plan --rename-asset OLD=NEW --reason <evidência>` para renomear um payload dentro de sua categoria e `plan --fix-display-name CANONICAL_PATH=NAME --reason <evidência>` para corrigir nomes de apresentação e aliases derivados. Cada modalidade exige uma seleção própria e um manifesto revisado. A aplicação e a reversão passam pelo lock compartilhado de mídia e conferem se os frontends estão fechados.
+
+Renames usam a publicação exclusiva no mesmo volume. A atualização de um alias troca atomicamente os dois objetos de link e conserva o original junto ao manifesto. Intenções e checkpoints por item permitem repetir `apply` ou `rollback` após uma interrupção, incluindo cortes entre a mudança física e seu registro e entre catálogo e índice. A retomada confere identidade do objeto, caminhos, conteúdo e preimagens.
+
+Quando origem e destino reaparecem juntos, ambos ficam preservados para reconciliação. Alterações posteriores de payload, alias, XML, catálogo ou índice bloqueiam a etapa correspondente. A reversão de planos novos recupera o objeto original do alias. Manifestos legados completos podem reconstruir seu texto relativo a partir da evidência disponível. As primitivas de manutenção têm testes Linux. Sua aceitação nativa Windows permanece pendente.

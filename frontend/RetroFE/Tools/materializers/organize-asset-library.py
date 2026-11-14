@@ -76,6 +76,8 @@ STYLE_COMPONENTS = {
     "modern-ident", "pixel", "thin-outline", "thick-outline", "white-outline",
 }
 
+RENAME_BASENAME_RE = re.compile(r"[a-z0-9][a-z0-9._-]*\.[a-z0-9]+")
+
 
 def now() -> str:
     return dt.datetime.now().astimezone().isoformat(timespec="seconds")
@@ -2206,6 +2208,15 @@ def apply_manifest(path: Path) -> dict[str, Any]:
         return apply_scoped_static_asset_manifest(path)
     if manifest.get("kind") == "retrofe_asset_reclassification":
         return apply_reclassification_manifest(path)
+    if manifest.get("kind") in {"retrofe_asset_rename", "retrofe_asset_display_name_fix"}:
+        api = romtool_api()
+        from tools.roms import media_session
+        with media_session.write_lock(vars(api)):
+            if any(api.frontend_processes_running().values()):
+                raise RuntimeError("Encerre os frontends normalmente antes de aplicar o plano")
+            if manifest["kind"] == "retrofe_asset_rename":
+                return apply_rename_manifest(path)
+            return apply_display_name_fix_manifest(path)
     if manifest.get("status") != "planned":
         raise ValueError(f"Manifesto precisa estar planned, estado atual: {manifest.get('status')}")
     if digest_file(CATALOG) != manifest["catalog_before_sha256"]:
@@ -2333,7 +2344,10 @@ def verify_library() -> dict[str, Any]:
         path = ROOT / asset["path"]
         if not path.is_file() or digest_file(path) != asset["sha256"]:
             raise ValueError(f"Material de setup mudou ou desapareceu: {asset['path']}")
-    rows = list(csv.DictReader(SEARCH_INDEX.open(newline="", encoding="utf-8"))) if SEARCH_INDEX.exists() else []
+    rows = []
+    if SEARCH_INDEX.exists():
+        with SEARCH_INDEX.open(newline="", encoding="utf-8") as stream:
+            rows = list(csv.DictReader(stream))
     expected_rows = len(catalog.get("canonical_assets", [])) + len(catalog.get("source_artwork_assets", [])) + len(catalog.get("setup_media_assets", []))
     if len(rows) != expected_rows:
         raise ValueError(f"Índice de busca tem {len(rows)} linhas; catálogo informa {expected_rows}")
@@ -2382,6 +2396,15 @@ def rollback_manifest(path: Path) -> dict[str, Any]:
         return rollback_scoped_static_asset_manifest(path)
     if manifest.get("kind") == "retrofe_asset_reclassification":
         return rollback_reclassification_manifest(path)
+    if manifest.get("kind") in {"retrofe_asset_rename", "retrofe_asset_display_name_fix"}:
+        api = romtool_api()
+        from tools.roms import media_session
+        with media_session.write_lock(vars(api)):
+            if any(api.frontend_processes_running().values()):
+                raise RuntimeError("Encerre os frontends normalmente antes da reversão")
+            if manifest["kind"] == "retrofe_asset_rename":
+                return rollback_rename_manifest(path)
+            return rollback_display_name_fix_manifest(path)
     if manifest.get("status") not in {"completed_verified", "failed_partial", "applying"}:
         raise ValueError(f"Estado não reversível: {manifest.get('status')}")
     catalog_after = digest_file(CATALOG) if CATALOG.exists() else ""
@@ -2675,6 +2698,179 @@ def build_reclassification_plan(manifest_path: Path, asset_paths: list[str], cat
     }
 
 
+def build_rename_plan(manifest_path: Path, pairs: list[str], reason: str) -> dict[str, Any]:
+    """Rename a canonical payload in place, keeping taxonomy and alias names untouched."""
+    if manifest_path.exists():
+        raise FileExistsError(f"Manifesto já existe e será preservado: {manifest_path}")
+    manifest_rel = rel(manifest_path.resolve())
+    if not pairs or not reason.strip():
+        raise ValueError("O rename exige pelo menos um par OLD=NEW e um motivo registrado")
+
+    parsed: list[tuple[str, str]] = []
+    for value in pairs:
+        if value.count("=") != 1:
+            raise ValueError(f"--rename-asset usa OLD=NEW: {value}")
+        old_path, new_path = value.split("=", 1)
+        old, new = PurePosixPath(old_path), PurePosixPath(new_path)
+        for side, relative in (("origem", old), ("destino", new)):
+            if relative.is_absolute() or ".." in relative.parts or relative.parts[:2] != ("Assets", "shared"):
+                raise ValueError(f"Caminho de {side} inválido: {relative.as_posix()}")
+        if old.parent != new.parent:
+            raise ValueError(f"Rename não muda de pasta; use --reclassify-asset para isso: {old_path} -> {new_path}")
+        if old.name == new.name:
+            raise ValueError(f"Origem e destino são iguais: {old_path}")
+        if old.suffix.casefold() != new.suffix.casefold():
+            raise ValueError(f"Rename não troca de formato: {old_path} -> {new_path}")
+        if not RENAME_BASENAME_RE.fullmatch(new.name):
+            raise ValueError(f"Destino precisa ser slug minúsculo com extensão: {new_path}")
+        parsed.append((old.as_posix(), new.as_posix()))
+    sources = [old for old, _ in parsed]
+    if len(sources) != len(set(sources)):
+        raise ValueError("A mesma origem foi informada mais de uma vez")
+    targets = [new for _, new in parsed]
+    if len(targets) != len(set(targets)):
+        raise ValueError("O mesmo destino foi informado mais de uma vez")
+
+    catalog_bytes = CATALOG.read_bytes()
+    catalog = json.loads(catalog_bytes.decode("utf-8"))
+    MATERIALIZER.audit_catalog(catalog)
+    index_before = SEARCH_INDEX.read_bytes()
+
+    by_path = {item["path"]: item for item in catalog.get("canonical_assets", [])}
+    reserved = set(by_path)
+    for field in ("layout_aliases", "main_artwork_aliases", "static_layout_aliases", "source_artwork_aliases"):
+        for alias in catalog.get(field, []):
+            reserved.add(alias.get("path", ""))
+            reserved.add(alias.get("target", ""))
+
+    planned_items = []
+    for old_path, new_path in parsed:
+        asset = by_path.get(old_path)
+        if asset is None:
+            raise ValueError(f"Origem não é payload canônico catalogado: {old_path}")
+        source = ROOT / old_path
+        MATERIALIZER.check_source(source, asset["sha256"], asset["size_bytes"])
+        if source.is_symlink():
+            raise ValueError(f"Origem precisa ser arquivo regular: {old_path}")
+        if os.path.lexists(ROOT / new_path):
+            raise FileExistsError(f"Destino já existe no disco; não haverá sobrescrita: {new_path}")
+        if new_path in reserved:
+            raise ValueError(f"Destino já reservado no catálogo: {new_path}")
+        snap = MATERIALIZER.snapshot(source)
+        planned_items.append({
+            "source": old_path, "target": new_path, "sha256": asset["sha256"], "size_bytes": asset["size_bytes"],
+            "device": snap["device"], "inode": snap["inode"], "mtime_ns": snap["mtime_ns"], "mode": snap["mode"],
+            "media_type": asset.get("media_type", "images"), "category": asset.get("category", ""),
+            "style": asset.get("style", "standard"),
+            "logical_name": asset.get("logical_name", source.stem), "display_name": asset.get("display_name", asset.get("logical_name", source.stem)),
+            "basename_before": PurePosixPath(old_path).name, "basename_after": PurePosixPath(new_path).name,
+        })
+
+    old_targets = {item["source"]: item["target"] for item in planned_items}
+    digest_targets = {item["sha256"]: item["target"] for item in planned_items}
+    aliases = []
+    for field in ("layout_aliases", "main_artwork_aliases", "static_layout_aliases", "source_artwork_aliases"):
+        for alias in catalog.get(field, []):
+            new_target = old_targets.get(alias.get("target", ""))
+            if new_target is None:
+                continue
+            if alias.get("sha256") not in digest_targets:
+                raise ValueError(f"Alias aponta para um asset selecionado, mas seu hash não confere: {field}: {alias.get('path')}")
+            alias_path = ROOT / alias["path"]
+            if not alias_path.is_symlink():
+                raise ValueError(f"Alias registrado não é symlink: {alias['path']}")
+            if alias_path.resolve(strict=True) != (ROOT / alias["target"]).resolve(strict=True):
+                raise ValueError(f"Alias resolve para payload diferente do catálogo: {alias['path']}")
+            aliases.append({"field": field, "path": alias["path"], "old_target": alias["target"], "new_target": new_target,
+                            "sha256": alias["sha256"], "size_bytes": alias["size_bytes"],
+                            "object_before": _asset_object_identity(alias_path),
+                            "old_link": os.readlink(alias_path),
+                            "new_link": os.path.relpath(ROOT / new_target, start=alias_path.parent),
+                            "category": alias.get("category", ""), "style": alias.get("style", "standard")})
+            alias["target"] = new_target
+
+    xml_edits: list[dict[str, Any]] = []
+    for xml_path in sorted(LAYOUTS.rglob("*.xml"), key=lambda item: item.as_posix().casefold()):
+        if AUDITOR.is_archived_xml(xml_path, LAYOUTS):
+            continue
+        before = xml_path.read_bytes()
+        parts = COMMENT_RE.split(before.decode("utf-8", errors="surrogateescape"))
+        changes = []
+        relative_parts = xml_path.relative_to(LAYOUTS).parts
+        theme_root = LAYOUTS / relative_parts[0]
+
+        def replace_attribute(match: re.Match[str]) -> str:
+            attribute, quote, raw_value = match.group(1), match.group(2), match.group(3)
+            value = html.unescape(raw_value.strip())
+            if not value or value.startswith(("/", "http://", "https://", "data:")) or "\\" in value or any(marker in value for marker in DYNAMIC_MARKERS):
+                return match.group(0)
+            base = LAYOUTS if xml_path.name.casefold().startswith("splash") and attribute.casefold() == "src" else theme_root
+            resolved = (base / value).resolve(strict=False)
+            try:
+                resolved_rel = resolved.relative_to(ROOT).as_posix()
+            except ValueError:
+                return match.group(0)
+            new_target = old_targets.get(resolved_rel)
+            if not new_target:
+                return match.group(0)
+            updated = os.path.relpath(ROOT / new_target, start=base).replace(os.sep, "/")
+            if updated == value:
+                return match.group(0)
+            changes.append({"attribute": attribute, "from": raw_value, "to": updated,
+                            "sha256": next(item["sha256"] for item in planned_items if item["source"] == resolved_rel)})
+            return f"{attribute}={quote}{html.escape(updated, quote=False)}{quote}"
+
+        for index in range(0, len(parts), 2):
+            parts[index] = ATTRIBUTE_RE.sub(replace_attribute, parts[index])
+        after = "".join(parts).encode("utf-8", errors="surrogateescape")
+        if before != after:
+            ET.fromstring(after)
+            xml_edits.append({"path": rel(xml_path), "before_sha256": hashlib.sha256(before).hexdigest(),
+                              "after_sha256": hashlib.sha256(after).hexdigest(),
+                              "before_zlib_base64": compressed(before), "after_zlib_base64": compressed(after), "changes": changes})
+
+    for old_path, new_path in parsed:
+        by_path[old_path]["path"] = new_path
+    catalog["updated_at"] = now()
+    previous_operations = list(catalog.get("asset_renames", []))
+    if manifest_rel not in previous_operations:
+        previous_operations.append(manifest_rel)
+    catalog["asset_renames"] = previous_operations
+    category_counts = collections.Counter(
+        f"{item.get('media_type', 'images')}/{item.get('category', 'miscellaneous')}/{item.get('style', 'standard')}"
+        for item in catalog.get("canonical_assets", [])
+    )
+    catalog.setdefault("summary", {}).update({
+        "canonical_assets": len(catalog.get("canonical_assets", [])),
+        "unique_sha256": len({item["sha256"] for item in catalog.get("canonical_assets", [])}),
+        "relative_layout_aliases": len(catalog.get("layout_aliases", [])),
+        "main_artwork_aliases": len(catalog.get("main_artwork_aliases", [])),
+        "static_layout_aliases": len(catalog.get("static_layout_aliases", [])),
+        "hash_buckets_metadata_only": len({item.get("hash_bucket", item["sha256"][:2]) for item in catalog.get("canonical_assets", [])}),
+        "classification_review_required": sum(item.get("classification_status") == "review_required" for item in catalog.get("canonical_assets", [])),
+        "category_counts": dict(sorted(category_counts.items())),
+    })
+    catalog_after_bytes = (json.dumps(catalog, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    index_after = make_search_index(catalog)
+    return {
+        "schema_version": 1, "kind": "retrofe_asset_rename", "status": "planned", "created_at": now(),
+        "operation_id": f"retrofe-asset-rename-{dt.datetime.now().astimezone().strftime('%Y%m%dT%H%M%S%z')}",
+        "project_root": ".", "manifest_path": manifest_rel, "reason": reason.strip(),
+        "method": "Rename each canonical payload inside its own directory, retarget its relative aliases and literal XML consumers, keep taxonomy/logical names unchanged, and retain compressed before/after snapshots for rollback.",
+        "catalog_before_sha256": hashlib.sha256(catalog_bytes).hexdigest(), "catalog_after_sha256": hashlib.sha256(catalog_after_bytes).hexdigest(),
+        "catalog_before_zlib_base64": compressed(catalog_bytes), "catalog_after_zlib_base64": compressed(catalog_after_bytes),
+        "search_index_before_sha256": hashlib.sha256(index_before).hexdigest(), "search_index_after_sha256": hashlib.sha256(index_after).hexdigest(),
+        "search_index_before_zlib_base64": compressed(index_before), "search_index_after_zlib_base64": compressed(index_after),
+        "items": planned_items, "aliases": aliases, "xml_edits": xml_edits,
+        "summary": {"payloads_renamed": len(planned_items), "aliases_retargeted": len(aliases),
+                    "xml_files_rewritten": len(xml_edits), "xml_reference_rewrites": sum(len(item["changes"]) for item in xml_edits),
+                    "category_or_style_changed": 0, "alias_names_changed": 0, "payloads_created_or_removed": 0},
+        "rollback": {"command": f"rtk python Tools/materializers/organize-asset-library.py rollback --manifest {manifest_rel}",
+                     "method": "Rename only the verified destinations back, restore each prior relative alias, XML, catalog and search index from this manifest's before snapshots.",
+                     "permanent_deletion": False},
+    }
+
+
 def verify_reclassification_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
     canonical_by_hash = {item["sha256"]: item for item in catalog.get("canonical_assets", [])}
@@ -2807,6 +3003,518 @@ def rollback_reclassification_manifest(path: Path) -> dict[str, Any]:
     manifest["status"] = "rolled_back_verified"
     manifest["rolled_back_at"] = now()
     manifest["verification"] = verify_library()
+    write_manifest(path, manifest)
+    return manifest
+
+
+def _asset_object_identity(path: Path) -> dict[str, int]:
+    info = path.lstat()
+    return {"device": info.st_dev, "inode": info.st_ino,
+            "mtime_ns": info.st_mtime_ns, "mode": info.st_mode & 0o7777}
+
+
+def _asset_move_location(item: dict[str, Any], source: Path, destination: Path,
+                         phase: str) -> tuple[bool, Path]:
+    api = romtool_api()
+    for candidate in (source, destination):
+        relative = candidate.relative_to(ROOT)
+        if ".." in relative.parts:
+            raise ValueError("Movimento fora da raiz do frontend")
+        api.reject_symlink_components(candidate.parent)
+    present = os.path.lexists(source), os.path.lexists(destination)
+    checkpoint = item.get("rename_checkpoints", {}).get(phase, {})
+    if present == (True, False):
+        expected = checkpoint.get("identity")
+        if expected is None:
+            expected = item.get("object_before") or {
+                key: item[key] for key in ("device", "inode", "mtime_ns", "mode") if key in item}
+        current = _asset_object_identity(source)
+        if any(current[key] != value for key, value in expected.items()):
+            raise ValueError(f"Objeto mudou desde o plano e foi preservado em {source}")
+        return True, source
+    if present == (False, True):
+        if phase == "apply" and (not checkpoint.get("intent") or
+                checkpoint.get("source") != rel(source) or
+                checkpoint.get("destination") != rel(destination)):
+            raise ValueError(f"Destino sem intenção durável comprovada em {destination}")
+        expected = checkpoint.get("identity") or item.get("object_before") or {
+            key: item[key] for key in ("device", "inode", "mtime_ns", "mode") if key in item}
+        current = _asset_object_identity(destination)
+        if any(current[key] != value for key, value in expected.items()):
+            raise ValueError(f"Objeto publicado mudou e foi preservado em {destination}")
+        return False, destination
+    raise ValueError(f"Movimento exige uma única localização comprovada entre {source} e {destination}")
+
+
+def _asset_move(path: Path, manifest: dict[str, Any], item: dict[str, Any],
+                source: Path, destination: Path, phase: str) -> None:
+    api = romtool_api()
+    from tools.roms.runtime_install import _library_rename_exclusive
+
+    move_required, current = _asset_move_location(item, source, destination, phase)
+    checkpoint = item.setdefault("rename_checkpoints", {}).setdefault(phase, {})
+    if move_required:
+        checkpoint.update(source=rel(source), destination=rel(destination),
+                          identity=_asset_object_identity(current), intent=True, complete=False)
+        write_manifest(path, manifest)
+        _library_rename_exclusive(source, destination)
+    api.sync_directory_chain(source.parent)
+    api.sync_directory_chain(destination.parent)
+    checkpoint["complete"] = True
+    write_manifest(path, manifest)
+
+
+def _asset_alias_transition(path: Path, manifest: dict[str, Any], alias: dict[str, Any],
+                            index: int, *, rollback: bool = False,
+                            prepare_only: bool = False) -> None:
+    api = romtool_api()
+    from tools.roms import steam_centralizer
+    link = ROOT / alias["path"]
+    if ".." in link.relative_to(ROOT).parts:
+        raise ValueError("Alias fora da raiz do frontend")
+    api.reject_symlink_components(link.parent)
+    transition = alias.get("link_transition")
+    desired = "before" if rollback else "after"
+    if transition is None:
+        expected = alias["new_link"] if rollback else alias["old_link"]
+        literal = alias["old_link"] if rollback else alias["new_link"]
+        current = steam_centralizer._save_link_snapshot(link)
+        if rollback and current and current["target"] == literal:
+            if alias.get("object_before") and _asset_object_identity(link) != alias["object_before"]:
+                raise ValueError(f"Objeto do alias mudou e foi preservado em {link}")
+            return
+        if current is None or current["target"] != expected:
+            raise ValueError(f"Alias mudou e foi preservado em {link}")
+        if not rollback and alias.get("object_before") and _asset_object_identity(link) != alias["object_before"]:
+            raise ValueError(f"Objeto do alias mudou e foi preservado em {link}")
+        transition = {"before": current, "relative_target": literal,
+                      "stage_creation_intent": True, "legacy_rollback": rollback}
+        alias["link_transition"] = transition
+        write_manifest(path, manifest)
+    if transition.get("legacy_rollback"):
+        if not rollback:
+            raise ValueError("Retome a reversão iniciada antes de aplicar novamente")
+        desired = "after"
+    stage = path.with_suffix("") / "rollback" / "alias-links" / f"{index:04d}.link"
+    if ".." in stage.relative_to(ROOT).parts:
+        raise ValueError("Staging fora da raiz do frontend")
+    api.reject_symlink_components(stage.parent)
+    stage.parent.mkdir(parents=True, exist_ok=True)
+    if transition.get("after") is None:
+        if steam_centralizer._save_link_snapshot(link) != transition["before"]:
+            raise ValueError(f"Alias mudou durante a preparação em {link}")
+        if not os.path.lexists(stage):
+            stage.symlink_to(transition["relative_target"])
+        staged = steam_centralizer._save_link_snapshot(stage)
+        if staged is None or staged["target"] != transition["relative_target"]:
+            raise ValueError(f"Objeto de staging divergente preservado em {stage}")
+        api.sync_directory_chain(stage.parent)
+        transition["after"] = staged
+        write_manifest(path, manifest)
+    layout = steam_centralizer._save_links_layout(transition, link, stage)
+    if prepare_only:
+        return
+    transition["intent"] = desired
+    write_manifest(path, manifest)
+    if layout != desired:
+        steam_centralizer._save_links_exchange(link, stage)
+        if steam_centralizer._save_links_layout(transition, link, stage) != desired:
+            raise ValueError("Troca concorrente detectada e ambos os objetos foram preservados")
+    api.sync_directory_chain(link.parent)
+    api.sync_directory_chain(stage.parent)
+    transition["complete"] = desired
+    write_manifest(path, manifest)
+
+
+def verify_rename_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+    catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
+    canonical_by_hash = {item["sha256"]: item for item in catalog.get("canonical_assets", [])}
+    for item in manifest["items"]:
+        record = canonical_by_hash.get(item["sha256"])
+        if not record or record.get("path") != item["target"]:
+            raise ValueError(f"Catálogo não reflete o rename: {item['target']}")
+        if record.get("category") != item["category"] or record.get("style") != item["style"]:
+            raise ValueError(f"Rename alterou a taxonomia, o que não é permitido: {item['target']}")
+        MATERIALIZER.check_target(ROOT / item["target"], item["sha256"], item["size_bytes"])
+        if os.path.lexists(ROOT / item["source"]):
+            raise ValueError(f"O caminho anterior ainda existe após o rename: {item['source']}")
+    alias_fields = {field: {item["path"]: item for item in catalog.get(field, [])}
+                    for field in ("layout_aliases", "main_artwork_aliases", "static_layout_aliases", "source_artwork_aliases")}
+    for alias in manifest["aliases"]:
+        record = alias_fields[alias["field"]].get(alias["path"])
+        if not record or record.get("target") != alias["new_target"]:
+            raise ValueError(f"Metadados do alias não foram reapontados: {alias['path']}")
+        if record.get("category", "") != alias["category"] or record.get("style", "standard") != alias["style"]:
+            raise ValueError(f"Rename do payload não pode alterar a taxonomia do alias: {alias['path']}")
+        link = ROOT / alias["path"]
+        if not link.is_symlink() or link.resolve(strict=True) != (ROOT / alias["new_target"]).resolve(strict=True):
+            raise ValueError(f"Alias não resolve para o novo payload: {alias['path']}")
+    with SEARCH_INDEX.open(newline="", encoding="utf-8") as stream:
+        index_rows = {row["canonical_path"]: row for row in csv.DictReader(stream)}
+    for item in manifest["items"]:
+        row = index_rows.get(item["target"])
+        if not row or row.get("sha256") != item["sha256"]:
+            raise ValueError(f"Índice de busca não reflete o rename: {item['target']}")
+        if item["source"] in index_rows:
+            raise ValueError(f"Índice de busca ainda lista o caminho anterior: {item['source']}")
+    library = verify_library()
+    return {"library": library, "renamed_payloads": len(manifest["items"]), "retargeted_aliases": len(manifest["aliases"]),
+            "xml_files": len(manifest["xml_edits"]), "rename_paths_verified": True}
+
+
+def apply_rename_manifest(path: Path) -> dict[str, Any]:
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if manifest.get("kind") != "retrofe_asset_rename" or manifest.get("status") not in {"planned", "applying", "failed_partial"}:
+        raise ValueError("Manifesto precisa ser um rename planejado ou uma aplicação interrompida")
+    phases = ("before",) if manifest["status"] == "planned" else ("before", "after")
+    if (digest_file(CATALOG) not in {manifest[f"catalog_{phase}_sha256"] for phase in phases}
+            or digest_file(SEARCH_INDEX) not in {manifest[f"search_index_{phase}_sha256"] for phase in phases}):
+        raise ValueError("Catálogo ou índice mudou desde o plano; aplicação bloqueada")
+    for item in manifest["items"]:
+        _, current = _asset_move_location(item, ROOT / item["source"], ROOT / item["target"], "apply")
+        if current.is_symlink():
+            raise ValueError(f"Payload deixou de ser regular em {current}")
+        MATERIALIZER.check_target(current, item["sha256"], item["size_bytes"])
+    for edit in manifest["xml_edits"]:
+        if digest_file(ROOT / edit["path"]) not in {edit[f"{phase}_sha256"] for phase in phases}:
+            raise ValueError(f"XML mudou desde o plano: {edit['path']}")
+
+    manifest["status"] = "applying"
+    manifest["apply_started_at"] = now()
+    write_manifest(path, manifest)
+    try:
+        for index, alias in enumerate(manifest["aliases"]):
+            _asset_alias_transition(path, manifest, alias, index, prepare_only=True)
+        for item in manifest["items"]:
+            _asset_move(path, manifest, item, ROOT / item["source"], ROOT / item["target"], "apply")
+        for index, alias in enumerate(manifest["aliases"]):
+            _asset_alias_transition(path, manifest, alias, index)
+        for edit in manifest["xml_edits"]:
+            atomic_write(ROOT / edit["path"], expanded(edit["after_zlib_base64"]))
+        atomic_write(CATALOG, expanded(manifest["catalog_after_zlib_base64"]))
+        atomic_write(SEARCH_INDEX, expanded(manifest["search_index_after_zlib_base64"]))
+        manifest["verification"] = verify_rename_manifest(manifest)
+        manifest["status"] = "completed_verified"
+        manifest["completed_at"] = now()
+        write_manifest(path, manifest)
+        return manifest
+    except Exception:
+        manifest["status"] = "failed_partial"
+        manifest["failed_at"] = now()
+        write_manifest(path, manifest)
+        raise
+
+
+def rollback_rename_manifest(path: Path) -> dict[str, Any]:
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if manifest.get("kind") != "retrofe_asset_rename" or manifest.get("status") not in {"completed_verified", "failed_partial", "applying", "rolling_back"}:
+        raise ValueError(f"Estado de rename não reversível: {manifest.get('status')}")
+    if digest_file(CATALOG) not in {manifest["catalog_before_sha256"], manifest["catalog_after_sha256"]}:
+        raise ValueError("Catálogo mudou após esta operação; rollback bloqueado para preservar alterações posteriores")
+    if digest_file(SEARCH_INDEX) not in {manifest["search_index_before_sha256"], manifest["search_index_after_sha256"]}:
+        raise ValueError("Índice mudou após esta operação; rollback bloqueado para preservar alterações posteriores")
+    for edit in manifest["xml_edits"]:
+        if digest_file(ROOT / edit["path"]) not in {edit["before_sha256"], edit["after_sha256"]}:
+            raise ValueError(f"XML mudou após esta operação: {edit['path']}")
+    for item in manifest["items"]:
+        source, target = ROOT / item["source"], ROOT / item["target"]
+        _, current = _asset_move_location(item, target, source, "rollback")
+        if current.is_symlink():
+            raise ValueError(f"Payload deixou de ser regular em {current}")
+        MATERIALIZER.check_target(current, item["sha256"], item["size_bytes"])
+
+    manifest["status"] = "rolling_back"
+    manifest["rollback_started_at"] = now()
+    write_manifest(path, manifest)
+    for index, alias in enumerate(manifest["aliases"]):
+        _asset_alias_transition(path, manifest, alias, index, rollback=True, prepare_only=True)
+    for index, alias in enumerate(manifest["aliases"]):
+        _asset_alias_transition(path, manifest, alias, index, rollback=True)
+    for item in manifest["items"]:
+        source, target = ROOT / item["source"], ROOT / item["target"]
+        _asset_move(path, manifest, item, target, source, "rollback")
+    for edit in manifest["xml_edits"]:
+        current = ROOT / edit["path"]
+        if digest_file(current) == edit["after_sha256"]:
+            atomic_write(current, expanded(edit["before_zlib_base64"]))
+    atomic_write(CATALOG, expanded(manifest["catalog_before_zlib_base64"]))
+    atomic_write(SEARCH_INDEX, expanded(manifest["search_index_before_zlib_base64"]))
+    manifest["status"] = "rolled_back_verified"
+    manifest["rolled_back_at"] = now()
+    manifest["verification"] = verify_library()
+    write_manifest(path, manifest)
+    return manifest
+
+
+def build_display_name_fix_plan(manifest_path: Path, fixes: list[str], reason: str) -> dict[str, Any]:
+    """Corrige o nome exibido de um payload canônico e renomeia apenas os aliases nomeados a partir dele."""
+    if manifest_path.exists():
+        raise FileExistsError(f"Manifesto já existe e será preservado: {manifest_path}")
+    manifest_rel = rel(manifest_path.resolve())
+    if not fixes or not reason.strip():
+        raise ValueError("A correção de nome exige ao menos um par CANONICAL_PATH=NOME e um motivo registrado")
+
+    parsed: list[tuple[str, str]] = []
+    for value in fixes:
+        if "=" not in value:
+            raise ValueError(f"--fix-display-name usa CANONICAL_PATH=NOME: {value}")
+        raw_path, raw_name = value.split("=", 1)
+        new_name = raw_name.strip()
+        relative = PurePosixPath(raw_path.strip())
+        if relative.is_absolute() or ".." in relative.parts or relative.parts[:2] != ("Assets", "shared"):
+            raise ValueError(f"Caminho de payload inválido: {raw_path}")
+        if not new_name:
+            raise ValueError(f"Nome exibido vazio para {relative.as_posix()}")
+        if any(character in new_name for character in ("/", "\\")) or any(ord(character) < 32 for character in new_name):
+            raise ValueError(f"Nome exibido com caractere inválido: {new_name!r}")
+        if new_name in {".", ".."}:
+            raise ValueError(f"Nome exibido reservado: {new_name!r}")
+        parsed.append((relative.as_posix(), new_name))
+    paths = [path for path, _ in parsed]
+    if len(paths) != len(set(paths)):
+        raise ValueError("O mesmo payload foi informado mais de uma vez")
+
+    catalog_bytes = CATALOG.read_bytes()
+    catalog = json.loads(catalog_bytes.decode("utf-8"))
+    MATERIALIZER.audit_catalog(catalog)
+    index_before = SEARCH_INDEX.read_bytes()
+
+    by_path = {item["path"]: item for item in catalog.get("canonical_assets", [])}
+    reserved: set[str] = set(by_path)
+    for field in ("layout_aliases", "main_artwork_aliases", "static_layout_aliases", "source_artwork_aliases"):
+        for alias in catalog.get(field, []):
+            reserved.add(alias.get("path", ""))
+            reserved.add(alias.get("target", ""))
+
+    planned_items: list[dict[str, Any]] = []
+    planned_aliases: list[dict[str, Any]] = []
+    taken_targets: set[str] = set()
+    for asset_path, new_name in parsed:
+        asset = by_path.get(asset_path)
+        if asset is None:
+            raise ValueError(f"Payload não é canônico catalogado: {asset_path}")
+        old_display = asset.get("display_name", asset.get("logical_name", PurePosixPath(asset_path).stem))
+        old_logical = asset.get("logical_name", old_display)
+        if old_display == new_name and old_logical == new_name:
+            raise ValueError(f"O nome exibido já é {new_name!r}: {asset_path}")
+        source = ROOT / asset_path
+        if source.is_symlink():
+            raise ValueError(f"Payload precisa ser arquivo regular: {asset_path}")
+        MATERIALIZER.check_target(source, asset["sha256"], asset["size_bytes"])
+        planned_items.append({
+            "path": asset_path, "sha256": asset["sha256"], "size_bytes": asset["size_bytes"],
+            "media_type": asset.get("media_type", "images"), "category": asset.get("category", ""),
+            "style": asset.get("style", "standard"),
+            "old_display_name": old_display, "new_display_name": new_name,
+            "old_logical_name": old_logical, "new_logical_name": new_name,
+        })
+        old_names = {old_display, old_logical}
+        for field in ("layout_aliases", "main_artwork_aliases", "static_layout_aliases", "source_artwork_aliases"):
+            for alias in catalog.get(field, []):
+                if alias.get("target") != asset_path:
+                    continue
+                alias_posix = PurePosixPath(alias["path"])
+                if alias_posix.stem not in old_names:
+                    continue
+                new_alias_path = (alias_posix.parent / f"{new_name}{alias_posix.suffix}").as_posix()
+                if new_alias_path == alias["path"]:
+                    continue
+                if new_alias_path in taken_targets:
+                    raise ValueError(f"Mais de um alias iria para o mesmo nome: {new_alias_path}")
+                if os.path.lexists(ROOT / new_alias_path):
+                    raise FileExistsError(f"Destino de alias já existe no disco; não haverá sobrescrita: {new_alias_path}")
+                if new_alias_path in reserved:
+                    raise ValueError(f"Destino de alias já reservado no catálogo: {new_alias_path}")
+                link = ROOT / alias["path"]
+                if not link.is_symlink():
+                    raise ValueError(f"Alias registrado não é symlink: {alias['path']}")
+                if link.resolve(strict=True) != source.resolve(strict=True):
+                    raise ValueError(f"Alias resolve para payload diferente do catálogo: {alias['path']}")
+                taken_targets.add(new_alias_path)
+                planned_aliases.append({
+                    "field": field, "path": alias["path"], "new_path": new_alias_path, "target": asset_path,
+                    "object_before": _asset_object_identity(link),
+                    "sha256": alias["sha256"], "size_bytes": alias["size_bytes"],
+                    "old_link": os.readlink(link), "category": alias.get("category", ""), "style": alias.get("style", "standard"),
+                    "old_logical_name": alias.get("logical_name"),
+                    "new_logical_name": f"{new_name}{alias_posix.suffix}" if alias.get("logical_name") == alias_posix.name else alias.get("logical_name"),
+                })
+
+    renamed_basenames = {PurePosixPath(item["path"]).name for item in planned_aliases}
+    referenced: list[str] = []
+    if renamed_basenames:
+        for xml_path in sorted(LAYOUTS.rglob("*.xml"), key=lambda item: item.as_posix().casefold()):
+            if AUDITOR.is_archived_xml(xml_path, LAYOUTS):
+                continue
+            text = xml_path.read_text(encoding="utf-8", errors="surrogateescape")
+            for basename in sorted(renamed_basenames):
+                if basename in text:
+                    referenced.append(f"{rel(xml_path)} -> {basename}")
+    if referenced:
+        raise ValueError("XML consome o nome de alias antigo; corrija a referência em revisão própria antes deste rename: " + "; ".join(sorted(referenced)[:5]))
+
+    for item in planned_items:
+        record = by_path[item["path"]]
+        record["display_name"] = item["new_display_name"]
+        record["logical_name"] = item["new_logical_name"]
+        record["display_name_correction"] = {
+            "previous_display_name": item["old_display_name"], "previous_logical_name": item["old_logical_name"],
+            "operation_manifest": manifest_rel, "corrected_at": now(),
+        }
+    alias_fields = {field: {item["path"]: item for item in catalog.get(field, [])}
+                    for field in ("layout_aliases", "main_artwork_aliases", "static_layout_aliases", "source_artwork_aliases")}
+    pending_aliases = {item["path"]: item for item in planned_aliases}
+    for field in alias_fields:
+        for record in catalog.get(field, []):
+            change = pending_aliases.get(record["path"])
+            if change is None:
+                continue
+            record["path"] = change["new_path"]
+            if change["new_logical_name"] is not None:
+                record["logical_name"] = change["new_logical_name"]
+            record["display_name_correction"] = {
+                "previous_path": change["path"], "operation_manifest": manifest_rel, "corrected_at": now(),
+            }
+    catalog["updated_at"] = now()
+    previous_operations = list(catalog.get("display_name_corrections", []))
+    if manifest_rel not in previous_operations:
+        previous_operations.append(manifest_rel)
+    catalog["display_name_corrections"] = previous_operations
+    category_counts = collections.Counter(
+        f"{item.get('media_type', 'images')}/{item.get('category', 'miscellaneous')}/{item.get('style', 'standard')}"
+        for item in catalog.get("canonical_assets", [])
+    )
+    catalog.setdefault("summary", {}).update({
+        "canonical_assets": len(catalog.get("canonical_assets", [])),
+        "unique_sha256": len({item["sha256"] for item in catalog.get("canonical_assets", [])}),
+        "relative_layout_aliases": len(catalog.get("layout_aliases", [])),
+        "main_artwork_aliases": len(catalog.get("main_artwork_aliases", [])),
+        "static_layout_aliases": len(catalog.get("static_layout_aliases", [])),
+        "hash_buckets_metadata_only": len({item.get("hash_bucket", item["sha256"][:2]) for item in catalog.get("canonical_assets", [])}),
+        "classification_review_required": sum(item.get("classification_status") == "review_required" for item in catalog.get("canonical_assets", [])),
+        "category_counts": dict(sorted(category_counts.items())),
+    })
+    catalog_after_bytes = (json.dumps(catalog, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    index_after = make_search_index(catalog)
+    return {
+        "schema_version": 1, "kind": "retrofe_asset_display_name_fix", "status": "planned", "created_at": now(),
+        "operation_id": f"retrofe-asset-display-name-fix-{dt.datetime.now().astimezone().strftime('%Y%m%dT%H%M%S%z')}",
+        "project_root": ".", "manifest_path": manifest_rel, "reason": reason.strip(),
+        "method": "Correct display_name/logical_name of cataloged payloads and rename only the aliases whose basename derives from the old name; payloads, targets, taxonomy and alias vocabulary are untouched.",
+        "catalog_before_sha256": hashlib.sha256(catalog_bytes).hexdigest(), "catalog_after_sha256": hashlib.sha256(catalog_after_bytes).hexdigest(),
+        "catalog_before_zlib_base64": compressed(catalog_bytes), "catalog_after_zlib_base64": compressed(catalog_after_bytes),
+        "search_index_before_sha256": hashlib.sha256(index_before).hexdigest(), "search_index_after_sha256": hashlib.sha256(index_after).hexdigest(),
+        "search_index_before_zlib_base64": compressed(index_before), "search_index_after_zlib_base64": compressed(index_after),
+        "items": planned_items, "aliases": planned_aliases, "xml_edits": [],
+        "summary": {"display_names_corrected": len(planned_items), "aliases_renamed": len(planned_aliases),
+                    "payloads_moved": 0, "category_or_style_changed": 0, "xml_references_found": len(referenced)},
+        "rollback": {"command": f"rtk python Tools/materializers/organize-asset-library.py rollback --manifest {manifest_rel}",
+                     "method": "Rename the verified aliases back, restore the previous display/logical names, catalog and search index from this manifest's before snapshots.",
+                     "permanent_deletion": False},
+    }
+
+
+def verify_display_name_fix_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+    catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
+    by_path = {item["path"]: item for item in catalog.get("canonical_assets", [])}
+    for item in manifest["items"]:
+        record = by_path.get(item["path"])
+        if not record:
+            raise ValueError(f"Catálogo perdeu o payload corrigido: {item['path']}")
+        if record.get("display_name") != item["new_display_name"] or record.get("logical_name") != item["new_logical_name"]:
+            raise ValueError(f"Catálogo não reflete o nome exibido corrigido: {item['path']}")
+        if record.get("category") != item["category"] or record.get("style") != item["style"]:
+            raise ValueError(f"A correção de nome alterou a taxonomia, o que não é permitido: {item['path']}")
+        correction = record.get("display_name_correction", {})
+        if correction.get("operation_manifest") != manifest["manifest_path"]:
+            raise ValueError(f"Catálogo não preservou a origem da correção: {item['path']}")
+        MATERIALIZER.check_target(ROOT / item["path"], item["sha256"], item["size_bytes"])
+    alias_fields = {field: {item["path"]: item for item in catalog.get(field, [])}
+                    for field in ("layout_aliases", "main_artwork_aliases", "static_layout_aliases", "source_artwork_aliases")}
+    for alias in manifest["aliases"]:
+        if os.path.lexists(ROOT / alias["path"]):
+            raise ValueError(f"O nome de alias anterior ainda existe: {alias['path']}")
+        link = ROOT / alias["new_path"]
+        if not link.is_symlink() or link.resolve(strict=True) != (ROOT / alias["target"]).resolve(strict=True):
+            raise ValueError(f"Alias renomeado não resolve para o payload: {alias['new_path']}")
+        record = alias_fields[alias["field"]].get(alias["new_path"])
+        if not record or record.get("target") != alias["target"]:
+            raise ValueError(f"Metadados do alias não foram atualizados: {alias['new_path']}")
+        if record.get("category", "") != alias["category"] or record.get("style", "standard") != alias["style"]:
+            raise ValueError(f"A correção de nome não pode alterar a taxonomia do alias: {alias['new_path']}")
+    with SEARCH_INDEX.open(newline="", encoding="utf-8") as stream:
+        index_rows = {row["canonical_path"]: row for row in csv.DictReader(stream)}
+    for item in manifest["items"]:
+        row = index_rows.get(item["path"])
+        if not row or row.get("display_name") != item["new_display_name"] or row.get("logical_name") != item["new_logical_name"]:
+            raise ValueError(f"Índice de busca não reflete o nome exibido corrigido: {item['path']}")
+    library = verify_library()
+    return {"library": library, "display_names_corrected": len(manifest["items"]),
+            "renamed_aliases": len(manifest["aliases"]), "name_paths_verified": True}
+
+
+def apply_display_name_fix_manifest(path: Path) -> dict[str, Any]:
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if manifest.get("kind") != "retrofe_asset_display_name_fix" or manifest.get("status") not in {"planned", "applying", "failed_partial"}:
+        raise ValueError("Manifesto precisa ser uma correção planejada ou uma aplicação interrompida")
+    phases = ("before",) if manifest["status"] == "planned" else ("before", "after")
+    if (digest_file(CATALOG) not in {manifest[f"catalog_{phase}_sha256"] for phase in phases}
+            or digest_file(SEARCH_INDEX) not in {manifest[f"search_index_{phase}_sha256"] for phase in phases}):
+        raise ValueError("Catálogo ou índice mudou desde o plano; aplicação bloqueada")
+    for item in manifest["items"]:
+        MATERIALIZER.check_target(ROOT / item["path"], item["sha256"], item["size_bytes"])
+    for alias in manifest["aliases"]:
+        _, link = _asset_move_location(alias, ROOT / alias["path"], ROOT / alias["new_path"], "apply")
+        if not link.is_symlink() or os.readlink(link) != alias["old_link"]:
+            raise ValueError(f"Alias mudou desde o plano: {alias['path']}")
+
+    manifest["status"] = "applying"
+    manifest["apply_started_at"] = now()
+    write_manifest(path, manifest)
+    try:
+        for alias in manifest["aliases"]:
+            _asset_move(path, manifest, alias, ROOT / alias["path"], ROOT / alias["new_path"], "apply")
+        atomic_write(CATALOG, expanded(manifest["catalog_after_zlib_base64"]))
+        atomic_write(SEARCH_INDEX, expanded(manifest["search_index_after_zlib_base64"]))
+        manifest["verification"] = verify_display_name_fix_manifest(manifest)
+        manifest["status"] = "completed_verified"
+        manifest["completed_at"] = now()
+        write_manifest(path, manifest)
+        return manifest
+    except Exception:
+        manifest["status"] = "failed_partial"
+        manifest["failed_at"] = now()
+        write_manifest(path, manifest)
+        raise
+
+
+def rollback_display_name_fix_manifest(path: Path) -> dict[str, Any]:
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if manifest.get("kind") != "retrofe_asset_display_name_fix" or manifest.get("status") not in {"completed_verified", "failed_partial", "applying", "rolling_back"}:
+        raise ValueError(f"Estado de correção de nome não reversível: {manifest.get('status')}")
+    if digest_file(CATALOG) not in {manifest["catalog_before_sha256"], manifest["catalog_after_sha256"]}:
+        raise ValueError("Catálogo mudou após esta operação; rollback bloqueado para preservar alterações posteriores")
+    if digest_file(SEARCH_INDEX) not in {manifest["search_index_before_sha256"], manifest["search_index_after_sha256"]}:
+        raise ValueError("Índice mudou após esta operação; rollback bloqueado para preservar alterações posteriores")
+    for item in manifest["items"]:
+        MATERIALIZER.check_target(ROOT / item["path"], item["sha256"], item["size_bytes"])
+    for alias in manifest["aliases"]:
+        old, new = ROOT / alias["path"], ROOT / alias["new_path"]
+        _, current = _asset_move_location(alias, new, old, "rollback")
+        if not current.is_symlink() or os.readlink(current) != alias["old_link"]:
+            raise ValueError(f"Alias mudou após esta operação em {current}")
+
+    manifest["status"] = "rolling_back"
+    manifest["rollback_started_at"] = now()
+    write_manifest(path, manifest)
+    for alias in manifest["aliases"]:
+        old, new = ROOT / alias["path"], ROOT / alias["new_path"]
+        _asset_move(path, manifest, alias, new, old, "rollback")
+    atomic_write(CATALOG, expanded(manifest["catalog_before_zlib_base64"]))
+    atomic_write(SEARCH_INDEX, expanded(manifest["search_index_before_zlib_base64"]))
+    manifest["status"] = "rolled_back_verified"
+    manifest["rolled_back_at"] = now()
+    manifest["rollback_verification"] = verify_library()
     write_manifest(path, manifest)
     return manifest
 
@@ -2958,6 +3666,8 @@ def main() -> int:
     plan.add_argument("--manifest", type=Path, required=True)
     plan.add_argument('--retire-unregistered-diagnostics', type=Path, help='spec revisado de protótipos sem registro; preserva payloads em rollback e retira apenas seus aliases não catalogados')
     plan.add_argument("--reclassify-asset", action="append", default=[], metavar="CANONICAL_PATH", help="reclassifica um payload canônico específico; pode ser repetido")
+    plan.add_argument("--rename-asset", action="append", default=[], metavar="OLD=NEW", help="renomeia o basename de um payload canônico dentro da própria pasta, reapontando aliases; pode ser repetido")
+    plan.add_argument("--fix-display-name", action="append", default=[], metavar="CANONICAL_PATH=NAME", help="corrige display_name/logical_name de um payload canônico e renomeia só os aliases nomeados a partir dele; pode ser repetido")
     plan.add_argument("--category", help="nova categoria semântica, por exemplo images/devices/full-setups")
     plan.add_argument("--reason", help="justificativa semântica registrada no catálogo e no manifesto")
     plan.add_argument("--reconcile-main-alias", action="append", default=[], metavar="OLD_PATH=ACTUAL_PATH", help="reconcilia um caminho obsoleto do catálogo com o symlink Main atual; pode ser repetido")
@@ -2976,21 +3686,28 @@ def main() -> int:
     verify.add_argument("--manifest", type=Path, help="verifica somente a inclusão estática indicada")
     args = parser.parse_args()
     if args.command == "plan":
+        modes = [args.refresh_catalog_policy, args.retire_unregistered_diagnostics,
+                 args.import_static_assets, args.add_layout_common_alias,
+                 args.add_static_layout_asset,
+                 args.add_main_logo_alias or args.add_main_logo_variant_alias or args.add_main_artwork_alias,
+                 args.rename_asset, args.fix_display_name, args.reclassify_asset]
+        if sum(bool(mode) for mode in modes) > 1:
+            parser.error("Selecione uma única modalidade de plano")
         if args.refresh_catalog_policy:
             if (not args.reason or any((args.retire_unregistered_diagnostics, args.import_static_assets,
                     args.add_layout_common_alias, args.add_static_layout_asset, args.add_main_logo_alias,
-                    args.add_main_logo_variant_alias, args.add_main_artwork_alias, args.reclassify_asset,
+                    args.add_main_logo_variant_alias, args.add_main_artwork_alias, args.rename_asset or args.reclassify_asset,
                     args.category, args.reconcile_main_alias))):
                 parser.error("atualização de política exige --reason e um escopo exclusivo")
             manifest = build_catalog_policy_plan(args.manifest.resolve(), args.reason)
         elif args.retire_unregistered_diagnostics:
             manifest = build_diagnostic_retirement(args.manifest.resolve(), args.retire_unregistered_diagnostics, args.reason)
         elif args.import_static_assets:
-            if args.add_layout_common_alias or args.add_static_layout_asset or args.add_main_logo_alias or args.add_main_logo_variant_alias or args.add_main_artwork_alias or args.reclassify_asset or args.category or args.reconcile_main_alias or not args.reason:
+            if args.add_layout_common_alias or args.add_static_layout_asset or args.add_main_logo_alias or args.add_main_logo_variant_alias or args.add_main_artwork_alias or args.rename_asset or args.reclassify_asset or args.category or args.reconcile_main_alias or not args.reason:
                 parser.error("importação externa requer --reason e não pode ser combinada")
             manifest = build_external_static_asset_plan(args.manifest.resolve(), args.import_static_assets, args.reason)
         elif args.add_layout_common_alias:
-            if args.add_static_layout_asset or args.add_main_logo_alias or args.add_main_logo_variant_alias or args.add_main_artwork_alias or args.reclassify_asset or args.category or args.reconcile_main_alias:
+            if args.add_static_layout_asset or args.add_main_logo_alias or args.add_main_logo_variant_alias or args.add_main_artwork_alias or args.rename_asset or args.reclassify_asset or args.category or args.reconcile_main_alias:
                 parser.error("aliases commonlayout não podem ser combinados com outras operações")
             if not args.reason:
                 parser.error("aliases commonlayout requerem --reason")
@@ -3002,13 +3719,13 @@ def main() -> int:
                 alias_specs.append((alias_path, canonical_path))
             manifest = build_scoped_layout_common_alias_plan(args.manifest.resolve(), alias_specs, args.reason)
         elif args.add_static_layout_asset:
-            if args.add_layout_common_alias or args.add_main_logo_alias or args.add_main_logo_variant_alias or args.add_main_artwork_alias or args.reclassify_asset or args.category or args.reconcile_main_alias:
+            if args.add_layout_common_alias or args.add_main_logo_alias or args.add_main_logo_variant_alias or args.add_main_artwork_alias or args.rename_asset or args.reclassify_asset or args.category or args.reconcile_main_alias:
                 parser.error("inclusões de assets estáticos de layout não podem ser combinadas com outras operações")
             if not args.reason:
                 parser.error("inclusões de assets estáticos de layout requerem --reason")
             manifest = build_scoped_static_asset_plan(args.manifest.resolve(), args.add_static_layout_asset, args.reason)
         elif args.add_main_logo_alias or args.add_main_logo_variant_alias or args.add_main_artwork_alias:
-            if args.add_layout_common_alias or args.reclassify_asset or args.category or args.reconcile_main_alias:
+            if args.add_layout_common_alias or args.rename_asset or args.reclassify_asset or args.category or args.reconcile_main_alias:
                 parser.error("inclusões de alias Main não podem ser combinadas com reclassificação ou reconciliação")
             if not args.reason:
                 parser.error("inclusões de alias Main requerem --reason")
@@ -3029,6 +3746,18 @@ def main() -> int:
                 alias_type, collection, canonical_path = value.split("=", 2)
                 alias_specs.append((alias_type, collection, canonical_path))
             manifest = build_main_artwork_alias_plan(args.manifest.resolve(), alias_specs, args.reason)
+        elif args.rename_asset:
+            if (args.reclassify_asset or args.category or args.reconcile_main_alias or args.add_layout_common_alias
+                    or args.add_static_layout_asset or args.add_main_logo_alias or args.add_main_logo_variant_alias
+                    or args.add_main_artwork_alias or args.fix_display_name or not args.reason):
+                parser.error("--rename-asset exige --reason e não pode ser combinado com outras operações")
+            manifest = build_rename_plan(args.manifest.resolve(), args.rename_asset, args.reason)
+        elif args.fix_display_name:
+            if (args.reclassify_asset or args.category or args.reconcile_main_alias or args.add_layout_common_alias
+                    or args.add_static_layout_asset or args.add_main_logo_alias or args.add_main_logo_variant_alias
+                    or args.add_main_artwork_alias or args.rename_asset or not args.reason):
+                parser.error("--fix-display-name exige --reason e não pode ser combinado com outras operações")
+            manifest = build_display_name_fix_plan(args.manifest.resolve(), args.fix_display_name, args.reason)
         elif args.reclassify_asset:
             alias_renames = []
             for value in args.reconcile_main_alias:
@@ -3047,7 +3776,7 @@ def main() -> int:
         planned_items = manifest.get("items", manifest.get("groups", []))
         if not planned_items:
             planned_items = manifest.get("aliases", manifest.get("main_artwork_aliases", manifest.get("assets", [])))
-        print(json.dumps({"status": manifest["status"], "operation_id": manifest["operation_id"], "manifest": rel(args.manifest.resolve()), "summary": manifest["summary"], "sample_targets": [item["target"] for item in planned_items[:12]]}, ensure_ascii=False, indent=2))
+        print(json.dumps({"status": manifest["status"], "operation_id": manifest["operation_id"], "manifest": rel(args.manifest.resolve()), "summary": manifest["summary"], "sample_targets": [item.get("target") or item.get("path") for item in planned_items[:12]]}, ensure_ascii=False, indent=2))
     elif args.command == "apply":
         result = apply_manifest(args.manifest.resolve())
         if result.get("kind") == "retrofe_scoped_common_layout_alias_addition":
@@ -3067,6 +3796,10 @@ def main() -> int:
             result = verify_catalog_policy(args.manifest.resolve())
         elif args.manifest and json.loads(args.manifest.read_text()).get('kind') == 'retrofe_unregistered_diagnostic_retirement':
             result = verify_diagnostic_retirement(args.manifest.resolve(), json.loads(args.manifest.read_text()))
+        elif args.manifest and json.loads(args.manifest.read_text()).get('kind') == 'retrofe_asset_rename':
+            result = verify_rename_manifest(json.loads(args.manifest.read_text()))
+        elif args.manifest and json.loads(args.manifest.read_text()).get('kind') == 'retrofe_asset_display_name_fix':
+            result = verify_display_name_fix_manifest(json.loads(args.manifest.read_text()))
         else:
             result = verify_scoped_static_asset_manifest(args.manifest.resolve()) if args.manifest else verify_library()
         print(json.dumps(result, ensure_ascii=False, indent=2))

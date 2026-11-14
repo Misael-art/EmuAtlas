@@ -361,8 +361,8 @@
     },
     {
       "target": "frontend/RetroFE/Tools/materializers/organize-asset-library.py",
-      "sha256": "d2aed40e880d7b0ae293270f99218f4653646cd3ce8d051d237516a1505a5222",
-      "size_bytes": 192776,
+      "sha256": "66df063ac03a0e49edc76eb036feecd2276d11d0c415656a605e909fc5e046cd",
+      "size_bytes": 239796,
       "mode": "0644"
     },
     {
@@ -601,8 +601,8 @@
     },
     {
       "target": "tools/roms/docs/media-continuation.md",
-      "sha256": "a236ca7ddd8ae05e600fe890040e22a4d9cc58e6d1bd69ac45c7cc5148aed1b2",
-      "size_bytes": 33242,
+      "sha256": "1d7f9aebc249dcc7fb04bc59b4fe427dfc67e0bb2f753c8dcc5731538525ba9d",
+      "size_bytes": 34612,
       "mode": "0644"
     },
     {
@@ -973,8 +973,8 @@
     },
     {
       "target": "tools/roms/tests/test_asset_catalog_policy.py",
-      "sha256": "154b68d3ff2892495616914a982cce9004cf2b0b6b8c1b0ccd188d7dc9ac8a5e",
-      "size_bytes": 6350,
+      "sha256": "be88dab7ddf604b7992493dd062c677c9fd5f47bfa5e3ee996f60ba823858b2d",
+      "size_bytes": 20351,
       "mode": "0644"
     },
     {
