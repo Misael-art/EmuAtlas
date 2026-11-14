@@ -154,7 +154,7 @@ class SessionFeedback:
         canvas.pack(fill="both", expand=True)
         return window, canvas
 
-    def shape_window(self, window, width, height, input_rectangles):
+    def shape_window(self, window, width, height, input_rectangles, scale=None):
         child = window.winfo_id()
         root, parent = ctypes.c_ulong(), ctypes.c_ulong()
         children, count = ctypes.POINTER(ctypes.c_ulong)(), ctypes.c_uint()
@@ -162,7 +162,7 @@ class SessionFeedback:
                             ctypes.byref(children), ctypes.byref(count))
         if children:
             self.xlib.XFree(children)
-        radius = max(8, round(16 * self.scale))
+        radius = max(8, round(16 * (scale if scale is not None else getattr(self, "scale", 1))))
         outline = [(0, radius, width, height - 2 * radius)]
         for y in range(radius):
             inset = round(radius - (radius ** 2 - (radius - y - .5) ** 2) ** .5)

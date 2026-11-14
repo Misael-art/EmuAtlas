@@ -952,6 +952,11 @@ def run_session(root: Path, command: list[str], system_id: str | None = None) ->
                 return controller_session.run(root.parents[1], system_id, command, os.environ.copy())
             print('[CONTROLE] Gaming Mode mantém Steam Input; roteamento dock/saída KWin exige sessão Desktop.', flush=True)
             prepare_emulator_controls(root, system_id)
+        if system_id and os.environ.get("EMUATLAS_RETROARCH_JOURNEY"):
+            sys.path.insert(0, str(root.parents[1] / "tools/roms"))
+            import save_journey
+            return save_journey.run_unrouted(root.parents[1], command, os.environ.copy(),
+                json.loads(os.environ["EMUATLAS_RETROARCH_JOURNEY"]))
         return subprocess.run(command, check=False).returncode
     helper = [sys.executable, str(Path(__file__).resolve()), "--root", str(root)]
     ensure_recovery_guard(root)

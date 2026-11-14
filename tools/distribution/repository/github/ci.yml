@@ -41,7 +41,7 @@ jobs:
       - name: Distribution tests
         run: python3 -B -m unittest discover -s tools/distribution/tests -v
       - name: Input routing fixture dependency
-        run: python3 -m pip install evdev==2.0.0
+        run: python3 -m pip install evdev==2.0.0 Pillow==12.3.0
       - name: Integration-recovery regressions
         env:
           PYTHONDONTWRITEBYTECODE: "1"
@@ -65,4 +65,5 @@ jobs:
           tools.roms.tests.test_emulator_controls.LaunchEnvelopeTests.test_session_keeps_lease_until_the_emulator_exits
           tools.roms.tests.test_controller_session
           tools.roms.tests.test_mobile_controller
+          tools.roms.tests.test_save_journey
           tools.roms.tests.test_emulator_controls.BindingsTests

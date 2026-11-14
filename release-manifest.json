@@ -7,8 +7,8 @@
   "files": [
     {
       "target": ".github/workflows/ci.yml",
-      "sha256": "47b5b425324b0444825933c4bdac7a7f0d861dc9c42de50e1183f7536b77e010",
-      "size_bytes": 3079,
+      "sha256": "7695dab1b8c485d49ead5d08610236ad7cb1708e22833500ecf6b475d3fcb06f",
+      "size_bytes": 3139,
       "mode": "0644"
     },
     {
@@ -25,8 +25,8 @@
     },
     {
       "target": "README.md",
-      "sha256": "5a0b98b21cc0ae32a81ce8680bceac8ed6c9918f5ce3951f47ea3aff0f858a0d",
-      "size_bytes": 14089,
+      "sha256": "9925f4d902b8aab35d8df97a1edaa2bf6d44c7c81de109037b30483142114356",
+      "size_bytes": 16113,
       "mode": "0644"
     },
     {
@@ -43,8 +43,8 @@
     },
     {
       "target": "docs/business/architecture.md",
-      "sha256": "035009e0dd3d6730795a95254bfb21d7077ca7ce0438bc3a2f3a99f03ada5157",
-      "size_bytes": 8019,
+      "sha256": "4c3e58a757ffe5f04d2b34a984453fcb7286c0f5c52da1c5af25c8436180a1f8",
+      "size_bytes": 9392,
       "mode": "0644"
     },
     {
@@ -223,9 +223,9 @@
     },
     {
       "target": "frontend/RetroFE/Tools/launchers/emulators/host-emulator-launcher.py",
-      "mode": "0755",
-      "sha256": "99348bb729ce8dffc41a69d1ed1fccc510456288240d5c3811eed266c791e41b",
-      "size_bytes": 62430
+      "sha256": "624ae130fe4060797599a57820a4d54704c6010665bc43b48dc8ac600b50bfba",
+      "size_bytes": 62988,
+      "mode": "0755"
     },
     {
       "target": "frontend/RetroFE/Tools/launchers/emulators/mame-profile-launcher.py",
@@ -235,8 +235,8 @@
     },
     {
       "target": "frontend/RetroFE/Tools/launchers/emulators/retrofe_audio.py",
-      "sha256": "9770027c8859d627c38f4721eaecb6af3b973a82e6c9e5fd79d99b17d8abeee1",
-      "size_bytes": 2473,
+      "sha256": "b1450bb6c9abdd2d4d4aa041a50c38ae17bba4ff6b5fd2a338047d3a296592ad",
+      "size_bytes": 2933,
       "mode": "0644"
     },
     {
@@ -289,14 +289,14 @@
     },
     {
       "target": "frontend/RetroFE/Tools/launchers/retrofe/session-feedback.py",
-      "sha256": "c940435d51b65031e698b90a264d4bd5906872b88a7ec655642844e1a26bd9bb",
-      "size_bytes": 33522,
+      "sha256": "b984651674e946161b1863ae95183b6cbcfd3b49320fd1002acd80d3e3759db7",
+      "size_bytes": 33583,
       "mode": "0644"
     },
     {
       "target": "frontend/RetroFE/Tools/launchers/retrofe/steam-input.py",
-      "sha256": "5d833686acbcbbd88a2374b6b79f4de08c5d1043279733bb4c64d7e0e7f62b2a",
-      "size_bytes": 58197,
+      "sha256": "cb8cf164c20d41914a6a4b2eafed32ac6b3fa5d9d98e8cb1ddbac7f648ac3337",
+      "size_bytes": 58528,
       "mode": "0644"
     },
     {
@@ -409,8 +409,8 @@
     },
     {
       "target": "tools/distribution/config/release-files.json",
-      "sha256": "b08219868258b80fc250c11f3ac482308fdfd99c612f7a9df019880ee6195cf7",
-      "size_bytes": 23879,
+      "sha256": "c38eb86cf9edd4a2a13bdb07adc18195f4d55a4fc057be60e72868dc8e4b0a28",
+      "size_bytes": 24333,
       "mode": "0644"
     },
     {
@@ -457,8 +457,8 @@
     },
     {
       "target": "tools/distribution/repository/github/ci.yml",
-      "sha256": "47b5b425324b0444825933c4bdac7a7f0d861dc9c42de50e1183f7536b77e010",
-      "size_bytes": 3079,
+      "sha256": "7695dab1b8c485d49ead5d08610236ad7cb1708e22833500ecf6b475d3fcb06f",
+      "size_bytes": 3139,
       "mode": "0644"
     },
     {
@@ -565,8 +565,8 @@
     },
     {
       "target": "tools/roms/controller_session.py",
-      "sha256": "ad9680e996a688abc9c5c1b642b28ca55b733b637d87ed4dc7220ba7793aba95",
-      "size_bytes": 53533,
+      "sha256": "7f83807af8658bfa719c9ae9a7e3321b2d88def03757687570619bba13395ae3",
+      "size_bytes": 57876,
       "mode": "0644"
     },
     {
@@ -579,6 +579,12 @@
       "target": "tools/roms/docs/media-continuation.md",
       "sha256": "3db4d39e6a186690df210c7a09867f04c468f816fce4bd3c31057c60d66b0f03",
       "size_bytes": 18237,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/docs/save-journey.md",
+      "sha256": "b802b8ddef7c7f0c9260b0a472f48e47747a3d3dc1ae77893d8e351f7bc31050",
+      "size_bytes": 9594,
       "mode": "0644"
     },
     {
@@ -876,6 +882,18 @@
       "mode": "0644"
     },
     {
+      "target": "tools/roms/save_journey.py",
+      "sha256": "dfdd18f52b5eec10e0b4027f4260cf4f8671b005c89f4a2e5b0a828b31a125bf",
+      "size_bytes": 57493,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/save_journey_ui.py",
+      "sha256": "d6eddfbb963427e50e5765a87a7edc67724f9b16833a418eb603cd4aa41b60ff",
+      "size_bytes": 24032,
+      "mode": "0644"
+    },
+    {
       "target": "tools/roms/schemas/event.schema.json",
       "sha256": "91a45eba9266d3bb5d52e25667de90510d0ee9396d095b8da929944068282e4a",
       "size_bytes": 853,
@@ -1041,6 +1059,12 @@
       "target": "tools/roms/tests/test_runtime_alternatives.py",
       "sha256": "c995d47d838f64235e1ddb9226b2b59df231d9ca97f7a135b80d165cd8f0f3e4",
       "size_bytes": 11135,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_save_journey.py",
+      "sha256": "541bc7065b50d8c1c37d26f522d9dc0f658eb7231d8bda56086927610478189a",
+      "size_bytes": 23610,
       "mode": "0644"
     },
     {

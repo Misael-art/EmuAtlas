@@ -334,6 +334,22 @@ class KWinFocus:
         self.refresh_count+=1
         return self.fresh.wait(.5)
 
+    def restore_window(self, processes, target):
+        pid, window, _, _ = target
+        if not window or not processes.contains(pid):
+            return
+        path = self.directory / 'journey-return.js'
+        path.write_text('var current=workspace.activeWindow; '
+            'if (current && current.pid === ' + str(os.getpid()) + ') { '
+            'var windows=workspace.windowList(); for(var i=0;i<windows.length;i++) { '
+            'var w=windows[i]; if(w.pid === ' + str(pid) + ' && String(w.internalId) === ' +
+            json.dumps(window) + ') { workspace.activeWindow=w; break; } } }\n')
+        name = self.name + '-journey-return'
+        try:
+            self.script(name, path)
+        finally:
+            self.dbus('/Scripting', 'org.kde.kwin.Scripting.unloadScript', name)
+
     def close(self):
         try:
             self.dbus('/Scripting', 'org.kde.kwin.Scripting.unloadScript', self.name)
@@ -770,8 +786,18 @@ class Session:
                            for key in ('lefttrigger', 'righttrigger') if key in mapping)
             if not held and not moved and not triggers:
                 waiting.discard(device.path)
+                if getattr(self, 'journey_ui', None):
+                    self.journey_ui.controller(set(), player=port)
             self.neutral(port)
             return
+        journey_ui = getattr(self, 'journey_ui', None)
+        if journey_ui:
+            held = {key for key in ('a','b','x','y','back','start','dpup','dpdown','dpleft','dpright') if value(key) > .5}
+            if value('lefty') < -.6: held.add('dpup')
+            if value('lefty') > .6: held.add('dpdown')
+            if journey_ui.controller(held, player=port):
+                self.neutral(port)
+                return
         if getattr(self,'exit_pending',False) and self.dialog_armed:
             desired={key for binding,key in {'a':e.KEY_ENTER,'b':e.KEY_ESC,'dpleft':e.KEY_LEFT,
                 'dpright':e.KEY_RIGHT,'dpup':e.KEY_UP,'dpdown':e.KEY_DOWN}.items() if value(binding)>.5}
@@ -815,6 +841,12 @@ class Session:
             self.processes.refresh()
             self.last_process_scan = now
         focused = self.processes.contains(self.focus.current[0])
+        journey_ui = getattr(self, 'journey_ui', None)
+        ui_focus = bool(journey_ui and journey_ui.captures_input and self.focus.current[0] == os.getpid())
+        if focused:
+            self.journey_geometry = self.focus.geometry
+            self.journey_window = self.focus.current
+        focused = focused or ui_focus
         retry_key=self.focus.current[:2]
         if retry_key!=self.focus_retry_key:self.focus_retry_key=retry_key;self.focus_retries=0
         if (not focused and self.focus.current[1] and self.focus_retries<3
@@ -876,6 +908,16 @@ class Session:
                 if event.type in {e.EV_KEY,e.EV_ABS}:forwarded=True
             if forwarded and dev.path in self.assigned:self.forward(dev,self.assigned.index(dev.path))
         pressed = self.keyboard_down
+        if journey_ui:
+            journey_ui.keyboard(pressed, e)
+            capturing = journey_ui.captures_input
+            if capturing != getattr(self, 'journey_was_capturing', False):
+                self.wait_for_release.update(path for path in self.assigned if path)
+                self.stop_effects()
+                self.journey_was_capturing = capturing
+            if capturing:
+                for port in range(len(self.virtual)):
+                    self.neutral(port)
         keyboard_exit = bool(pressed & {e.KEY_LEFTCTRL,e.KEY_RIGHTCTRL}) and bool(pressed & {e.KEY_LEFTSHIFT,e.KEY_RIGHTSHIFT}) and e.KEY_F10 in pressed
         chords = {'keyboard': keyboard_exit}
         for path in self.assigned:
@@ -911,7 +953,7 @@ class Session:
                     name={'enter':'enter','rshift':'rightshift','shift':'leftshift','ctrl':'leftctrl','alt':'leftalt'}.get(name,name)
                     return getattr(e,'KEY_'+name.upper(),None)
                 self.ra_keyboard={name:keycode(configured.get(name,default)) for name,default in defaults.items()}
-        if focused and not any(self.assigned) and self.keyboard_fallback:
+        if focused and not any(self.assigned) and self.keyboard_fallback and not (journey_ui and journey_ui.captures_input):
             mapping = {e.KEY_Z:e.BTN_SOUTH, e.KEY_X:e.BTN_EAST, e.KEY_A:e.BTN_WEST,
                 e.KEY_S:e.BTN_NORTH, e.KEY_Q:e.BTN_TL, e.KEY_E:e.BTN_TR,
                 e.KEY_BACKSPACE:e.BTN_SELECT, e.KEY_ENTER:e.BTN_START}
@@ -931,15 +973,31 @@ class Session:
 
         if getattr(self, 'feedback', None):
             try:
-                self.feedback.update(focused, self.focus.geometry, now)
+                geometry = getattr(self, 'journey_geometry', self.focus.geometry) if ui_focus else self.focus.geometry
+                self.feedback.update(focused, geometry, now)
+                if journey_ui:
+                    journey_ui.update(focused, geometry, now)
             except Exception as exc:
                 # A failed status layer must preserve the running game/input.
+                if getattr(self, 'journey_ui', None):
+                    self.journey_ui.close()
+                    self.journey_ui = None
+                    self.journey.request('pause', False)
                 self.manifest['feedback_error'] = str(exc)
                 self.feedback.close()
                 self.feedback = None
                 self.save()
 
     def close(self, status='completed_with_validation_limits'):
+        if getattr(self, 'journey_ui', None):
+            self.journey_ui.close()
+            self.journey_ui = None
+        if getattr(self, 'journey', None):
+            try:
+                self.journey.close()
+            except Exception as exc:
+                self.manifest['save_journey_close_error'] = str(exc)
+            self.journey = None
         if getattr(self, 'mobile', None):
             self.mobile.close()
         if getattr(self, 'feedback', None):
@@ -977,7 +1035,32 @@ def run(root, system_id, command, env, attach=None, remaining=None, owned_childr
         helper = root / 'frontend/RetroFE/Tools/launchers/retrofe/steam-input.py'
         subprocess.run([os.sys.executable, str(helper), '--root', str(root/'frontend/RetroFE'),
             'controller-prepare', '--system-id', system_id, '--require-gamepad'], env=combined, check=True)
-        child = subprocess.Popen(command, env=combined)
+        journey = None
+        context = combined.get('EMUATLAS_RETROARCH_JOURNEY')
+        if context:
+            try:
+                from save_journey import RetroArchSession
+                journey = RetroArchSession(root, json.loads(context), session.directory)
+                command = journey.prepare(command)
+                session.journey = journey
+                session.manifest['save_journey'] = str(journey.store.directory.relative_to(root))
+            except (OSError, ValueError) as exc:
+                session.manifest['save_journey_error'] = str(exc)
+                print('[SAVES] Histórico indisponível: ' + str(exc), flush=True)
+                journey = None
+        io = {'stdin': subprocess.PIPE, 'stdout': subprocess.PIPE, 'stderr': subprocess.STDOUT, 'bufsize': 0} if journey else {}
+        child = subprocess.Popen(command, env=combined, **io)
+        if journey:
+            journey.attach(child)
+            if session.feedback:
+                try:
+                    from save_journey_ui import SaveShelf
+                    session.journey_ui = SaveShelf(session.feedback, journey,
+                        on_return=lambda: session.focus.restore_window(session.processes,
+                            getattr(session, 'journey_window', (0, '', False, ''))))
+                except Exception as exc:
+                    session.manifest['save_journey_ui_error'] = str(exc)
+        session.save()
         status='completed_with_validation_limits'
         session.processes.add(child.pid)
         if attach: attach(child.pid)

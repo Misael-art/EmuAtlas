@@ -622,7 +622,14 @@ def launch_retroarch(profile: dict, system: dict, item: Path) -> int:
         if native:
             command = [str(native), '--config', str(config_path.resolve()), '-L', str(core),
                        *([] if DISPLAY_MODE == 'windowed' else ['--fullscreen']), str(launched_item)]
-        return run_with_music_paused(command, cwd=ROOT, system_id=system["rom_subdir"])
+        project = ROOT.parent.parent
+        journey = {"system_id": system["rom_subdir"], "rom": item.relative_to(project).as_posix(),
+                   "core": core.relative_to(project).as_posix(),
+                   "content": launched_item.relative_to(project).as_posix(),
+                   "config": config_path.resolve().relative_to(project).as_posix()}
+        launch_env = dict(os.environ, APPIMAGELAUNCHER_DISABLE="1") if native and str(native).endswith(".AppImage") else None
+        return run_with_music_paused(command, cwd=ROOT, env=launch_env,
+                                     system_id=system["rom_subdir"], journey=journey)
 
 
 def launch_flatpak(profile: dict, system: dict, item: Path) -> int:

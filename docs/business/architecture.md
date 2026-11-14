@@ -46,6 +46,14 @@ O painel compartilhado usa o mapeamento visual `frontend/RetroFE/Config/controll
 
 O processo cria origens evdev/uinput próprias. O roteador existente aplica a atribuição às portas virtuais estáveis. Frontend e jogo mantêm leases locais e informam foco, preservando o pareamento durante o lançamento. Solicitações de jogador vindas da página são confirmadas pelo consumidor focado através da mesma gravação durável usada pelo arraste. A ausência de consumidores encerra o serviço e remove os dispositivos. O backend de entrada atual usa Linux/KDE. O navegador do celular ou tablet consome apenas HTML, CSS e JavaScript locais.
 
+## Jornada de saves de sessão
+
+O launcher RetroArch transmite ao supervisor o contexto relativo da plataforma, ROM, conteúdo efetivamente lançado, core e configuração. `save_journey.py` acompanha apenas esse processo pelo stdin privado e pelo diretório nativo. O ciclo de vida integra o roteador existente. A UI `save_journey_ui.py` reutiliza a instância Tk do feedback de controles e o mesmo bloqueio de entrada enquanto a lista está aberta.
+
+`emulator/data/RetroArch/states/journey/<game_id>/` reúne SQLite, versões nativas por SHA-256, PNGs com metadados imutáveis e perfis efêmeros. A identidade normaliza a extensão de core entre SOs. Favoritos, tags, notas, sequência e relações são transacionais. A exportação CSV constitui uma projeção no histórico oficial da sessão.
+
+A retomada preserva o momento corrente, prepara uma cópia nativa em slot temporário alto e confirma a execução antes da transição visual. Um registro durável permite reconciliar cópias derivadas após interrupção. A comparação do core e do conteúdo protege a seleção. A compatibilidade efetiva segue dependente do core e da aceitação no host. O backend possui caminho Windows e o overlay atual usa Linux/KDE. O contrato detalha os limites de tempo observado, flush de SRAM, imagens e validação. [Jornada de saves](../../tools/roms/docs/save-journey.md)
+
 ## Reuso e dívida técnica
 
 Não há segundo organizador: inventário, planos, conversão, mídia e rollback continuam nas ferramentas existentes. A nova camada trata instalação/distribuição: install.sh → setup.py → receitas e adaptadores existentes. Algumas ferramentas ainda usam o diretório histórico `outputs/roms-consolidacao-2026-10-24` e esperam catálogos/arte/templates de uma instalação RetroFE completa. Preservar essa compatibilidade nesta prévia; uma migração de estado exige projeto e testes próprios.

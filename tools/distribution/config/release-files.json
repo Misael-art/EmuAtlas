@@ -710,6 +710,22 @@
     {
       "source": "docs/business/assets/branding/controller-mobile.svg",
       "target": "docs/business/assets/branding/controller-mobile.svg"
+    },
+    {
+      "source": "tools/roms/save_journey.py",
+      "target": "tools/roms/save_journey.py"
+    },
+    {
+      "source": "tools/roms/save_journey_ui.py",
+      "target": "tools/roms/save_journey_ui.py"
+    },
+    {
+      "source": "tools/roms/tests/test_save_journey.py",
+      "target": "tools/roms/tests/test_save_journey.py"
+    },
+    {
+      "source": "tools/roms/docs/save-journey.md",
+      "target": "tools/roms/docs/save-journey.md"
     }
   ]
 }

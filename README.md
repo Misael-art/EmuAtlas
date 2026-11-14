@@ -17,6 +17,7 @@
   <a href="#instalar">Começar</a> &nbsp;·&nbsp;
   <a href="#ecossistema">Ecossistema</a> &nbsp;·&nbsp;
   <a href="#controles-e-jogadores">Controles e jogadores</a> &nbsp;·&nbsp;
+  <a href="#sua-jornada-nos-jogos">Saves e jornada</a> &nbsp;·&nbsp;
   <a href="#estrutura">Estrutura</a> &nbsp;·&nbsp;
   <a href="#estado-do-projeto">Estado do projeto</a> &nbsp;·&nbsp;
   <a href="#guias">Documentação</a>
@@ -59,6 +60,24 @@ As ilustrações de controles pertencem ao acervo canônico da instalação. A e
 
 > [!IMPORTANT]
 > **Prévia de engenharia.** A automação está implementada; a instalação integral em máquina limpa e a aceitação física de gameplay/controles ainda precisam de validação. As permissões de distribuição de cada componente seguem em revisão.
+
+## Sua jornada nos jogos
+
+O **RetroArch** recebe um histórico visual por jogo e core. Cada gravação observada conserva a versão nativa e reúne screenshot, número, data, horário, tempo observado e vínculos com o momento anterior.
+
+| Durante o jogo | Sua jornada |
+| --- | --- |
+| **Cartão discreto à esquerda** | Um favorito fica em destaque. Passe o mouse para abrir cinco gravações e role pelas demais. |
+| **♥ Favoritos** | Fixe momentos especiais. Favoritos vêm primeiro e cada grupo segue do mais recente ao mais antigo. |
+| **♛ Chefe · ⚑ Final · ◆ Hiperdesafio** | Acrescente fases numeradas, outras marcações e uma nota pessoal. |
+| **Retomada visual** | A imagem se centraliza, o momento corrente recebe uma cópia de segurança e a sessão continua após confirmação do emulador. |
+| **Planilha da jornada** | Exporte CSV com tempos, hashes, imagens, notas e relações entre saves. |
+
+Abra com **Select + Y no P1** ou **Ctrl + Shift + J**. Use ↑↓, **A** para retomar, **X** para favoritar, **Start** para marcações e **B** para voltar. Os nomes dos botões seguem o mapeamento lógico SDL. Mouse e teclado também operam a lista.
+
+O histórico fica junto aos dados compartilhados do RetroArch em `emulator/data/RetroArch/states/journey/`. SQLite registra os metadados e PNG reúne imagem e dados imutáveis da captura. A versão nativa é preservada. Saves internos aparecem quando o core os grava em disco. O tempo é medido desde o monitoramento. Cores com suporte a states oferecem retomada visual dos saves de bateria por state acompanhante.
+
+A interface desta entrega usa **Linux/KDE**. O ensaio isolado com RetroArch real verifica gravação, thumbnail e restauração do momento original. Aceitação física de gameplay, foco/composição e execução Windows continuam na matriz de validação. Consulte o contrato técnico e os controles completos. [Jornada de saves](tools/roms/docs/save-journey.md)
 
 ## Instalar
 
