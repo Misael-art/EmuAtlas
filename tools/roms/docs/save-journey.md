@@ -14,7 +14,7 @@ A sessão gerenciada acompanha as gravações do jogo lançado pelo EmuAtlas. Ca
 | Fechar | × ou Esc | B |
 | Exportar planilha | CSV no rodapé | Use o mouse |
 
-O cartão compacto destaca um favorito, ou a gravação mais recente. A lista expandida mostra cinco cartões e oferece rolagem. Favoritos vêm primeiro, ordenados do mais recente ao mais antigo dentro do grupo. As demais gravações seguem a mesma ordem temporal. A numeração representa a sequência de versões observadas daquele jogo/core.
+A legenda persistente durante o jogo mostra **P1 Select + Y** e **Ctrl + Shift + J**, inclusive antes da primeira gravação e em janelas sem margem lateral. O cartão compacto destaca um favorito, ou a gravação mais recente. A lista expandida mostra cinco cartões e oferece rolagem. Favoritos vêm primeiro, ordenados do mais recente ao mais antigo dentro do grupo. As demais gravações seguem a mesma ordem temporal. A numeração representa a sequência de versões observadas daquele jogo/core.
 
 As marcações incluem Chefe, Final, Hiperdesafio, Descoberta, Marco, Treino e Fase 1–9999. O editor aceita uma nota de até 500 caracteres. O jogo pausa ao abrir a lista. Fechar libera somente a pausa assumida pelo monitor. Uma pausa previamente aplicada pelo usuário continua sob seu controle ao fechar a lista. Escolher Retomar solicita explicitamente a continuação do jogo. Enquanto a lista captura a entrada, o roteador neutraliza as portas do jogo e exige soltura dos comandos ao retornar.
 

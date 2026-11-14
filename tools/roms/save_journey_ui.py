@@ -12,6 +12,7 @@ except ImportError:
 
 BG, SURFACE, BORDER = "#101116", "#191b21", "#504638"
 GOLD, TEXT, MUTED = "#cfb68c", "#f5f0e7", "#b6b3b0"
+OPEN_HINT = "Saves · P1 Select + Y · Ctrl + Shift + J"
 
 
 def duration(seconds):
@@ -62,6 +63,8 @@ class SaveShelf:
         self.confirm_label, self.back_label, self.favorite_label = "A", "B", "X"
         self.reduce_motion = backend.config.get("emuatlas_reduce_motion", "false") == "true"
         self.scale, self.width, self.height = 1, 1, 1
+        self.feedback.save_journey_hint = OPEN_HINT
+        self.feedback.drawn = None
 
     @property
     def captures_input(self):
@@ -509,6 +512,8 @@ class SaveShelf:
             self.window.title("EmuAtlas Saves · " + message[:100])
 
     def close(self):
+        self.feedback.save_journey_hint = ""
+        self.feedback.drawn = None
         for window in (self.editor, self.window, self.transition):
             if window:
                 try:

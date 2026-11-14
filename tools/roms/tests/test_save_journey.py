@@ -486,6 +486,27 @@ class JourneyTests(unittest.TestCase):
         shelf.controller({"dpdown"})
         shelf.move.assert_called_once_with(1)
 
+    def test_opening_shortcuts_are_registered_before_the_first_save(self):
+        from unittest.mock import Mock
+        feedback = Mock()
+        feedback.card.side_effect = [(Mock(), Mock()), (Mock(), Mock())]
+        backend = Mock(config={})
+        shelf = ui.SaveShelf(feedback, backend)
+        self.assertEqual(feedback.save_journey_hint, "Saves · P1 Select + Y · Ctrl + Shift + J")
+        self.assertIsNone(feedback.drawn)
+        backend.store.rows.assert_not_called()
+        shelf.close()
+
+    def test_closing_shelf_clears_its_persistent_shortcut_legend(self):
+        from unittest.mock import Mock
+        feedback = Mock()
+        feedback.card.side_effect = [(Mock(), Mock()), (Mock(), Mock())]
+        shelf = ui.SaveShelf(feedback, Mock(config={}))
+        feedback.drawn = (0, 0, 1280, 800)
+        shelf.close()
+        self.assertEqual(feedback.save_journey_hint, "")
+        self.assertIsNone(feedback.drawn)
+
     def test_visual_handoff_waits_for_playing_cycles_before_fading(self):
         from unittest.mock import Mock
         shelf = ui.SaveShelf.__new__(ui.SaveShelf)

@@ -73,7 +73,7 @@ O **RetroArch** recebe um histórico visual por jogo e core. Cada gravação obs
 | **Retomada visual** | A imagem se centraliza, o momento corrente recebe uma cópia de segurança e a sessão continua após confirmação do emulador. |
 | **Planilha da jornada** | Exporte CSV com tempos, hashes, imagens, notas e relações entre saves. |
 
-Abra com **Select + Y no P1** ou **Ctrl + Shift + J**. Use ↑↓, **A** para retomar, **X** para favoritar, **Start** para marcações e **B** para voltar. Os nomes dos botões seguem o mapeamento lógico SDL. Mouse e teclado também operam a lista.
+Abra com **Select + Y no P1** ou **Ctrl + Shift + J**. Use ↑↓, **A** para retomar, **X** para favoritar, **Start** para marcações e **B** para voltar. Os dois atalhos aparecem na legenda persistente durante o jogo. Os nomes dos botões seguem o mapeamento lógico SDL. Mouse e teclado também operam a lista.
 
 O histórico fica junto aos dados compartilhados do RetroArch em `emulator/data/RetroArch/states/journey/`. SQLite registra os metadados e PNG reúne imagem e dados imutáveis da captura. A versão nativa é preservada. Saves internos aparecem quando o core os grava em disco. O tempo é medido desde o monitoramento. Cores com suporte a states oferecem retomada visual dos saves de bateria por state acompanhante.
 
