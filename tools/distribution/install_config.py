@@ -146,6 +146,10 @@ def configure(engine):
           '<menu type="custom" orientation="vertical" scrollTime=".18"><itemDefaults x="140" y="430" fontSize="32" fontColor="b8c6d1"/>'
           '<item yOffset="-180" alpha=".3"/><item yOffset="-90" alpha=".6"/><item yOffset="0" alpha="1"/><item yOffset="90" alpha=".6"/><item yOffset="180" alpha=".3"/></menu>'
           '<text value="Enter: escolher    Esc: voltar    Q: sair" x="100" y="980" fontSize="26" fontColor="8199a8"/></layout>\n')
+    write(fe + 'layouts/Workspace/splash.xml',
+          f'<layout width="1920" height="1080" font="{font}" loadFontSize="32" fontColor="b8c6d1">'
+          '<text value="Carregando biblioteca" x="100" y="460" fontSize="36"/>'
+          '<statusText x="100" y="540" fontSize="26" fontColor="8199a8"/></layout>\n')
     esde = 'frontend/ES-DE/UserData/'
     # XML values must be escaped for roots with quotes or special characters.
     cfg = ET.Element('config')

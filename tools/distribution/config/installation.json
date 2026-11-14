@@ -415,7 +415,30 @@
       ],
       "output": "{source}/RetroFE/Build/retrofe",
       "target": "frontend/RetroFE/RetroFE",
-      "source_page": "https://github.com/phulshof/RetroFE"
+      "source_page": "https://github.com/phulshof/RetroFE",
+      "patches": [
+        {
+          "file": "RetroFE/Source/RetroFE.cpp",
+          "before": "#include <algorithm>",
+          "after": "#include <algorithm>\n#include <atomic>"
+        },
+        {
+          "file": "RetroFE/Source/RetroFE.cpp",
+          "before": "RetroFE::RetroFE( Configuration &c )",
+          "after": "namespace {\nclass WindowCloseWatcher {\npublic:\n    WindowCloseWatcher() { rearm(); }\n    ~WindowCloseWatcher() { SDL_DelEventWatch(watch, this); }\n    void rearm() {\n        SDL_DelEventWatch(watch, this);\n        SDL_AddEventWatch(watch, this);\n    }\n    bool consume() { return requested_.exchange(false); }\nprivate:\n    static int SDLCALL watch(void *data, SDL_Event *event) {\n        if (event->type == SDL_QUIT ||\n            (event->type == SDL_WINDOWEVENT && event->window.event == SDL_WINDOWEVENT_CLOSE)) {\n            static_cast<WindowCloseWatcher *>(data)->requested_.store(true);\n        }\n        return 1;\n    }\n    std::atomic_bool requested_{false};\n};\n}\n\nRetroFE::RetroFE( Configuration &c )"
+        },
+        {
+          "file": "RetroFE/Source/RetroFE.cpp",
+          "before": "    while ( running )\n    {\n\n        float lastTime",
+          "after": "    WindowCloseWatcher windowClose;\n    while ( running )\n    {\n        if (!splashMode && windowClose.consume() &&\n            state != RETROFE_QUIT_REQUEST && state != RETROFE_QUIT) {\n            state = RETROFE_QUIT_REQUEST;\n        }\n\n        float lastTime"
+        },
+        {
+          "file": "RetroFE/Source/RetroFE.cpp",
+          "before": "                    launchExit( );\n                    l.LEDBlinky( 4 );",
+          "after": "                    launchExit( );\n                    windowClose.rearm();\n                    l.LEDBlinky( 4 );"
+        }
+      ],
+      "local_patch": "Preserve native window-close requests across event draining and running child, then quit after normal child completion. Rearm after SDL reinitialization."
     },
     "zarchive": {
       "kind": "build",

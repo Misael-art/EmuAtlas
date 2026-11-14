@@ -11,6 +11,7 @@ import tarfile
 import tempfile
 import time
 import unittest
+import xml.etree.ElementTree as ET
 from unittest.mock import patch
 import zipfile
 
@@ -269,6 +270,10 @@ class SetupTests(unittest.TestCase):
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination)
         configure(self.engine)
+        layout = self.root / 'frontend/RetroFE/layouts/Workspace'
+        for name in ('layout.xml', 'splash.xml'):
+            self.assertEqual(ET.parse(layout / name).getroot().tag, 'layout')
+        self.assertIsNotNone(ET.parse(layout / 'splash.xml').find('statusText'))
         result = subprocess.run([sys.executable,
             str(self.root / 'tools/roms/materialize-collection-media-paths.py'), 'check-runtime'],
             cwd=self.root, capture_output=True, text=True, timeout=30)

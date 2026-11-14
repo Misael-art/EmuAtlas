@@ -480,7 +480,23 @@ class Installer:
                 raise ValueError('Fonte existente sem proveniência Git')
             status = self.query(['git', '-C', str(source), 'status', '--porcelain'])[1]
             if status:
-                raise ValueError('Fonte Git com alterações; preservada')
+                if self.query(['git', '-C', str(source), 'rev-parse', 'HEAD'])[1] != item['commit']:
+                    raise ValueError('Fonte Git alterada em outro commit; preservada')
+                for row in status.splitlines():
+                    change = row.strip().split(' ', 1)
+                    patches = [patch for patch in item.get('patches', [])
+                               if len(change) == 2 and patch['file'] == change[1]]
+                    if len(change) != 2 or change[0] != 'M' or not patches:
+                        raise ValueError('Fonte Git com alterações pessoais; preservada')
+                    data = w.safe_path(source, change[1]).read_bytes()
+                    for patch in reversed(patches):
+                        if data.count(patch['after'].encode()) == 1:
+                            data = data.replace(patch['after'].encode(), patch['before'].encode())
+                    original = subprocess.check_output(
+                        ['git', '-C', str(source), 'show', 'HEAD:' + change[1]], timeout=30)
+                    if data != original:
+                        raise ValueError('Fonte Git diverge dos patches revisados; preservada')
+                return parent, source
             self.run(['git', '-C', str(source), 'sparse-checkout', 'init', '--cone'])
             self.run(['git', '-C', str(source), 'sparse-checkout', 'set', *item['sparse_paths']])
             self.run(['git', '-C', str(source), 'fetch', '--depth=1', '--filter=blob:none', 'origin', item['commit']], timeout=600)
@@ -506,13 +522,15 @@ class Installer:
             baseline = w.read(marker).get('files')
             if not baseline:
                 raise ValueError('Inventário da fonte ausente; revisar staging existente')
-            patches = {p['file']: p for p in item.get('patches', [])}
             for relative, expected in baseline.items():
                 p = w.safe_path(source, relative)
                 data = p.read_bytes()
                 if hashlib.sha256(data).hexdigest() != expected:
-                    patch = patches.get(relative)
-                    if not patch or data.count(patch['after'].encode()) != 1 or hashlib.sha256(data.replace(patch['after'].encode(), patch['before'].encode())).hexdigest() != expected:
+                    patches = [patch for patch in item.get('patches', []) if patch['file'] == relative]
+                    for patch in reversed(patches):
+                        if data.count(patch['after'].encode()) == 1:
+                            data = data.replace(patch['after'].encode(), patch['before'].encode())
+                    if hashlib.sha256(data).hexdigest() != expected:
                         raise ValueError('Fonte mudou desde a aquisição: ' + relative)
         return parent, source
 
@@ -535,9 +553,11 @@ class Installer:
         for patch in item.get('patches', []):
             path = w.safe_path(source, patch['file'])
             data = path.read_bytes()
+            if data.count(patch['after'].encode()) == 1:
+                continue
             if data.count(patch['before'].encode()) == 1:
                 path.write_bytes(data.replace(patch['before'].encode(), patch['after'].encode()))
-            elif data.count(patch['after'].encode()) != 1:
+            else:
                 raise ValueError('Patch não corresponde à fonte pinada')
         substitutions = {'{source}': str(source), '{build}': str(parent / 'build'),
                          '{prefix}': str(parent / 'prefix'), '{jobs}': str(self.jobs)}

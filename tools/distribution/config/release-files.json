@@ -743,6 +743,10 @@
     {
       "source": "tools/roms/tests/test_pegasus_media_projection.py",
       "target": "tools/roms/tests/test_pegasus_media_projection.py"
+    },
+    {
+      "source": "tools/distribution/tests/test_retrofe_build.py",
+      "target": "tools/distribution/tests/test_retrofe_build.py"
     }
   ]
 }

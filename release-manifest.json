@@ -79,8 +79,8 @@
     },
     {
       "target": "docs/business/quality-and-roadmap.md",
-      "sha256": "b7e9b61aa4d572ab7c81155bb193069bed6dd515a36ddd853e8322756cc09ea0",
-      "size_bytes": 3608,
+      "sha256": "5c489e2f6255b12f0d5acb12ee58f539092467a90e621e7a24bac03187b63961",
+      "size_bytes": 3733,
       "mode": "0644"
     },
     {
@@ -409,8 +409,8 @@
     },
     {
       "target": "tools/distribution/config/installation.json",
-      "sha256": "b5a7f24079d0162f5ac9070bfead330397840d6142f0efa78abbb6840835379c",
-      "size_bytes": 19874,
+      "sha256": "7d4cbdaa078e05b49ceece5d5a2877d1c3ac036b68c503091ff0d39443a25edb",
+      "size_bytes": 21875,
       "mode": "0644"
     },
     {
@@ -421,8 +421,8 @@
     },
     {
       "target": "tools/distribution/config/release-files.json",
-      "sha256": "0c2c9023edf1d76d3a7792a62ff014d9904a5e8adc1e5892d01bccbda0add519",
-      "size_bytes": 24877,
+      "sha256": "9d1fdbe03f646cc48ac036fee5d6c709bc9fd11bbb71af264f2a3af6091a5242",
+      "size_bytes": 25021,
       "mode": "0644"
     },
     {
@@ -439,8 +439,8 @@
     },
     {
       "target": "tools/distribution/install_config.py",
-      "sha256": "953048898a864cc9faa31e774456034173de124a080c91b33154df8d54d74022",
-      "size_bytes": 9603,
+      "sha256": "3acd4157ac10b6b1bccbe575315f3b7e92b70c7702301eb6c81455a699331a9a",
+      "size_bytes": 9917,
       "mode": "0644"
     },
     {
@@ -475,8 +475,8 @@
     },
     {
       "target": "tools/distribution/setup.py",
-      "sha256": "6167ca6711d735173a206ba542ddef0e4fe732ab6b0b3572250e9ecbdadaf1ad",
-      "size_bytes": 46047,
+      "sha256": "1a9adbe8a353c0b6f4e9fb9e95f4675b341d0046639ed4c68e9f7b8411ce82be",
+      "size_bytes": 47332,
       "mode": "0644"
     },
     {
@@ -534,9 +534,15 @@
       "mode": "0644"
     },
     {
+      "target": "tools/distribution/tests/test_retrofe_build.py",
+      "sha256": "05deb39ae25277d575cd1f699832bb4f94a41fdf93ddce578f42ee65f27aa8cb",
+      "size_bytes": 5696,
+      "mode": "0644"
+    },
+    {
       "target": "tools/distribution/tests/test_setup.py",
-      "sha256": "dc1b3cd006db8e2b99e49b8141de19c870c566e8e8e6402e8751e9096d3590a6",
-      "size_bytes": 20726,
+      "sha256": "4123158e8ab1abb0c387acb61683b69baed7c961d23c74af50609c5a89c7a33a",
+      "size_bytes": 21036,
       "mode": "0644"
     },
     {
