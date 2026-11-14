@@ -1879,6 +1879,7 @@
       "bios_root": "../../bios",
       "command": "../../emulator/linux/vita3k/Vita3K-x86_64.AppImage",
       "args": [
+        "--appimage-extract-and-run",
         "--frontend",
         "sdl",
         "--keep-config",
@@ -1889,6 +1890,7 @@
       "working_directory": "{userdata}",
       "runtime_id": "vita3k",
       "probe_args": [
+        "--appimage-extract-and-run",
         "--version",
         "--keep-config",
         "--frontend",
@@ -1899,7 +1901,9 @@
         "APPIMAGELAUNCHER_DISABLE": "1",
         "DWARFS_WORKERS": "1",
         "DWARFS_CACHESIZE": "64M",
-        "DWARFS_READAHEAD": "1M"
+        "DWARFS_READAHEAD": "1M",
+        "TMPDIR": "{program_dir}",
+        "DISABLE_AUTO_UPDATES": "1"
       },
       "runtime_version": "0.2.1 build 4304",
       "launch_inputs": [

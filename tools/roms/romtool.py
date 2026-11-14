@@ -627,6 +627,13 @@ def verify_gdi(path: Path) -> dict:
             "tracks": tracks, "missing": missing, "issues": issues}
 
 
+def subprocess_output_text(value: str | bytes | None) -> str:
+    """TimeoutExpired can retain bytes even when the process uses text mode."""
+    if isinstance(value, bytes):
+        return value.decode('utf-8', errors='replace')
+    return value or ''
+
+
 def run_validator(argv: list[str], full_output: bool = False, *, env: dict[str, str] | None = None,
                   timeout: float | None = None, cwd: Path | None = None) -> dict:
     try:
@@ -640,7 +647,8 @@ def run_validator(argv: list[str], full_output: bool = False, *, env: dict[str, 
         return {"returncode": None, "error": f"validator unavailable: {argv[0]}"}
     except subprocess.TimeoutExpired as error:
         return {"returncode": None, "timed_out": True,
-                "stdout": (error.stdout or "")[-12000:], "stderr": (error.stderr or "")[-4000:]}
+                "stdout": subprocess_output_text(error.stdout)[-12000:],
+                "stderr": subprocess_output_text(error.stderr)[-4000:]}
 
 
 def host_runtime_userdata_root(row: dict) -> Path | None:
@@ -675,7 +683,7 @@ def host_runtime_probe_directory(row: dict) -> Path | None:
     return userdata_root
 
 
-def host_runtime_probe_environment(row: dict) -> dict[str, str] | None:
+def host_runtime_probe_environment(row: dict, *, program_dir: Path | None = None) -> dict[str, str] | None:
     templates = row.get("environment", {})
     if not templates:
         return None
@@ -684,6 +692,8 @@ def host_runtime_probe_environment(row: dict) -> dict[str, str] | None:
     env = os.environ.copy()
     userdata_root = host_runtime_userdata_root(row)
     values = {"userdata": str(userdata_root)} if userdata_root else {}
+    if program_dir is not None:
+        values['program_dir'] = str(program_dir.resolve())
     for name, template in templates.items():
         if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
             raise ValueError(f"Variável inválida no ambiente do perfil: {name!r}")
@@ -1645,7 +1655,7 @@ def host_runtime_format_evidence(system_id: str, extension: str, *, probe: bool 
                     if executable.is_file() and os.access(executable, os.X_OK)
                     and isinstance(probe_args, list) and all(isinstance(x, str) for x in probe_args)
                     else [])
-            probe_env = host_runtime_probe_environment(row)
+            probe_env = host_runtime_probe_environment(row, program_dir=executable.parent)
             probe_cwd = host_runtime_probe_directory(row)
             evidence["runtime_probe_environment_keys"] = sorted((row.get("environment") or {}).keys())
         else:

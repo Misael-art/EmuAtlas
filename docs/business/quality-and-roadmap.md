@@ -19,7 +19,7 @@ Cada transição pede evidência própria. Não pular de checksum correto para �
 | Mídias | Download de itens pinados + fluxos de ingestão existentes | Provedor/licença configurados e associação revisada |
 | RetroFE e temas | Receita de compilação e fallback textual; temas pessoais não empacotados | Build em host limpo, direitos, testes visuais e navegação |
 | Pegasus Linux | Receita pinada, dados portáteis, projeção por entrada e launcher nativo | Gameplay, controles físicos e temas no host contratado |
-| Vita3K Linux | AppImage oficial fixado, dados portáteis e vínculos relativos de aplicativos/patches validados por SFO | Firmware, execução nativa, integridade dos conjuntos e aceite por jogo |
+| Vita3K Linux | AppImage oficial fixado, CLI nativa verificada, dados portáteis e vínculos relativos validados por SFO | Firmware, integridade dos conjuntos, execução de jogos e aceite físico |
 | Desktop/Steam Deck | Proteções existentes mantidas | Teste físico: entrar, jogar, sair/crash e recuperar atalhos |
 | Windows/macOS/ARM | Não homologados | Portar dependências, paths e controles antes de vender suporte |
 | Switch 2 / Eden-NX2 | Experimental, gameplay não comprovado | Build compatível e aceitação física; fora da oferta inicial |

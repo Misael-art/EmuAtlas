@@ -253,15 +253,22 @@ class NativeLibraryTests(unittest.TestCase):
         runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
         program = self.root / 'emulator/linux/vita3k/Vita3K-x86_64.AppImage'
         system = {'rom_subdir': 'psvita', 'runtime_id': 'vita3k', 'command': str(program),
-                  'args': ['--frontend', 'sdl', '--keep-config', '-r', '{title_id}'],
-                  'userdata_subdir': 'Vita3K', 'working_directory': '{userdata}'}
+                  'args': ['--appimage-extract-and-run', '--frontend', 'sdl', '--keep-config', '-r', '{title_id}'],
+                  'userdata_subdir': 'Vita3K', 'working_directory': '{userdata}',
+                  'environment': {'TMPDIR': '{program_dir}', 'APPIMAGELAUNCHER_DISABLE': '1',
+                                  'DISABLE_AUTO_UPDATES': '1'}}
         profile = {'rom_root': str(self.root / 'roms'), 'bios_root': str(self.root / 'bios')}
         with patch.object(launcher, 'ROOT', self.root / 'frontend/RetroFE'), \
                 patch.object(launcher, 'run_with_music_paused', return_value=0) as run:
             self.assertEqual(launcher.launch_command(profile, system, descriptor), 0)
-            self.assertEqual(run.call_args.args[0], [str(program), '--frontend', 'sdl',
+            self.assertEqual(run.call_args.args[0], [str(program), '--appimage-extract-and-run', '--frontend', 'sdl',
                                                     '--keep-config', '-r', 'PCSA00017'])
             self.assertEqual(run.call_args.kwargs['cwd'], self.root / 'emulator/data/Vita3K')
+            self.assertEqual(run.call_args.kwargs['env']['TMPDIR'], str(program.parent))
+            self.assertEqual(run.call_args.kwargs['env']['DISABLE_AUTO_UPDATES'], '1')
+            environment = romtool.host_runtime_probe_environment(system, program_dir=program.parent)
+            self.assertEqual(environment['TMPDIR'], str(program.parent))
+            self.assertEqual(environment['DISABLE_AUTO_UPDATES'], '1')
             descriptor.write_text('PCSA00018\n')
             with patch.object(launcher, 'notify'):
                 self.assertEqual(launcher.launch_command(profile, system, descriptor), 2)

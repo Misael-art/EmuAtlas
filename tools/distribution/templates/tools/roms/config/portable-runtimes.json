@@ -705,13 +705,15 @@
         "vita3k"
       ],
       "probe_args": [
+        "--appimage-extract-and-run",
         "--version"
       ],
       "environment": {
         "APPIMAGELAUNCHER_DISABLE": "1",
         "DWARFS_WORKERS": "1",
         "DWARFS_CACHESIZE": "64M",
-        "DWARFS_READAHEAD": "1M"
+        "DWARFS_READAHEAD": "1M",
+        "DISABLE_AUTO_UPDATES": "1"
       },
       "license": "GPL-2.0-or-later",
       "source_repository": "https://github.com/Vita3K/Vita3K",

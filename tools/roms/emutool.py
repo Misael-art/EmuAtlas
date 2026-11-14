@@ -246,14 +246,14 @@ def _probe_runtime_entry(runtime_id: str, system: dict, entry: dict) -> dict[str
     if not isinstance(args, list) or not args or not all(isinstance(arg, str) for arg in args):
         return {"runtime_id": runtime_id, "available": False, "status": "probe_not_configured", "command": executable}
     try:
-        environment = romtool.host_runtime_probe_environment(entry)
+        environment = romtool.host_runtime_probe_environment(entry, program_dir=Path(executable).parent)
         result = subprocess.run([executable, *args], capture_output=True, text=True, errors="replace",
                                  check=False, timeout=30, env=environment,
                                  cwd=romtool.host_runtime_probe_directory(entry))
     except subprocess.TimeoutExpired as error:
         return {"runtime_id": runtime_id, "available": False, "status": "probe_timed_out",
                 "command": executable, "probe_args": args,
-                "output": str(error.stdout or "")[-1000:]}
+                "output": romtool.subprocess_output_text(error.stdout)[-1000:]}
     except (OSError, ValueError) as error:
         return {"runtime_id": runtime_id, "available": False, "status": "probe_failed",
                 "command": executable, "error": f"{type(error).__name__}: {error}"}
@@ -1542,7 +1542,7 @@ def runtime_probe(
             result.update(status="runtime_probe_not_configured", runtime=executable)
             return result
         try:
-            probe_env = romtool.host_runtime_probe_environment(system)
+            probe_env = romtool.host_runtime_probe_environment(system, program_dir=Path(executable).parent)
             probe = subprocess.run(
                 [executable, *probe_args],
                 capture_output=True,
@@ -1556,7 +1556,7 @@ def runtime_probe(
         except subprocess.TimeoutExpired as error:
             result.update(status="runtime_probe_timed_out", runtime=executable,
                           runtime_probe=probe_args, probe_timeout_seconds=30,
-                          runtime_probe_output=(error.stdout or "")[-1000:])
+                          runtime_probe_output=romtool.subprocess_output_text(error.stdout)[-1000:])
             return result
         except (OSError, ValueError) as error:
             result.update(status="runtime_probe_failed", runtime=executable,

@@ -25,8 +25,8 @@
     },
     {
       "target": "README.md",
-      "sha256": "69a3e0b399172c749ef4247634b4717692e7ab26e5f0b70003e14118b82499f2",
-      "size_bytes": 16844,
+      "sha256": "70352d243bac7e97958619ffd5b5b14a9684fa8793d4c5cc3a1c2b479cac3753",
+      "size_bytes": 16851,
       "mode": "0644"
     },
     {
@@ -79,8 +79,8 @@
     },
     {
       "target": "docs/business/quality-and-roadmap.md",
-      "sha256": "849f1210eab6b49a85260bf3a37e69b8dad4319f3f1255fe1e9eaec5ae5a968c",
-      "size_bytes": 3932,
+      "sha256": "24e1bda66e63a1c39149f7eb85b311fa02a011b349229a5812bca501fb38b55f",
+      "size_bytes": 3933,
       "mode": "0644"
     },
     {
@@ -493,8 +493,8 @@
     },
     {
       "target": "tools/distribution/templates/frontend/RetroFE/Config/profiles/host-linux.json",
-      "sha256": "945cc980b0064c23c669bff3cd8a077c140dfe8fc60879f9e7b2cf4940caf02c",
-      "size_bytes": 66243,
+      "sha256": "a57a886d91de9075ed16224f4a7800cafb3ebeab817d50774fe3a49f2a8eca68",
+      "size_bytes": 66391,
       "mode": "0644"
     },
     {
@@ -523,8 +523,8 @@
     },
     {
       "target": "tools/distribution/templates/tools/roms/config/portable-runtimes.json",
-      "sha256": "49dbaacdfe518a48fa0d67481652b2be9188030c5e9340ad59d0ac02654927f4",
-      "size_bytes": 82688,
+      "sha256": "68c7bb9b4eff5bc35ef883b6d5708273782d6213f81bf61ea787b69b564b51ca",
+      "size_bytes": 82763,
       "mode": "0644"
     },
     {
@@ -595,8 +595,8 @@
     },
     {
       "target": "tools/roms/docs/media-continuation.md",
-      "sha256": "2bd5f2569b04f1dbf7d375e1607c49b93c227d2fc96aaaea3e1019e00d4d1e18",
-      "size_bytes": 31031,
+      "sha256": "8d8299fdd9a9dac4b5e9c91f15082b5d0784df3e98be2bf8dc81638e1010fa6f",
+      "size_bytes": 32026,
       "mode": "0644"
     },
     {
@@ -619,8 +619,8 @@
     },
     {
       "target": "tools/roms/emutool.py",
-      "sha256": "4ec2661f7a68f3446f4962aca83de63207e62199dc0135a7dbddbf5628f3ede4",
-      "size_bytes": 112082,
+      "sha256": "e70e88071c776310556d94b2c9c164de515a2f503a233b99fb55bd04fd15c1de",
+      "size_bytes": 112201,
       "mode": "0644"
     },
     {
@@ -877,8 +877,8 @@
     },
     {
       "target": "tools/roms/romtool.py",
-      "sha256": "d1c87ad09827d7a5c3289a22dcf33d092fdece8b0e9c87d6e682b51310884101",
-      "size_bytes": 482282,
+      "sha256": "11f310e64c02f9a354d2c95659030b3a13bbcbcb9b6306954bbea367675fe42e",
+      "size_bytes": 482743,
       "mode": "0644"
     },
     {
@@ -1003,14 +1003,14 @@
     },
     {
       "target": "tools/roms/tests/test_emulator_library.py",
-      "sha256": "831c3d29ce90cfce761b24230a6e4fc83d8332e9ec0bee3b5e857f10ae9ad576",
-      "size_bytes": 73792,
+      "sha256": "8122fa6942a1154728eb76577da72ffab05e054e29554ceb09e27556076b7b4a",
+      "size_bytes": 74431,
       "mode": "0644"
     },
     {
       "target": "tools/roms/tests/test_emutool_platform_status.py",
-      "sha256": "b5fe9c1a57add4559e26210df7facd4270a06516f5b9c4b292c38c0f37b65da3",
-      "size_bytes": 2486,
+      "sha256": "5226656e24d8e9eb70e6399ea01d7c2b0fcd41399645c26737505a73bc63436d",
+      "size_bytes": 4755,
       "mode": "0644"
     },
     {

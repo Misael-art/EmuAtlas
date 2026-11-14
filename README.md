@@ -132,7 +132,7 @@ Leia o [guia de instalação automatizada](docs/business/automated-install.md) p
 | **Frontends** | RetroFE, ES-DE, Pegasus e Quiver Launcher. O [Pegasus portátil](frontend/pegasus-frontend/README.md) compartilha os perfis de execução e a mídia canônica. |
 | **Launcher alternativo** | [RocketLauncher](docs/business/architecture.md), adicionado localmente para lançamento de jogos pelos frontends; ativação no Linux pendente de validação. |
 | **Emulação** | RetroArch, MAME, Dolphin, DuckStation, PCSX2, RPCS3, PPSSPP, Flycast, Cemu, melonDS, Azahar, xemu e Supermodel para Sega Model 3. |
-| **PlayStation Vita** | Receita oficial Vita3K fixada, dados portáteis e associação de aplicativos/patches por Title ID com entradas `.psvita`. Firmware e execução por jogo integram a aceitação nativa. |
+| **Sony PlayStation Vita** | Vita3K oficial fixado, CLI Linux verificada e dados portáteis. Aplicativos e patches usam Title ID e entradas `.psvita`. Firmware e execução por jogo integram a aceitação funcional. |
 | **Host** | Dependências de mídia, arquivos compactados, fontes, janelas, Python, Wine e ferramentas de compilação. |
 | **Organização** | Inventário, integridade, identificação, variantes, compactação e planos reversíveis. |
 | **Mídia** | Ferramentas de scraping/ingestão, metadados, histórias e caminhos compartilhados por plataforma. |
