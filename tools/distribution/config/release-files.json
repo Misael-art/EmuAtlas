@@ -747,6 +747,10 @@
     {
       "source": "tools/distribution/tests/test_retrofe_build.py",
       "target": "tools/distribution/tests/test_retrofe_build.py"
+    },
+    {
+      "source": "tools/roms/tests/test_catalog_projection.py",
+      "target": "tools/roms/tests/test_catalog_projection.py"
     }
   ]
 }

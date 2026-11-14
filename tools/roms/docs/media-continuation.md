@@ -71,6 +71,8 @@ O executor Linux `emutool library` também persiste intenção, identidade do fi
 
 Importações selecionadas usam `operations/<id>/staging/library-copies/`, verificam os inventários de fonte e staging e sincronizam os arquivos antes da publicação. Cópias parciais permanecem em `rollback/interrupted-copies/`. A reversão preserva importações publicadas em `rollback/imported/` e arquivos de configuração criados em `rollback/applied-files/`. Os testes pequenos cobrem interrupções entre essas etapas, permissões somente leitura, colisões e mudanças posteriores. A execução nativa em Windows permanece pendente.
 
+A projeção `romtool project-catalog plan|apply|verify|rollback` mantém o diário de origem íntegro e fixa seu SHA-256. Apply e rollback usam o lock compartilhado, preimagens e propostas duráveis, validação integral dos destinos e precondições para o lote inteiro de registros. A publicação interrompida retoma pelos hashes anterior/posterior e mantém as preimagens depois da reversão. Alterações posteriores de conteúdo ou permissões e caminhos com ancestral simbólico exigem reconciliação antes de gravar. A projeção documenta os destinos verificados e conserva a classificação de cada item.
+
 ## Sequência da próxima tarefa
 
 1. Ler as instruções do projeto e a evidência local da interrupção. Medir recursos e identificar outras cargas antes de executar verificações ou aplicar planos.
