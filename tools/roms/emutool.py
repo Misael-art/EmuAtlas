@@ -1788,6 +1788,9 @@ def main() -> int:
     library_actions.add_parser('windows-config-plan')
     library_actions.add_parser('model2-config-plan')
     library_actions.add_parser('supermodel-data-plan')
+    cbios_plan = library_actions.add_parser('bluemsx-cbios-plan')
+    cbios_plan.add_argument('--operation-id', help='retoma aquisição interrompida da mesma receita')
+    cbios_plan.add_argument('--from-directory', type=Path, help='usa os arquivos oficiais locais fixados por SHA-256')
     library_actions.add_parser('dolphin-data-plan')
     library_actions.add_parser('dolphin-config-plan')
     for action in ('apply', 'verify', 'rollback'):
@@ -1859,7 +1862,9 @@ def main() -> int:
     args = parser.parse_args()
     if args.command == 'library':
         try:
-            result = (runtime_install.supermodel_data_plan(ROOT) if args.library_action == 'supermodel-data-plan' else
+            result = (runtime_install.bluemsx_cbios_plan(ROOT, args.operation_id, args.from_directory)
+                      if args.library_action == 'bluemsx-cbios-plan' else
+                      runtime_install.supermodel_data_plan(ROOT) if args.library_action == 'supermodel-data-plan' else
                       runtime_install.model2_configuration_plan(ROOT) if args.library_action == 'model2-config-plan' else
                       runtime_install.dolphin_data_plan(ROOT, config_only=args.library_action == 'dolphin-config-plan')
                       if args.library_action in ('dolphin-data-plan', 'dolphin-config-plan') else

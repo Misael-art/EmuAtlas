@@ -20,6 +20,7 @@ import subprocess
 import tempfile
 import tarfile
 import uuid
+import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -711,6 +712,150 @@ def supermodel_data_plan(root: Path) -> dict:
     romtool.append_event(operation_id, 'supermodel_data_prepared', action='library_plan', status='prepared')
     romtool.rebuild_history_index()
     return {'operation_id': operation_id, 'status': 'prepared', 'moves': 1, 'edits': 0}
+
+
+def bluemsx_cbios_plan(root: Path, operation_id: str | None = None,
+                      from_directory: Path | None = None) -> dict:
+    """Prepare the pinned, freely licensed cartridge machine for the library executor."""
+    config = load_recipes(root)
+    recipe = config.get('bluemsx_cbios', {})
+    destination_name = 'bios/Machines/MSX2 - C-BIOS'
+    names = {'config.ini', 'cbios_main_msx2.rom', 'cbios_logo_msx2.rom',
+             'cbios_sub.rom', 'cbios.txt', 'blueMSX-license.txt'}
+    files = recipe.get('files', [])
+    database = recipe.get('database', {})
+    if (recipe.get('destination') != destination_name or len(files) != len(names)
+            or {row['path'] for row in files} != names
+            or any(not 0 < row['size_bytes'] <= 65536 or len(row['sha256']) != 64 for row in files)):
+        raise ValueError('Receita C-BIOS incompleta ou fora do escopo da máquina selecionada')
+    if (database.get('path') != 'msxromdb.xml'
+            or database.get('destination') != 'bios/Databases/msxromdb.xml'
+            or not 0 < database.get('size_bytes', 0) <= 4 * 1024**2
+            or len(database.get('sha256', '')) != 64):
+        raise ValueError('Receita da base de cartuchos blueMSX incompleta')
+    destination = _library_target(root, destination_name)
+    expected_content = sorted([{'path': row['path'], 'kind': 'file',
+                                'size_bytes': row['size_bytes'], 'sha256': row['sha256']}
+                               for row in files], key=lambda row: row['path'])
+    machine_present = destination.exists()
+    if machine_present:
+        if (not destination.is_dir() or {path.name for path in destination.iterdir()} != names
+                or any((destination / row['path']).is_symlink()
+                       or not (destination / row['path']).is_file()
+                       or (destination / row['path']).stat().st_size != row['size_bytes'] for row in files)):
+            raise ValueError('Máquina C-BIOS existente diverge da receita; preserve e reconcilie seus dados')
+        current = [{key: value for key, value in row.items() if key != 'mode'}
+                   for row in _library_tree(destination)]
+        if current != expected_content:
+            raise ValueError('Máquina C-BIOS existente diverge da receita; preserve e reconcilie seus dados')
+    database_target = _library_target(root, database['destination'])
+    database_present = database_target.exists()
+    existing_database = None
+    if database_present:
+        if not database_target.is_file() or database_target.stat().st_size > 4 * 1024**2:
+            raise ValueError('Base de cartuchos existente exige reconciliação; preservada')
+        with database_target.open('rb') as stream:
+            data = stream.read(4 * 1024**2 + 1)
+        if len(data) > 4 * 1024**2:
+            raise ValueError('Base de cartuchos cresceu durante a leitura; preservada')
+        parsed = ET.fromstring(data)
+        if parsed.tag != 'softwaredb' or parsed.find('software') is None:
+            raise ValueError('Base de cartuchos sem registros softwaredb; preservada')
+        existing_database = {'path': database['destination'], 'size_bytes': len(data),
+                             'sha256': hashlib.sha256(data).hexdigest(), 'status': 'existing_valid_xml_preserved'}
+    if machine_present and database_present:
+        return {'status': 'already_configured_verified', 'machine': destination_name,
+                'files': len(files), 'database': existing_database, 'gameplay_tested': False}
+    fingerprint = hashlib.sha256(json.dumps(recipe, sort_keys=True).encode()).hexdigest()
+    if operation_id:
+        opdir = romtool.operation_dir(operation_id)
+        _library_target(root, opdir.relative_to(root).as_posix())
+        path = opdir / 'manifest.json'
+        if path.is_symlink():
+            raise ValueError('Manifesto C-BIOS simbólico recusado')
+        manifest = json.loads(path.read_text())
+        if (manifest.get('scope') != 'bluemsx_cbios_cartridge_machine'
+                or manifest.get('operation_id') != operation_id
+                or manifest.get('recipe_sha256') != fingerprint
+                or manifest.get('status') not in ('preparing', 'preparation_failed', 'prepared')):
+            raise ValueError('Aquisição C-BIOS não pode ser retomada com essa receita ou estado')
+    else:
+        operation_id = 'emulator-library-bluemsx-cbios-' + uuid.uuid4().hex[:8]
+        opdir = romtool.operation_dir(operation_id)
+        opdir.mkdir(parents=True, mode=0o700)
+        manifest = {'schema_version': 1, 'kind': 'emulator_library_migration', 'operation_id': operation_id,
+                    'status': 'preparing', 'created_at': romtool.now(), 'edits': [], 'moves': [],
+                    'scope': 'bluemsx_cbios_cartridge_machine', 'recipe_sha256': fingerprint,
+                    'recipe': recipe, 'gameplay_tested': False, 'history_index_deferred': True}
+        romtool.atomic_json(opdir / 'manifest.json', manifest)
+    staging = _library_target(root, (opdir / 'staging/MSX2 - C-BIOS').relative_to(root).as_posix())
+    staged_database = _library_target(root, (opdir / 'staging/Databases/msxromdb.xml').relative_to(root).as_posix())
+    downloads = _library_target(root, (opdir / 'downloads').relative_to(root).as_posix())
+    if not machine_present:
+        staging.mkdir(parents=True, exist_ok=True)
+    if not database_present:
+        staged_database.parent.mkdir(parents=True, exist_ok=True)
+    downloads.mkdir(exist_ok=True)
+    manifest['status'] = 'preparing'
+    romtool.atomic_json(opdir / 'manifest.json', manifest)
+    try:
+        selected = [(staging / row['path'], row) for row in files] if not machine_present else []
+        if not database_present:
+            selected.append((staged_database, database))
+        for target, row in selected:
+            if os.path.lexists(target):
+                if (target.is_symlink() or not target.is_file()
+                        or target.stat().st_size != row['size_bytes'] or _sha256(target) != row['sha256']):
+                    raise ValueError('Arquivo preparado C-BIOS divergente; preservado: ' + str(target))
+                continue
+            candidate = downloads / (uuid.uuid4().hex + '-' + row['path'])
+            if from_directory is None:
+                _download(row['source_url'], candidate, row['size_bytes'], set(config['allowed_download_hosts']))
+            else:
+                source = from_directory / row['path']
+                if source.is_symlink() or not source.is_file() or source.stat().st_size != row['size_bytes']:
+                    raise ValueError('Fonte C-BIOS local ausente, simbólica ou divergente: ' + str(source))
+                with source.open('rb') as left, candidate.open('xb') as right:
+                    data = left.read(row['size_bytes'] + 1)
+                    if len(data) != row['size_bytes']:
+                        raise ValueError('Fonte C-BIOS local mudou de tamanho durante a leitura')
+                    right.write(data)
+                    right.flush()
+                    os.fsync(right.fileno())
+            if candidate.stat().st_size != row['size_bytes'] or _sha256(candidate) != row['sha256']:
+                raise ValueError('Tamanho/SHA-256 C-BIOS divergiu; fonte preservada em ' + str(candidate))
+            candidate.chmod(0o644)
+            _library_rename_exclusive(candidate, target)
+            romtool.sync_directory_chain(target.parent)
+        moves = []
+        if not machine_present:
+            inventory = _library_tree(staging)
+            content = [{key: value for key, value in row.items() if key != 'mode'} for row in inventory]
+            if content != expected_content:
+                raise ValueError('Staging C-BIOS contém arquivos divergentes da seleção fixada')
+            _sync_library_copy(staging, inventory)
+            moves.append({'source': staging.relative_to(root).as_posix(),
+                          'destination': destination_name, 'files': inventory})
+        if not database_present:
+            parsed = ET.parse(staged_database).getroot()
+            if parsed.tag != 'softwaredb' or parsed.find('software') is None:
+                raise ValueError('Base de cartuchos preparada sem registros softwaredb')
+            inventory = _library_tree(staged_database)
+            _sync_library_copy(staged_database, inventory)
+            moves.append({'source': staged_database.relative_to(root).as_posix(),
+                          'destination': database['destination'], 'files': inventory})
+        manifest.update(status='prepared', moves=moves, preserved_database=existing_database)
+        manifest.pop('preparation_error', None)
+        romtool.atomic_json(opdir / 'manifest.json', manifest)
+        romtool.append_event(operation_id, 'bluemsx_cbios_prepared', action='library_plan', status='prepared',
+                            details={'files': len(files), 'recipe_sha256': fingerprint,
+                                     'cartridge_machine': True, 'gameplay_tested': False})
+        return {'operation_id': operation_id, 'status': 'prepared', 'moves': len(moves), 'edits': 0,
+                'machine': destination_name, 'files': len(files)}
+    except Exception as exc:
+        manifest.update(status='preparation_failed', preparation_error=str(exc))
+        romtool.atomic_json(opdir / 'manifest.json', manifest)
+        raise
 
 
 def dolphin_data_plan(root: Path, config_only: bool = False) -> dict:

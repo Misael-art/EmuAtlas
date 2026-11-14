@@ -52,6 +52,137 @@ class NativeLibraryTests(unittest.TestCase):
         path.write_text(json.dumps(value))
         return path
 
+    def cbios_fixture(self):
+        names = ['config.ini', 'cbios_main_msx2.rom', 'cbios_logo_msx2.rom',
+                 'cbios_sub.rom', 'cbios.txt', 'blueMSX-license.txt']
+        source = self.root / 'work/own-machine-fixture'
+        source.mkdir(parents=True)
+        files = []
+        for name in names:
+            data = ('own synthetic machine data ' + name).encode()
+            (source / name).write_bytes(data)
+            files.append({'path': name, 'source_url': 'https://example.invalid/' + name,
+                          'size_bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()})
+        recipe = {'destination': 'bios/Machines/MSX2 - C-BIOS', 'files': files}
+        database = b'<softwaredb><software><title>own fixture</title></software></softwaredb>'
+        (source / 'msxromdb.xml').write_bytes(database)
+        target = self.root / 'bios/Databases/msxromdb.xml'
+        target.parent.mkdir(parents=True)
+        target.write_bytes(database)
+        recipe['database'] = {'path': 'msxromdb.xml', 'destination': 'bios/Databases/msxromdb.xml',
+                              'source_url': 'https://example.invalid/msxromdb.xml',
+                              'size_bytes': len(database), 'sha256': hashlib.sha256(database).hexdigest()}
+        self.config({'bluemsx_cbios': recipe, 'allowed_download_hosts': ['example.invalid']})
+        return source, recipe
+
+    def test_cbios_plan_apply_verify_rollback_and_existing_machine_preservation(self):
+        source, recipe = self.cbios_fixture()
+        plan = runtime.bluemsx_cbios_plan(self.root, from_directory=source)
+        target = self.root / recipe['destination']
+        self.assertFalse(target.exists())
+        runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+        runtime.library_execute(self.root, plan['operation_id'], 'verify')
+        for row in recipe['files']:
+            self.assertEqual((target / row['path']).read_bytes(), (source / row['path']).read_bytes())
+        self.assertEqual(runtime.bluemsx_cbios_plan(self.root)['status'], 'already_configured_verified')
+        runtime.library_execute(self.root, plan['operation_id'], 'rollback', True)
+        self.assertFalse(target.exists())
+        self.assertTrue(source.is_dir())
+
+    def test_cbios_changed_machine_blocks_replacement_and_rollback(self):
+        source, recipe = self.cbios_fixture()
+        plan = runtime.bluemsx_cbios_plan(self.root, from_directory=source)
+        runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+        target = self.root / recipe['destination'] / 'config.ini'
+        target.write_bytes(b'personal machine choice')
+        with self.assertRaisesRegex(ValueError, 'reconcilie'):
+            runtime.bluemsx_cbios_plan(self.root)
+        with self.assertRaisesRegex(ValueError, 'Inventário/SHA'):
+            runtime.library_execute(self.root, plan['operation_id'], 'rollback', True)
+        self.assertEqual(target.read_bytes(), b'personal machine choice')
+
+    def test_cbios_acquisition_resumes_after_download_interruption(self):
+        source, recipe = self.cbios_fixture()
+        count = 0
+        def download(url, destination, size, hosts):
+            nonlocal count
+            count += 1
+            if count == 2:
+                destination.write_bytes(b'incomplete download')
+                raise Interruption()
+            shutil.copyfile(source / url.rsplit('/', 1)[-1], destination)
+        with patch.object(runtime, '_download', side_effect=download):
+            with self.assertRaises(Interruption):
+                runtime.bluemsx_cbios_plan(self.root)
+        operations = list(romtool.OPS_ROOT.glob('emulator-library-bluemsx-cbios-*'))
+        self.assertEqual(len(operations), 1)
+        operation = operations[0]
+        first = operation / 'staging/MSX2 - C-BIOS/config.ini'
+        snapshot = first.stat()
+        resumed = runtime.bluemsx_cbios_plan(self.root, operation.name, from_directory=source)
+        self.assertEqual(first.stat(), snapshot)
+        self.assertEqual(resumed['operation_id'], operation.name)
+        runtime.library_execute(self.root, operation.name, 'apply', True)
+        runtime.library_execute(self.root, operation.name, 'verify')
+        self.assertTrue(any(p.read_bytes() == b'incomplete download' for p in (operation / 'downloads').iterdir()))
+
+    def test_cbios_bad_hash_never_publishes_machine(self):
+        source, recipe = self.cbios_fixture()
+        changed = source / 'cbios_sub.rom'
+        changed.write_bytes(b'X' * changed.stat().st_size)
+        with self.assertRaisesRegex(ValueError, 'SHA-256'):
+            runtime.bluemsx_cbios_plan(self.root, from_directory=source)
+        self.assertFalse((self.root / recipe['destination']).exists())
+        operation = next(romtool.OPS_ROOT.glob('emulator-library-bluemsx-cbios-*'))
+        self.assertEqual(json.loads((operation / 'manifest.json').read_text())['status'], 'preparation_failed')
+
+    def test_cbios_pin_change_and_unexpected_staging_block_resume(self):
+        source, recipe = self.cbios_fixture()
+        plan = runtime.bluemsx_cbios_plan(self.root, from_directory=source)
+        staging = romtool.OPS_ROOT / plan['operation_id'] / 'staging/MSX2 - C-BIOS'
+        (staging / 'personal-note').write_bytes(b'preserve me')
+        with self.assertRaisesRegex(ValueError, 'Staging'):
+            runtime.bluemsx_cbios_plan(self.root, plan['operation_id'], from_directory=source)
+        recipe['version'] = 'another pin'
+        self.config({'bluemsx_cbios': recipe, 'allowed_download_hosts': ['example.invalid']})
+        with self.assertRaisesRegex(ValueError, 'retomada'):
+            runtime.bluemsx_cbios_plan(self.root, plan['operation_id'], from_directory=source)
+        self.assertEqual((staging / 'personal-note').read_bytes(), b'preserve me')
+
+    def test_cbios_destination_ancestor_symlink_is_refused(self):
+        source, recipe = self.cbios_fixture()
+        external = self.root / 'work/external-bios'
+        external.mkdir()
+        (self.root / 'bios/Machines').symlink_to(external, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'symlink'):
+            runtime.bluemsx_cbios_plan(self.root, from_directory=source)
+        self.assertEqual(list(external.iterdir()), [])
+
+    def test_cbios_empty_host_gets_database_and_rolls_back_both_roots(self):
+        source, recipe = self.cbios_fixture()
+        database = self.root / recipe['database']['destination']
+        database.unlink()
+        plan = runtime.bluemsx_cbios_plan(self.root, from_directory=source)
+        self.assertEqual(plan['moves'], 2)
+        runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+        runtime.library_execute(self.root, plan['operation_id'], 'verify')
+        self.assertEqual(database.read_bytes(), (source / 'msxromdb.xml').read_bytes())
+        runtime.library_execute(self.root, plan['operation_id'], 'rollback', True)
+        self.assertFalse(database.exists())
+        self.assertFalse((self.root / recipe['destination']).exists())
+
+    def test_cbios_preserves_valid_custom_database(self):
+        source, recipe = self.cbios_fixture()
+        database = self.root / recipe['database']['destination']
+        custom = b'<softwaredb><software><title>personal update</title></software></softwaredb>'
+        database.write_bytes(custom)
+        plan = runtime.bluemsx_cbios_plan(self.root, from_directory=source)
+        self.assertEqual(plan['moves'], 1)
+        runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+        result = runtime.bluemsx_cbios_plan(self.root)
+        self.assertEqual(result['database']['sha256'], hashlib.sha256(custom).hexdigest())
+        self.assertEqual(database.read_bytes(), custom)
+
     def migration_fixture(self, names=('example',), regular_file=False, new_reference=False):
         operation_id = 'migration-fixture-' + '-'.join(names)
         operation = romtool.operation_dir(operation_id)

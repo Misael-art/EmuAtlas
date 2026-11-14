@@ -253,7 +253,10 @@
       "core": "bluemsx_libretro.so",
       "bios_files": [
         "Databases/msxromdb.xml",
-        "Machines/Shared Roms/MSX.rom"
+        "Machines/MSX2 - C-BIOS/config.ini",
+        "Machines/MSX2 - C-BIOS/cbios_main_msx2.rom",
+        "Machines/MSX2 - C-BIOS/cbios_logo_msx2.rom",
+        "Machines/MSX2 - C-BIOS/cbios_sub.rom"
       ],
       "subcollections": [
         "Microsoft MSX 2",
@@ -1352,7 +1355,14 @@
       "subcollections": [],
       "rom_path": "../../roms/msx2",
       "bios_root": "../../bios",
-      "core": "bluemsx_libretro.so"
+      "core": "bluemsx_libretro.so",
+      "bios_files": [
+        "Databases/msxromdb.xml",
+        "Machines/MSX2 - C-BIOS/config.ini",
+        "Machines/MSX2 - C-BIOS/cbios_main_msx2.rom",
+        "Machines/MSX2 - C-BIOS/cbios_logo_msx2.rom",
+        "Machines/MSX2 - C-BIOS/cbios_sub.rom"
+      ]
     },
     "MSX Turbo R": {
       "display_name": "MSX Turbo R",

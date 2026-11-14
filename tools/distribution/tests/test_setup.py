@@ -1,4 +1,5 @@
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -70,6 +71,36 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(acquire.call_args.args[0]['sha256'], recipe['source_sha256'])
         runtime.install_package.assert_called_with(self.root, 'supermodel', 'linux', True, from_file=source)
         runtime.library_execute.assert_not_called()
+
+    def test_bluemsx_machine_prepared_for_reused_verified_and_installed_cores(self):
+        for mode in ('host', 'portable', 'install'):
+            with self.subTest(mode=mode):
+                runtime = Mock()
+                entry = self.root / ('emulator/linux/cores-' + mode) / 'bluemsx_libretro.so'
+                payload = b'own synthetic core'
+                recipe = {'entry': entry.name, 'install_dir': 'cores-' + mode,
+                          'source_url': 'https://example.invalid/core.zip', 'source_size_bytes': 12,
+                          'source_sha256': 'a' * 64, 'entry_sha256': hashlib.sha256(payload).hexdigest()}
+                runtime.load_recipes.return_value = {'runtimes': {'core-bluemsx': recipe},
+                                                     'allowed_download_hosts': ['example.invalid']}
+                runtime.host_flatpaks.return_value = ({}, True)
+                runtime.scan_host.return_value = ['own-host-core'] if mode == 'host' else []
+                runtime.install_runtime.return_value = {'operation_id': 'core-install'}
+                runtime.bluemsx_cbios_plan.return_value = {'status': 'prepared', 'operation_id': 'machine'}
+                runtime.library_execute.return_value = {'status': 'completed_verified'}
+                if mode == 'portable':
+                    entry.parent.mkdir(parents=True)
+                    entry.write_bytes(payload)
+                with patch.dict(sys.modules, {'runtime_install': runtime, 'romtool': SimpleNamespace(PROJECT_ROOT=self.root)}), \
+                        patch.object(self.engine, 'acquire', return_value=self.root / 'source') as acquire:
+                    result = self.engine.runtime({'runtime_id': 'core-bluemsx'})
+                self.assertEqual(result['status'], {'host': 'reused', 'portable': 'verified', 'install': 'installed'}[mode])
+                self.assertEqual(result['shared_data']['status'], 'completed_verified')
+                runtime.bluemsx_cbios_plan.assert_called_once_with(self.root)
+                runtime.library_execute.assert_any_call(self.root, 'machine', 'apply', True)
+                runtime.library_execute.assert_any_call(self.root, 'machine', 'verify')
+                if mode != 'install':
+                    acquire.assert_not_called()
 
     def make_wheel(self, directory, name, version):
         path = directory / f'{name}-{version}-py3-none-any.whl'

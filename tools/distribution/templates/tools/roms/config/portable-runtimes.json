@@ -8,6 +8,7 @@
     "dl.dolphin-emu.org",
     "github.com",
     "objects.githubusercontent.com",
+    "raw.githubusercontent.com",
     "release-assets.githubusercontent.com",
     "www.7-zip.org",
     "www.python.org"
@@ -1597,5 +1598,61 @@
   "windows_platform_defaults": {
     "ps5": "sharpemu",
     "switch2": "eglantine"
+  },
+  "bluemsx_cbios": {
+    "display_name": "Máquina MSX2 C-BIOS para blueMSX",
+    "version": "C-BIOS 0.23 / blueMSX e3086eb5d36d77fa11704cf53dc176686e70127d",
+    "upstream": "https://cbios.sourceforge.net/",
+    "license": "BSD-2-Clause (C-BIOS). Upstream blueMSX notices accompany the machine configuration.",
+    "license_file": "cbios.txt",
+    "destination": "bios/Machines/MSX2 - C-BIOS",
+    "content_scope": "Cartridge games. Disk, tape and BASIC require an appropriate complete machine and BIOS.",
+    "files": [
+      {
+        "path": "cbios_main_msx2.rom",
+        "source_url": "https://raw.githubusercontent.com/libretro/blueMSX-libretro/e3086eb5d36d77fa11704cf53dc176686e70127d/system/bluemsx/Machines/MSX2%20-%20C-BIOS/cbios_main_msx2.rom",
+        "size_bytes": 32768,
+        "sha256": "0172ae8c78d7164fd2283214e6702ca8812574ec2e1299a3d10096b91c6cfea2"
+      },
+      {
+        "path": "cbios_logo_msx2.rom",
+        "source_url": "https://raw.githubusercontent.com/libretro/blueMSX-libretro/e3086eb5d36d77fa11704cf53dc176686e70127d/system/bluemsx/Machines/MSX2%20-%20C-BIOS/cbios_logo_msx2.rom",
+        "size_bytes": 16384,
+        "sha256": "ba26b4fa1f47912351dedfb26f883c55d0ec370ca96f745d6fc808bcafe8141d"
+      },
+      {
+        "path": "cbios_sub.rom",
+        "source_url": "https://raw.githubusercontent.com/libretro/blueMSX-libretro/e3086eb5d36d77fa11704cf53dc176686e70127d/system/bluemsx/Machines/MSX2%20-%20C-BIOS/cbios_sub.rom",
+        "size_bytes": 16384,
+        "sha256": "fa89daa803d4f1f284c530d3e396a3a88ce74f3a45c459339c6ed154f2d836df"
+      },
+      {
+        "path": "config.ini",
+        "source_url": "https://raw.githubusercontent.com/libretro/blueMSX-libretro/e3086eb5d36d77fa11704cf53dc176686e70127d/system/bluemsx/Machines/MSX2%20-%20C-BIOS/config.ini",
+        "size_bytes": 503,
+        "sha256": "b858d87edb79369fc43208d387d29272826fbcb9815bb6ed718b7e80e47bc018"
+      },
+      {
+        "path": "cbios.txt",
+        "source_url": "https://raw.githubusercontent.com/libretro/blueMSX-libretro/e3086eb5d36d77fa11704cf53dc176686e70127d/system/bluemsx/Machines/MSX2%20-%20C-BIOS/cbios.txt",
+        "size_bytes": 8924,
+        "sha256": "2c8e6134c6d76ce7744f9b0e96cb732498da140fc1700761c5ac1f6dcdbb3036"
+      },
+      {
+        "path": "blueMSX-license.txt",
+        "source_url": "https://raw.githubusercontent.com/libretro/blueMSX-libretro/e3086eb5d36d77fa11704cf53dc176686e70127d/license.txt",
+        "size_bytes": 4376,
+        "sha256": "fd648253ebeb0d84e64106376f2aa8f2a5c52031dd8f4e6e3ca7bd082e7992db"
+      }
+    ],
+    "source_commit": "e3086eb5d36d77fa11704cf53dc176686e70127d",
+    "automatic_selection": "Installed blueMSX commit e3086eb falls back to a complete C-BIOS machine in Auto mode for cartridge content when the selected original machine is incomplete.",
+    "database": {
+      "path": "msxromdb.xml",
+      "destination": "bios/Databases/msxromdb.xml",
+      "source_url": "https://raw.githubusercontent.com/libretro/blueMSX-libretro/e3086eb5d36d77fa11704cf53dc176686e70127d/system/bluemsx/Databases/msxromdb.xml",
+      "size_bytes": 930986,
+      "sha256": "e78ad4b290fa26705605dfd1d8245cc81beede9cb3e74b9cded15948fe70d5d6"
+    }
   }
 }

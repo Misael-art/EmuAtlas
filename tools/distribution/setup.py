@@ -463,26 +463,35 @@ class Installer:
         flatpaks, _ = runtime.host_flatpaks()
         existing = runtime.scan_host(self.root, recipe, flatpaks)
         if existing:
-            return {'status': 'reused', 'host_sources': existing}
-        if item['runtime_id'] not in config['runtimes']:
-            path = self.root / 'tools/roms/config/portable-runtimes.json'
-            backup = self.state / 'backups' / ('portable-runtimes.' + w.digest(path) + '.json')
-            backup.parent.mkdir(parents=True, exist_ok=True)
-            if not backup.exists():
-                shutil.copy2(path, backup)
-            config['runtimes'][item['runtime_id']] = recipe
-            atomic_json(path, config)
-        target = self.root / 'emulator/linux' / recipe.get('install_dir', item['runtime_id']) / recipe['entry']
-        if target.is_symlink():
-            raise ValueError('Runtime symlink preservado')
-        expected = recipe.get('entry_sha256') or (recipe['source_sha256'] if recipe['format'] == 'appimage' else None)
-        if target.is_file() and expected and w.digest(target) == expected:
-            return {'status': 'verified', 'entry': str(target.relative_to(self.root))}
-        source = self.acquire({'url': recipe['source_url'], 'size_bytes': recipe['source_size_bytes'],
-                               'sha256': recipe['source_sha256'], 'allowed_hosts': config['allowed_download_hosts']})
-        result = runtime.install_runtime(self.root, item['runtime_id'], True, from_file=source,
-                                         run_declared_probe=False)
-        return {'status': 'installed', 'operation_id': result['operation_id']}
+            result = {'status': 'reused', 'host_sources': existing}
+        else:
+            if item['runtime_id'] not in config['runtimes']:
+                path = self.root / 'tools/roms/config/portable-runtimes.json'
+                backup = self.state / 'backups' / ('portable-runtimes.' + w.digest(path) + '.json')
+                backup.parent.mkdir(parents=True, exist_ok=True)
+                if not backup.exists():
+                    shutil.copy2(path, backup)
+                config['runtimes'][item['runtime_id']] = recipe
+                atomic_json(path, config)
+            target = self.root / 'emulator/linux' / recipe.get('install_dir', item['runtime_id']) / recipe['entry']
+            if target.is_symlink():
+                raise ValueError('Runtime symlink preservado')
+            expected = recipe.get('entry_sha256') or (recipe['source_sha256'] if recipe['format'] == 'appimage' else None)
+            if target.is_file() and expected and w.digest(target) == expected:
+                result = {'status': 'verified', 'entry': str(target.relative_to(self.root))}
+            else:
+                source = self.acquire({'url': recipe['source_url'], 'size_bytes': recipe['source_size_bytes'],
+                                       'sha256': recipe['source_sha256'], 'allowed_hosts': config['allowed_download_hosts']})
+                installed = runtime.install_runtime(self.root, item['runtime_id'], True, from_file=source,
+                                                    run_declared_probe=False)
+                result = {'status': 'installed', 'operation_id': installed['operation_id']}
+        if item['runtime_id'] == 'core-bluemsx':
+            data = runtime.bluemsx_cbios_plan(self.root)
+            if data['status'] == 'prepared':
+                runtime.library_execute(self.root, data['operation_id'], 'apply', True)
+                data = runtime.library_execute(self.root, data['operation_id'], 'verify')
+            result['shared_data'] = data
+        return result
 
     def source_tree(self, name, item):
         parent = w.safe_path(self.work, 'builds/' + name)
