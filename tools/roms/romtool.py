@@ -390,12 +390,9 @@ def path_snapshot(path: Path, include_hash: bool = True, allow_leaf_symlink: boo
 def steam_save_link_is_registered(source: Path, target: Path, appid: str) -> bool:
     try:
         state = json.loads((OUTPUT_ROOT / "estado-final-verificacao.json").read_text(encoding="utf-8"))
-        game = state.get("steam_centralization", {}).get("games", {}).get(str(appid), {})
-        saves = game.get("saves", {})
-        return any(Path(row.get("source_path", "")).absolute() == source.absolute()
-                   and Path(row.get("canonical_path", "")).resolve(strict=False) == target.resolve(strict=False)
-                   and row.get("status") == "centralized"
-                   for row in saves.values())
+        return any(ident == str(appid) and left == source.absolute()
+                   and right.resolve(strict=False) == target.resolve(strict=False)
+                   for ident, _, left, right in steam_centralizer.registered_save_paths(state, PROJECT_ROOT))
     except (OSError, ValueError, TypeError, AttributeError):
         return False
 
@@ -403,11 +400,8 @@ def steam_save_link_is_registered(source: Path, target: Path, appid: str) -> boo
 def steam_game_has_centralized_saves(appid: str, game_root: Path) -> bool:
     try:
         state = json.loads((OUTPUT_ROOT / "estado-final-verificacao.json").read_text(encoding="utf-8"))
-        game = state.get("steam_centralization", {}).get("games", {}).get(str(appid), {})
-        for save in game.get("saves", {}).values():
-            if save.get("status") != "centralized":
-                continue
-            if is_within(Path(save.get("source_path", "")), game_root):
+        for ident, _, source, _ in steam_centralizer.registered_save_paths(state, PROJECT_ROOT):
+            if ident == str(appid) and is_within(source, game_root):
                 return True
     except (OSError, ValueError, TypeError, AttributeError):
         pass
@@ -3766,9 +3760,10 @@ def move_steam_save(item: dict, operation_id: str) -> None:
         item["transfer_method"] = "copy_verify_then_same_device_rename"
 
     try:
-        os.symlink(str(destination), source, target_is_directory=is_directory)
+        link_target = steam_centralizer.save_link_target(source, destination, PROJECT_ROOT)
+        os.symlink(link_target, source, target_is_directory=is_directory)
         link_state = path_snapshot(source, include_hash=True, allow_leaf_symlink=True)
-        if link_state.get("kind") != "symlink" or link_state.get("symlink_target") != str(destination):
+        if link_state.get("kind") != "symlink" or link_state.get("symlink_target") != link_target:
             raise RuntimeError(f"Symlink do save criado com alvo inesperado: {source}")
         if source.resolve(strict=True) != destination.resolve(strict=True):
             raise RuntimeError(f"Symlink do save não resolve ao destino canônico: {source}")
@@ -3818,13 +3813,13 @@ def move_steam_save(item: dict, operation_id: str) -> None:
     item["after"] = steam_payload_snapshot(destination)
     if item["after"]["sha256"] != item["before"]["sha256"]:
         raise RuntimeError(f"Hash do save Steam divergiu depois da centralização: {destination}")
-    if item["steam_link_after"].get("symlink_target") != str(destination):
+    if not steam_centralizer.save_link_matches(source, destination, PROJECT_ROOT):
         raise RuntimeError(f"Link do save Steam perdeu o alvo canônico: {source}")
 
 
 def restore_steam_save(item: dict, operation_id: str) -> str:
     source, destination = Path(item["source"]), Path(item["destination"])
-    if not source.is_symlink() or os.readlink(source) != str(destination):
+    if not steam_centralizer.save_link_matches(source, destination, PROJECT_ROOT):
         raise ValueError(f"Rollback de save Steam recusado; link original mudou: {source}")
     if steam_centralizer.steam_processes_running():
         raise RuntimeError("Feche o Steam e todos os jogos antes de reverter saves")
@@ -3875,7 +3870,8 @@ def restore_steam_save(item: dict, operation_id: str) -> str:
             else:
                 temp.unlink(missing_ok=True)
         if not os.path.lexists(source) and destination.exists():
-            os.symlink(str(destination), source, target_is_directory=destination.is_dir())
+            os.symlink(steam_centralizer.save_link_target(source, destination, PROJECT_ROOT), source,
+                       target_is_directory=destination.is_dir())
         raise
 
 
@@ -4317,7 +4313,9 @@ def rollback_operation(operation_id: str, confirmed: bool) -> dict:
             continue
         if is_steam_move or is_steam_save_move:
             ensure_allowed(destination)
-            if not source.is_symlink() or os.readlink(source) != str(destination):
+            valid_link = (steam_centralizer.save_link_matches(source, destination, PROJECT_ROOT)
+                          if is_steam_save_move else source.is_symlink() and os.readlink(source) == str(destination))
+            if not valid_link:
                 raise ValueError(f"Rollback Steam recusado; caminho original não aponta ao destino registrado: {source}")
             if is_steam_move:
                 pass
@@ -6905,7 +6903,7 @@ def command_steam_saves_verify(args) -> dict:
                "source_kind": steam.get("source_kind", ""), "source_path": str(source),
                "canonical_path": str(destination), "status": "verification_failed", "issues": []}
         try:
-            if not source.is_symlink() or os.readlink(source) != str(destination):
+            if not steam_centralizer.save_link_matches(source, destination, PROJECT_ROOT):
                 raise ValueError("symlink Steam original ausente ou com alvo alterado")
             if source.resolve(strict=True) != destination.resolve(strict=True):
                 raise ValueError("symlink Steam original não resolve ao save canônico")
@@ -7473,6 +7471,8 @@ def build_parser() -> argparse.ArgumentParser:
     steam_rollback.add_argument("--rollback", action="store_true")
     steam_saves = steam_commands.add_parser("saves", help="descobre e centraliza saves Steam Cloud/Auto-Cloud")
     steam_saves_commands = steam_saves.add_subparsers(dest="steam_saves_command", required=True)
+    if steam_centralizer is not None:
+        steam_centralizer.add_save_links_parser(steam_saves_commands)
     steam_saves_discover = steam_saves_commands.add_parser("discover", help="inventa saves sem alterar as origens")
     steam_saves_discover.add_argument("--offline", action="store_true")
     steam_saves_discover.add_argument("--no-mounted-scan", action="store_true")
@@ -7634,7 +7634,15 @@ def main(argv: list[str] | None = None) -> int:
             elif args.steam_command == "watch":
                 result = command_steam_watch(args)
             elif args.steam_command == "saves":
-                if args.steam_saves_command == "discover":
+                if args.steam_saves_command == "links":
+                    if args.steam_save_links_command == "plan":
+                        result = steam_centralizer.save_links_plan(args, globals())
+                    elif args.steam_save_links_command == "verify":
+                        result = steam_centralizer.save_links_verify(args, globals())
+                    else:
+                        result = steam_centralizer.save_links_execute(
+                            args, globals(), rollback=args.steam_save_links_command == "rollback")
+                elif args.steam_saves_command == "discover":
                     result = command_steam_saves_discover(args)
                 elif args.steam_saves_command == "plan":
                     result = command_steam_saves_plan(args)

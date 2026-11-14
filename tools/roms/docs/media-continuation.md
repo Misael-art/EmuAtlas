@@ -170,3 +170,13 @@ O perfil Amiga 1200 admite M3U junto dos formatos existentes. Playlists continua
 ## Archives cifrados
 
 A verificação de ZIP identifica membros cifrados antes de tentar os CRCs. O resultado `encrypted_archive_password_required` registra os membros seguros observáveis e `full_crc_verified=false`. O archive permanece preservado até obter a senha e concluir a leitura integral. Sua identidade e classificação dependem das evidências do conteúdo.
+
+## Portabilidade dos links de saves Steam
+
+Novas centralizações usam links relativos quando origem e destino estão dentro do projeto. O registro existente permite recalcular os caminhos internos a partir da raiz atual. Caminhos externos continuam vinculados ao host cadastrado.
+
+O fluxo `romtool steam saves links plan --source <caminho>` admite seleções explícitas de arquivos já centralizados, com origem em `roms/steam/` e destino em `saves/steam/`. Repita `--source` para revisar mais arquivos no mesmo plano. O manifesto registra os links, seus objetos físicos e o SHA-256 inicial de cada save. Depois da revisão, use `links apply --operation-id <id> --apply`, `links verify --operation-id <id>` ou `links rollback --operation-id <id> --rollback`.
+
+A aplicação exige Steam e jogos fechados, usa o lock compartilhado e troca atomicamente os dois links com `renameat2`. O link original fica preservado no histórico da operação. Intenções e checkpoints duráveis permitem retomar cortes após criação, troca ou sincronização. Mudanças externas nos links bloqueiam a operação e conservam ambos os objetos. Os arquivos de save permanecem na raiz canônica durante todo o fluxo.
+
+A verificação registra o conteúdo atual e admite gravações posteriores legítimas. A reversão dessa troca de links preserva essas gravações, inclusive quando o jogo substitui atomicamente o arquivo canônico. Restaurar o link absoluto original exige executar o rollback na raiz original. O rollback da centralização completa conserva sua proteção contra mudanças posteriores no conteúdo. A aceitação de Steam e gameplay após transporte continua vinculada ao host de destino.

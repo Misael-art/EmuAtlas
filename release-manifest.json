@@ -7,8 +7,8 @@
   "files": [
     {
       "target": ".github/workflows/ci.yml",
-      "sha256": "e6567461558dd25fee3709d142c9298a74d225a85882e27278ca6cb20d7964d7",
-      "size_bytes": 3437,
+      "sha256": "59b0e53cd98eeb09ff1a32acac7ff8fc320bfa2d5f085a13c09138a02f480484",
+      "size_bytes": 3486,
       "mode": "0644"
     },
     {
@@ -79,7 +79,7 @@
     },
     {
       "target": "docs/business/quality-and-roadmap.md",
-      "sha256": "5c489e2f6255b12f0d5acb12ee58f539092467a90e621e7a24bac03187b63961",
+      "sha256": "68f940fc91668c4b292e81c92222180e580463f10821349a922fe5cacb8e48be",
       "size_bytes": 3733,
       "mode": "0644"
     },
@@ -421,8 +421,8 @@
     },
     {
       "target": "tools/distribution/config/release-files.json",
-      "sha256": "42f1ae67ecf99c56b60ce8a8604e29ad200fe8f17654445012f8317f2150510b",
-      "size_bytes": 25463,
+      "sha256": "a3da8574372249a8661cc949c40b007bf1231f19982d4cbfd639ab5f12c927b1",
+      "size_bytes": 25597,
       "mode": "0644"
     },
     {
@@ -469,8 +469,8 @@
     },
     {
       "target": "tools/distribution/repository/github/ci.yml",
-      "sha256": "e6567461558dd25fee3709d142c9298a74d225a85882e27278ca6cb20d7964d7",
-      "size_bytes": 3437,
+      "sha256": "59b0e53cd98eeb09ff1a32acac7ff8fc320bfa2d5f085a13c09138a02f480484",
+      "size_bytes": 3486,
       "mode": "0644"
     },
     {
@@ -595,8 +595,8 @@
     },
     {
       "target": "tools/roms/docs/media-continuation.md",
-      "sha256": "cde36d6c0f2f0383a90f4cdb2d25bf19ab24fd40dcb855c889cb2ab67c78ff81",
-      "size_bytes": 23643,
+      "sha256": "fb72724cce3b9535da57e27c0673044fc80fec473ac019be064611607897291a",
+      "size_bytes": 25338,
       "mode": "0644"
     },
     {
@@ -877,8 +877,8 @@
     },
     {
       "target": "tools/roms/romtool.py",
-      "sha256": "c81d6d3cbe7a8ce1bd7efcb6d394beb8f6023b6f006e1ff6ad3add53b7855c9c",
-      "size_bytes": 481234,
+      "sha256": "42d887c7cc03ae6eb52466d0c7fd16ecd7bf81a6c491a5e887f1b3162cd3224b",
+      "size_bytes": 481951,
       "mode": "0644"
     },
     {
@@ -943,8 +943,8 @@
     },
     {
       "target": "tools/roms/steam_centralizer.py",
-      "sha256": "a6048ee1ec524ce4306a6a22f92c76c82a55441efdaa19db57224e09fd2cd470",
-      "size_bytes": 76066,
+      "sha256": "e636114c6398248c57f422e50ab2390e8185065b629b1a3a684b41f2d9c82a0f",
+      "size_bytes": 91619,
       "mode": "0644"
     },
     {
@@ -1107,6 +1107,12 @@
       "target": "tools/roms/tests/test_save_journey.py",
       "sha256": "061f07969137f1304818b7d69defc8d336d377882d9fe755af2e60c542a49594",
       "size_bytes": 27155,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_steam_save_links.py",
+      "sha256": "d5cca110209c30c88bfd23bc989f3e895e4bb33128a62e7806661828a817e0a7",
+      "size_bytes": 12529,
       "mode": "0644"
     },
     {

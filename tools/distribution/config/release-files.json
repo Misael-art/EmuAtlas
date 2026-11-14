@@ -759,6 +759,10 @@
     {
       "source": "tools/roms/tests/test_rom_archive_normalization.py",
       "target": "tools/roms/tests/test_rom_archive_normalization.py"
+    },
+    {
+      "source": "tools/roms/tests/test_steam_save_links.py",
+      "target": "tools/roms/tests/test_steam_save_links.py"
     }
   ]
 }
