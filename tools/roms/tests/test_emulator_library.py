@@ -75,6 +75,369 @@ class NativeLibraryTests(unittest.TestCase):
         self.config({'bluemsx_cbios': recipe, 'allowed_download_hosts': ['example.invalid']})
         return source, recipe
 
+    def vita_binding_fixture(self):
+        operation_id = 'vita3k-binding-fixture'
+        operation = romtool.operation_dir(operation_id)
+        data = operation / 'staging/Vita3K'
+        (data / 'fs').mkdir(parents=True)
+        (data / 'config.yml').write_bytes(b'pref-path: fs\n')
+        link = self.root / 'emulator/linux/vita3k/portable'
+        link.parent.mkdir(parents=True)
+        staged = operation / 'bindings/0'
+        staged.parent.mkdir()
+        literal = os.path.relpath(self.root / 'emulator/data/Vita3K', link.parent)
+        staged.symlink_to(literal, target_is_directory=True)
+        manifest = {'schema_version': 1, 'operation_id': operation_id, 'kind': 'emulator_library_migration',
+                    'status': 'prepared', 'scope': 'vita3k_portable_userdata', 'edits': [],
+                    'moves': [{'source': data.relative_to(self.root).as_posix(),
+                               'destination': 'emulator/data/Vita3K', 'files': runtime._library_tree(data)}],
+                    'vita3k_bindings': [{'source': link.relative_to(self.root).as_posix(),
+                                        'destination': 'emulator/data/Vita3K', 'literal': literal,
+                                        'snapshot': runtime._vita3k_binding_snapshot(staged)}]}
+        romtool.atomic_json(operation / 'manifest.json', manifest)
+        return operation_id, link, staged
+
+    def vita_runtime_fixture(self):
+        payload = b'\x7fELF\0\0\0\0AI\x02own synthetic appimage'
+        program = self.root / 'emulator/linux/vita3k/Vita3K-x86_64.AppImage'
+        program.parent.mkdir(parents=True)
+        program.write_bytes(payload)
+        program.chmod(0o755)
+        recipe = {'display_name': 'Vita3K fixture', 'version': 'own-fixture', 'kind': 'appimage',
+                  'source_url': 'https://example.invalid/Vita3K-x86_64.AppImage',
+                  'source_size_bytes': len(payload), 'source_sha256': hashlib.sha256(payload).hexdigest(),
+                  'format': 'appimage', 'entry': program.name, 'install_dir': 'vita3k'}
+        self.config({'runtimes': {'vita3k': recipe}})
+        return program
+
+    def vita_app_fixture(self, title_id='PCSA00017', category='gd'):
+        directory = self.root / 'roms/psvita' / category / title_id
+        metadata = directory / 'sce_sys/param.sfo'
+        metadata.parent.mkdir(parents=True)
+        fields = [('TITLE_ID', title_id), ('CATEGORY', category)]
+        keys = b''
+        values = b''
+        entries = b''
+        for key, value in fields:
+            payload = value.encode() + b'\0'
+            entries += struct.pack('<HHIII', len(keys), 0x0204, len(payload), len(payload), len(values))
+            keys += key.encode() + b'\0'
+            values += payload
+        key_start = 20 + len(entries)
+        metadata.write_bytes(struct.pack('<IIIII', 0x46535000, 0x101, key_start,
+                                         key_start + len(keys), len(fields)) + entries + keys + values)
+        (directory / 'eboot.bin').write_bytes(b'own synthetic executable fixture')
+        return directory
+
+    def vita_game_fixture(self):
+        self.vita_runtime_fixture()
+        data = runtime.vita3k_data_plan(self.root)
+        runtime.library_execute(self.root, data['operation_id'], 'apply', True)
+        runtime.library_execute(self.root, data['operation_id'], 'verify')
+        return self.vita_app_fixture(), self.root / 'roms/psvita/Own game.psvita'
+
+    def test_vita_game_binds_app_patch_and_descriptor_without_copying_payload(self):
+        app, descriptor = self.vita_game_fixture()
+        patch_dir = self.vita_app_fixture(category='gp')
+        plan = runtime.vita3k_game_plan(self.root, app, descriptor, patch_dir)
+        self.assertEqual(runtime.vita3k_game_plan(self.root, app, descriptor, patch_dir)['operation_id'],
+                         plan['operation_id'])
+        runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+        runtime.library_execute(self.root, plan['operation_id'], 'verify')
+        identity = portable_emulator.vita3k_launch_identity(self.root, descriptor)
+        self.assertEqual(identity['directory'], app)
+        self.assertEqual(identity['title_id'], 'PCSA00017')
+        link = self.root / 'emulator/data/Vita3K/fs/ux0/patch/PCSA00017'
+        self.assertEqual(link.resolve(), patch_dir)
+        self.assertFalse(os.path.isabs(os.readlink(link)))
+        save = self.root / 'emulator/data/Vita3K/fs/personal-save'
+        save.write_bytes(b'later gameplay')
+        runtime.library_execute(self.root, plan['operation_id'], 'rollback', True)
+        self.assertFalse(os.path.lexists(link))
+        self.assertFalse(descriptor.exists())
+        self.assertEqual(save.read_bytes(), b'later gameplay')
+        self.assertTrue((app / 'eboot.bin').is_file())
+
+    def test_vita_game_preexisting_alias_survives_descriptor_rollback(self):
+        app, descriptor = self.vita_game_fixture()
+        link = self.root / 'emulator/data/Vita3K/fs/ux0/app/PCSA00017'
+        link.parent.mkdir(parents=True)
+        link.symlink_to(os.path.relpath(app, link.parent))
+        before = runtime._vita3k_binding_snapshot(link)
+        plan = runtime.vita3k_game_plan(self.root, app, descriptor)
+        runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+        runtime.library_execute(self.root, plan['operation_id'], 'verify')
+        runtime.library_execute(self.root, plan['operation_id'], 'rollback', True)
+        self.assertEqual(runtime._vita3k_binding_snapshot(link), before)
+
+    def test_vita_game_rejects_mismatched_patch_and_changed_identity(self):
+        app, descriptor = self.vita_game_fixture()
+        other = self.vita_app_fixture('PCSA00018', 'gp')
+        with self.assertRaisesRegex(ValueError, 'outro TITLE_ID'):
+            runtime.vita3k_game_plan(self.root, app, descriptor, other)
+        plan = runtime.vita3k_game_plan(self.root, app, descriptor)
+        metadata = app / 'sce_sys/param.sfo'
+        metadata.write_bytes(metadata.read_bytes().replace(b'PCSA00017', b'PCSA00019'))
+        with self.assertRaisesRegex(ValueError, 'Identidade'):
+            runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+        self.assertFalse(descriptor.exists())
+
+    def test_vita_descriptor_rejects_outside_target_and_wrong_title_id(self):
+        app, descriptor = self.vita_game_fixture()
+        plan = runtime.vita3k_game_plan(self.root, app, descriptor)
+        runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+        link = self.root / 'emulator/data/Vita3K/fs/ux0/app/PCSA00017'
+        link.unlink()
+        (self.root / 'work').mkdir()
+        link.symlink_to(os.path.relpath(self.root / 'work', link.parent))
+        with self.assertRaises(ValueError):
+            portable_emulator.vita3k_launch_identity(self.root, descriptor)
+        link.unlink()
+        other = self.vita_app_fixture('PCSA00018')
+        link.symlink_to(os.path.relpath(other, link.parent))
+        with self.assertRaisesRegex(ValueError, 'divergiu'):
+            portable_emulator.vita3k_launch_identity(self.root, descriptor)
+
+    def test_vita_game_bindings_and_descriptor_survive_library_relocation(self):
+        app, descriptor = self.vita_game_fixture()
+        plan = runtime.vita3k_game_plan(self.root, app, descriptor)
+        runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+        moved = self.root.with_name('Moved library')
+        self.root.rename(moved)
+        identity = portable_emulator.vita3k_launch_identity(moved, moved / descriptor.relative_to(self.root))
+        self.assertEqual(identity['directory'], moved / app.relative_to(self.root))
+
+    def test_vita_game_resumes_cut_after_link_publication(self):
+        app, descriptor = self.vita_game_fixture()
+        plan = runtime.vita3k_game_plan(self.root, app, descriptor)
+        original = runtime._library_rename_exclusive
+
+        def cut(source, destination):
+            original(source, destination)
+            raise Interruption()
+
+        with patch.object(runtime, '_library_rename_exclusive', side_effect=cut):
+            with self.assertRaises(Interruption):
+                runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+        resumed = runtime.vita3k_game_plan(self.root, app, descriptor)
+        self.assertEqual(resumed['status'], 'application_resume_required')
+        runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+        runtime.library_execute(self.root, plan['operation_id'], 'verify')
+        self.assertEqual(portable_emulator.vita3k_launch_identity(self.root, descriptor)['directory'], app)
+
+    def test_vita_launcher_forwards_validated_title_id_and_shared_working_directory(self):
+        from tools.roms.tests.launcher_fixture import load_launcher
+        launcher = load_launcher('vita_command_fixture')
+        app, descriptor = self.vita_game_fixture()
+        plan = runtime.vita3k_game_plan(self.root, app, descriptor)
+        runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+        program = self.root / 'emulator/linux/vita3k/Vita3K-x86_64.AppImage'
+        system = {'rom_subdir': 'psvita', 'runtime_id': 'vita3k', 'command': str(program),
+                  'args': ['--frontend', 'sdl', '--keep-config', '-r', '{title_id}'],
+                  'userdata_subdir': 'Vita3K', 'working_directory': '{userdata}'}
+        profile = {'rom_root': str(self.root / 'roms'), 'bios_root': str(self.root / 'bios')}
+        with patch.object(launcher, 'ROOT', self.root / 'frontend/RetroFE'), \
+                patch.object(launcher, 'run_with_music_paused', return_value=0) as run:
+            self.assertEqual(launcher.launch_command(profile, system, descriptor), 0)
+            self.assertEqual(run.call_args.args[0], [str(program), '--frontend', 'sdl',
+                                                    '--keep-config', '-r', 'PCSA00017'])
+            self.assertEqual(run.call_args.kwargs['cwd'], self.root / 'emulator/data/Vita3K')
+            descriptor.write_text('PCSA00018\n')
+            with patch.object(launcher, 'notify'):
+                self.assertEqual(launcher.launch_command(profile, system, descriptor), 2)
+            self.assertEqual(run.call_count, 1)
+
+    def test_vita_data_plan_and_warm_repeat_preserve_current_saves(self):
+        program = self.vita_runtime_fixture()
+        plan = runtime.vita3k_data_plan(self.root)
+        runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+        runtime.library_execute(self.root, plan['operation_id'], 'verify')
+        data = self.root / 'emulator/data/Vita3K'
+        self.assertEqual((program.parent / 'portable').resolve(), data)
+        self.assertIn(b'pref-path: fs', (data / 'config.yml').read_bytes())
+        save = data / 'fs/personal-save'
+        save.write_bytes(b'new gameplay save')
+        self.assertEqual(runtime.vita3k_data_plan(self.root)['status'], 'already_configured_verified')
+        self.assertEqual(save.read_bytes(), b'new gameplay save')
+
+    def test_vita_data_preparation_resumes_same_staged_link(self):
+        self.vita_runtime_fixture()
+        plan = runtime.vita3k_data_plan(self.root)
+        staged = romtool.operation_dir(plan['operation_id']) / 'bindings/0'
+        before = runtime._vita3k_binding_snapshot(staged)
+        repeated = runtime.vita3k_data_plan(self.root, plan['operation_id'])
+        self.assertEqual(repeated['operation_id'], plan['operation_id'])
+        self.assertEqual(runtime._vita3k_binding_snapshot(staged), before)
+
+    def test_vita_data_requires_pinned_program(self):
+        program = self.vita_runtime_fixture()
+        program.write_bytes(b'changed executable')
+        with self.assertRaisesRegex(ValueError, 'AppImage'):
+            runtime.vita3k_data_plan(self.root)
+        self.assertFalse((self.root / 'emulator/data/Vita3K').exists())
+
+    def test_library_explicit_index_deferral_keeps_current_manifest_and_journal(self):
+        ident, link, staged = self.vita_binding_fixture()
+        path = romtool.operation_dir(ident) / 'manifest.json'
+        manifest = json.loads(path.read_text())
+        manifest['history_index_deferred'] = True
+        romtool.atomic_json(path, manifest)
+        with patch.object(romtool, 'rebuild_history_index') as rebuild:
+            runtime.library_execute(self.root, ident, 'apply', True)
+            runtime.library_execute(self.root, ident, 'verify')
+        rebuild.assert_not_called()
+        self.assertEqual(json.loads(path.read_text())['status'], 'completed_verified')
+        events = [json.loads(line) for line in (path.parent / 'events.jsonl').read_text().splitlines()]
+        self.assertEqual(events[-1]['event'], 'library_verify')
+
+    def test_vita_data_preserves_existing_portable_folder(self):
+        program = self.vita_runtime_fixture()
+        portable = program.parent / 'portable'
+        portable.mkdir()
+        personal = portable / 'personal-save'
+        personal.write_bytes(b'original user file')
+        with self.assertRaisesRegex(ValueError, 'preservado'):
+            runtime.vita3k_data_plan(self.root)
+        self.assertEqual(personal.read_bytes(), b'original user file')
+        self.assertFalse((self.root / 'emulator/data/Vita3K').exists())
+
+    def test_vita_data_plan_recovers_its_inflight_publication(self):
+        program = self.vita_runtime_fixture()
+        plan = runtime.vita3k_data_plan(self.root)
+        link = program.parent / 'portable'
+        rename = runtime._library_rename_exclusive
+        def cut(source, destination):
+            rename(source, destination)
+            if destination == link:
+                raise Interruption()
+        with patch.object(runtime, '_library_rename_exclusive', side_effect=cut):
+            with self.assertRaises(Interruption):
+                runtime.library_execute(self.root, plan['operation_id'], 'apply', True)
+        recovered = runtime.vita3k_data_plan(self.root)
+        self.assertEqual(recovered['operation_id'], plan['operation_id'])
+        self.assertEqual(recovered['status'], 'application_resume_required')
+        runtime.library_execute(self.root, recovered['operation_id'], 'apply', True)
+        self.assertEqual(runtime.vita3k_data_plan(self.root)['status'], 'verification_resume_required')
+        runtime.library_execute(self.root, plan['operation_id'], 'verify')
+        self.assertEqual(runtime.vita3k_data_plan(self.root)['status'], 'already_configured_verified')
+
+    def test_vita_preparation_detects_userdata_appearing_after_plan(self):
+        self.vita_runtime_fixture()
+        plan = runtime.vita3k_data_plan(self.root)
+        data = self.root / 'emulator/data/Vita3K'
+        (data / 'fs').mkdir(parents=True)
+        (data / 'config.yml').write_bytes(b'pref-path: fs\n')
+        with self.assertRaisesRegex(ValueError, 'apareceram'):
+            runtime.vita3k_data_plan(self.root, plan['operation_id'])
+        self.assertEqual((data / 'config.yml').read_bytes(), b'pref-path: fs\n')
+
+    def test_vita_portable_binding_apply_verify_and_rollback_preserve_link_object(self):
+        ident, link, staged = self.vita_binding_fixture()
+        snapshot = runtime._vita3k_binding_snapshot(staged)
+        runtime.library_execute(self.root, ident, 'apply', True)
+        runtime.library_execute(self.root, ident, 'verify')
+        self.assertEqual(link.resolve(), self.root / 'emulator/data/Vita3K')
+        self.assertFalse(os.path.isabs(os.readlink(link)))
+        runtime.library_execute(self.root, ident, 'rollback', True)
+        self.assertFalse(os.path.lexists(link))
+        self.assertEqual(runtime._vita3k_binding_snapshot(staged), snapshot)
+        self.assertFalse((self.root / 'emulator/data/Vita3K').exists())
+
+    def test_vita_binding_resumes_after_publication_and_rollback_cuts(self):
+        ident, link, staged = self.vita_binding_fixture()
+        rename = runtime._library_rename_exclusive
+        def cut_binding(source, target):
+            rename(source, target)
+            if target in (link, staged):
+                raise Interruption()
+        with patch.object(runtime, '_library_rename_exclusive', side_effect=cut_binding):
+            with self.assertRaises(Interruption):
+                runtime.library_execute(self.root, ident, 'apply', True)
+        runtime.library_execute(self.root, ident, 'apply', True)
+        runtime.library_execute(self.root, ident, 'verify')
+        with patch.object(runtime, '_library_rename_exclusive', side_effect=cut_binding):
+            with self.assertRaises(Interruption):
+                runtime.library_execute(self.root, ident, 'rollback', True)
+        runtime.library_execute(self.root, ident, 'rollback', True)
+        self.assertFalse(os.path.lexists(link))
+        self.assertTrue(staged.is_symlink())
+
+    def test_vita_binding_preflight_protects_existing_path_before_userdata_move(self):
+        ident, link, staged = self.vita_binding_fixture()
+        link.mkdir()
+        save = link / 'personal-save'
+        save.write_bytes(b'personal')
+        with self.assertRaises(ValueError):
+            runtime.library_execute(self.root, ident, 'apply', True)
+        self.assertEqual(save.read_bytes(), b'personal')
+        self.assertFalse((self.root / 'emulator/data/Vita3K').exists())
+        self.assertTrue(staged.is_symlink())
+
+    def test_vita_binding_noreplace_preserves_racing_file(self):
+        ident, link, staged = self.vita_binding_fixture()
+        rename = runtime._library_rename_exclusive
+        def collision(source, target):
+            if target == link:
+                link.write_bytes(b'foreign file')
+            rename(source, target)
+        with patch.object(runtime, '_library_rename_exclusive', side_effect=collision):
+            with self.assertRaises(FileExistsError):
+                runtime.library_execute(self.root, ident, 'apply', True)
+        self.assertEqual(link.read_bytes(), b'foreign file')
+        self.assertTrue(staged.is_symlink())
+
+    def test_vita_userdata_changes_block_rollback_before_removing_binding(self):
+        ident, link, staged = self.vita_binding_fixture()
+        runtime.library_execute(self.root, ident, 'apply', True)
+        save = self.root / 'emulator/data/Vita3K/fs/own-save'
+        save.write_bytes(b'later save')
+        with self.assertRaisesRegex(ValueError, 'Inventário/SHA'):
+            runtime.library_execute(self.root, ident, 'rollback', True)
+        self.assertEqual(save.read_bytes(), b'later save')
+        self.assertTrue(link.is_symlink())
+
+    def test_vita_binding_replacement_with_same_literal_is_protected(self):
+        ident, link, staged = self.vita_binding_fixture()
+        runtime.library_execute(self.root, ident, 'apply', True)
+        literal = os.readlink(link)
+        link.rename(link.with_name('original-binding-preserved'))
+        link.symlink_to(literal, target_is_directory=True)
+        with self.assertRaises(ValueError):
+            runtime.library_execute(self.root, ident, 'verify')
+        with self.assertRaises(ValueError):
+            runtime.library_execute(self.root, ident, 'rollback', True)
+        self.assertEqual(os.readlink(link), literal)
+
+    def test_vita_binding_scope_and_duplicates_are_rejected(self):
+        ident, link, staged = self.vita_binding_fixture()
+        path = romtool.operation_dir(ident) / 'manifest.json'
+        manifest = json.loads(path.read_text())
+        manifest['vita3k_bindings'] *= 2
+        romtool.atomic_json(path, manifest)
+        with self.assertRaisesRegex(ValueError, 'repetidos'):
+            runtime.library_execute(self.root, ident, 'apply', True)
+        manifest['vita3k_bindings'] = manifest['vita3k_bindings'][:1]
+        manifest['vita3k_bindings'][0]['destination'] = 'roms/psvita'
+        romtool.atomic_json(path, manifest)
+        with self.assertRaisesRegex(ValueError, 'escopo'):
+            runtime.library_execute(self.root, ident, 'apply', True)
+        self.assertFalse(os.path.lexists(link))
+
+    def test_vita_portable_binding_verifies_after_root_relocation(self):
+        ident, link, staged = self.vita_binding_fixture()
+        runtime.library_execute(self.root, ident, 'apply', True)
+        original = self.root
+        relocated = original.with_name('Relocated library')
+        original.rename(relocated)
+        self.root = relocated
+        with patch.multiple(romtool, PROJECT_ROOT=relocated, OUTPUT_ROOT=relocated / 'outputs',
+                            OPS_ROOT=relocated / 'outputs/operations'):
+            runtime.library_execute(relocated, ident, 'verify')
+            current = relocated / link.relative_to(original)
+            self.assertEqual(current.resolve(), relocated / 'emulator/data/Vita3K')
+            runtime.library_execute(relocated, ident, 'rollback', True)
+            self.assertFalse(os.path.lexists(current))
+
     def test_cbios_plan_apply_verify_rollback_and_existing_machine_preservation(self):
         source, recipe = self.cbios_fixture()
         plan = runtime.bluemsx_cbios_plan(self.root, from_directory=source)

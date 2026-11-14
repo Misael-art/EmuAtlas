@@ -883,8 +883,10 @@ def launch_command(profile: dict, system: dict, item: Path) -> int:
     has_item = any("{item}" in value for value in arguments)
     has_eboot = any("{eboot}" in value for value in arguments)
     has_game_dir=any('{game_dir}' in value for value in arguments)
-    if not has_item and not ((has_eboot or has_game_dir) and eboot is not None) and not (model2_native and arguments == ['{item_stem}']):
-        notify("O perfil command precisa encaminhar {item}, {eboot} ou {game_dir} validado ao emulador.")
+    has_vita_id = (system.get('rom_subdir') == 'psvita' and runtime_id == 'vita3k'
+                   and title_id and eboot is not None and '{title_id}' in arguments)
+    if not has_item and not ((has_eboot or has_game_dir) and eboot is not None) and not has_vita_id and not (model2_native and arguments == ['{item_stem}']):
+        notify("O perfil command precisa encaminhar uma entrada de jogo validada ao emulador.")
         return 2
     try:
         command = [executable, *apply_display_mode([value.format_map(args_map) for value in arguments])]
@@ -1038,6 +1040,15 @@ def _runtime_item_identity(system: dict, item: Path) -> tuple[str, Path | None, 
 
 
 def resolve_runtime_choice(system: dict, item: Path, *, forced_runtime=None):
+    if system.get('rom_subdir') == 'psvita' and system.get('runtime_id') == 'vita3k':
+        if forced_runtime and forced_runtime != 'vita3k':
+            return 'Runtime explícito não declarado para esta plataforma.'
+        try:
+            from portable_emulator import vita3k_launch_identity
+            identity = vita3k_launch_identity(ROOT.parents[1], item)
+        except (OSError, ValueError, UnicodeError, RuntimeError) as error:
+            return str(error)
+        return system, 'vita3k', identity['title_id'], identity['eboot']
     options = system.get("runtime_options", {})
     if not options:
         return system, "", "", None

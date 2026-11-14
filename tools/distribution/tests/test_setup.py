@@ -102,6 +102,27 @@ class SetupTests(unittest.TestCase):
                 if mode != 'install':
                     acquire.assert_not_called()
 
+    def test_vita_runtime_prepares_shared_portable_data_after_install(self):
+        runtime = Mock()
+        recipe = {'entry': 'Vita3K-x86_64.AppImage', 'install_dir': 'vita3k', 'format': 'appimage',
+                  'source_url': 'https://example.invalid/Vita3K.AppImage',
+                  'source_size_bytes': 12, 'source_sha256': 'b' * 64}
+        runtime.load_recipes.return_value = {'runtimes': {'vita3k': recipe},
+                                            'allowed_download_hosts': ['example.invalid']}
+        runtime.host_flatpaks.return_value = ({}, True)
+        runtime.scan_host.return_value = []
+        runtime.install_runtime.return_value = {'operation_id': 'vita-package'}
+        runtime.vita3k_data_plan.return_value = {'status': 'prepared', 'operation_id': 'vita-data'}
+        runtime.library_execute.return_value = {'status': 'completed_verified'}
+        with patch.dict(sys.modules, {'runtime_install': runtime, 'romtool': SimpleNamespace(PROJECT_ROOT=self.root)}), \
+                patch.object(self.engine, 'acquire', return_value=self.root / 'source'):
+            result = self.engine.runtime({'runtime_id': 'vita3k'})
+        self.assertEqual(result['status'], 'installed')
+        self.assertEqual(result['shared_data']['status'], 'completed_verified')
+        runtime.vita3k_data_plan.assert_called_once_with(self.root)
+        runtime.library_execute.assert_any_call(self.root, 'vita-data', 'apply', True)
+        runtime.library_execute.assert_any_call(self.root, 'vita-data', 'verify')
+
     def make_wheel(self, directory, name, version):
         path = directory / f'{name}-{version}-py3-none-any.whl'
         with zipfile.ZipFile(path, 'w') as archive:

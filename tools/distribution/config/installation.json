@@ -845,6 +845,13 @@
       "requires": [
         "host-packages"
       ]
+    },
+    "runtime-vita3k": {
+      "kind": "runtime",
+      "runtime_id": "vita3k",
+      "requires": [
+        "host-packages"
+      ]
     }
   }
 }

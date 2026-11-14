@@ -684,6 +684,38 @@
         "dolphin-emu"
       ],
       "hash_origin": "Official HTTPS archive locally SHA-256 pinned 2026-11-12; not an upstream signature"
+    },
+    "vita3k": {
+      "display_name": "Vita3K",
+      "systems": "Sony PlayStation Vita",
+      "kind": "appimage",
+      "version": "0.2.1 build 4304 (20e92a971621d6eb33e0ae273a1c6de19476a6dc)",
+      "release_page": "https://github.com/Vita3K/Vita3K-builds/releases/tag/4304",
+      "source_url": "https://github.com/Vita3K/Vita3K-builds/releases/download/4304/Vita3K-x86_64.AppImage",
+      "source_size_bytes": 89982211,
+      "source_sha256": "0d68ab0540aa3ab69dad096953a9bc4bced5cda89808673128450e5735199b5c",
+      "hash_origin": "SHA-256 and byte size published by the official Vita3K GitHub release 4304.",
+      "format": "appimage",
+      "entry": "Vita3K-x86_64.AppImage",
+      "entry_sha256": "0d68ab0540aa3ab69dad096953a9bc4bced5cda89808673128450e5735199b5c",
+      "entry_size_bytes": 89982211,
+      "install_dir": "vita3k",
+      "host_commands": [
+        "Vita3K",
+        "vita3k"
+      ],
+      "probe_args": [
+        "--version"
+      ],
+      "environment": {
+        "APPIMAGELAUNCHER_DISABLE": "1",
+        "DWARFS_WORKERS": "1",
+        "DWARFS_CACHESIZE": "64M",
+        "DWARFS_READAHEAD": "1M"
+      },
+      "license": "GPL-2.0-or-later",
+      "source_repository": "https://github.com/Vita3K/Vita3K",
+      "source_commit": "20e92a971621d6eb33e0ae273a1c6de19476a6dc"
     }
   },
   "assets": {

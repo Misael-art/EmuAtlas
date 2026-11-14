@@ -5689,10 +5689,14 @@ def command_record_change(args) -> dict:
         "change_type": args.change_type, "reason": args.reason, "details": details,
         "project_files_changed": False,
     }
+    deferred = getattr(args, 'defer_history_index', False)
+    if deferred:
+        manifest['history_index_refresh'] = 'deferred'
     atomic_json(opdir / "manifest.json", manifest)
     append_event(operation_id, "environment_change_recorded", action=args.change_type,
                  status="completed", details={"reason": args.reason, **details})
-    rebuild_history_index()
+    if not deferred:
+        rebuild_history_index()
     return manifest
 
 
@@ -7208,6 +7212,8 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--change-type", required=True)
     record.add_argument("--reason", required=True)
     record.add_argument("--details-json", required=True)
+    record.add_argument("--defer-history-index", action="store_true",
+                        help="registra diário e manifesto agora; adia o índice integral para history")
     artifacts = commands.add_parser("record-artifacts", help="registra hashes de arquivos do projeto no histórico")
     artifacts.add_argument("--change-type", required=True)
     artifacts.add_argument("--reason", required=True)

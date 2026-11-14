@@ -238,6 +238,27 @@ class LightweightArtifactRecordingTests(unittest.TestCase):
         rebuild.assert_called_once_with()
         self.assertNotIn("history_index_refresh", result)
 
+    def test_environment_change_default_keeps_index_refresh(self):
+        args = argparse.Namespace(change_type='fixture', reason='fixture', details_json='{}')
+        with patch.multiple(romtool, PROJECT_ROOT=self.root, OPS_ROOT=self.ops), \
+                patch.object(romtool, 'rebuild_history_index') as rebuild:
+            result = romtool.command_record_change(args)
+        rebuild.assert_called_once_with()
+        self.assertNotIn('history_index_refresh', result)
+
+    def test_environment_change_deferral_keeps_manifest_and_both_journals(self):
+        args = argparse.Namespace(change_type='fixture', reason='fixture', details_json='{}',
+                                  defer_history_index=True)
+        with patch.multiple(romtool, PROJECT_ROOT=self.root, OPS_ROOT=self.ops), \
+                patch.object(romtool, 'rebuild_history_index') as rebuild:
+            result = romtool.command_record_change(args)
+        rebuild.assert_not_called()
+        manifest = self.ops / result['operation_id'] / 'manifest.json'
+        self.assertEqual(json.loads(manifest.read_text())['history_index_refresh'], 'deferred')
+        for path in (self.ops / 'journal.jsonl', manifest.parent / 'events.jsonl'):
+            events = [json.loads(line) for line in path.read_text().splitlines()]
+            self.assertEqual(events[-1]['event'], 'environment_change_recorded')
+
     def test_deferred_record_persists_manifest_and_event(self):
         self.args.defer_history_index = True
         with patch.object(romtool, "rebuild_history_index") as rebuild:

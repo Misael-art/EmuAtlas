@@ -483,12 +483,15 @@ class Installer:
                 source = self.acquire({'url': recipe['source_url'], 'size_bytes': recipe['source_size_bytes'],
                                        'sha256': recipe['source_sha256'], 'allowed_hosts': config['allowed_download_hosts']})
                 installed = runtime.install_runtime(self.root, item['runtime_id'], True, from_file=source,
-                                                    run_declared_probe=False)
+                                                    run_declared_probe=False,
+                                                    defer_history_index=item['runtime_id'] == 'vita3k')
                 result = {'status': 'installed', 'operation_id': installed['operation_id']}
-        if item['runtime_id'] == 'core-bluemsx':
-            data = runtime.bluemsx_cbios_plan(self.root)
-            if data['status'] == 'prepared':
+        if item['runtime_id'] in ('core-bluemsx', 'vita3k'):
+            data = (runtime.bluemsx_cbios_plan(self.root) if item['runtime_id'] == 'core-bluemsx'
+                    else runtime.vita3k_data_plan(self.root))
+            if data['status'] in ('prepared', 'application_resume_required'):
                 runtime.library_execute(self.root, data['operation_id'], 'apply', True)
+            if data['status'] in ('prepared', 'application_resume_required', 'verification_resume_required'):
                 data = runtime.library_execute(self.root, data['operation_id'], 'verify')
             result['shared_data'] = data
         return result

@@ -73,3 +73,4 @@ jobs:
           tools.roms.tests.test_emulator_controls.BindingsTests
           tools.roms.tests.test_rom_archive_normalization
           tools.roms.tests.test_steam_save_links
+          tools.roms.tests.test_runtime_install

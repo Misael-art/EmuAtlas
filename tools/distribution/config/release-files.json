@@ -763,6 +763,10 @@
     {
       "source": "tools/roms/tests/test_steam_save_links.py",
       "target": "tools/roms/tests/test_steam_save_links.py"
+    },
+    {
+      "source": "tools/roms/tests/test_runtime_install.py",
+      "target": "tools/roms/tests/test_runtime_install.py"
     }
   ]
 }

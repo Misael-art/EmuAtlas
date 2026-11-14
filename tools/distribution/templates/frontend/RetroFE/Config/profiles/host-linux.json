@@ -1866,6 +1866,67 @@
       "subcollections": [],
       "rom_path": "../../roms/x68000",
       "bios_root": "../../bios"
+    },
+    "Sony Playstation Vita": {
+      "display_name": "Sony PlayStation Vita",
+      "rom_subdir": "psvita",
+      "extensions": "psvita",
+      "adapter": "command",
+      "launcher": "Host Command",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/psvita",
+      "bios_root": "../../bios",
+      "command": "../../emulator/linux/vita3k/Vita3K-x86_64.AppImage",
+      "args": [
+        "--frontend",
+        "sdl",
+        "--keep-config",
+        "-r",
+        "{title_id}"
+      ],
+      "userdata_subdir": "Vita3K",
+      "working_directory": "{userdata}",
+      "runtime_id": "vita3k",
+      "probe_args": [
+        "--version",
+        "--keep-config",
+        "--frontend",
+        "sdl"
+      ],
+      "probe_working_directory": "{userdata}",
+      "environment": {
+        "APPIMAGELAUNCHER_DISABLE": "1",
+        "DWARFS_WORKERS": "1",
+        "DWARFS_CACHESIZE": "64M",
+        "DWARFS_READAHEAD": "1M"
+      },
+      "runtime_version": "0.2.1 build 4304",
+      "launch_inputs": [
+        "psvita"
+      ],
+      "onboarding_guide": {
+        "title": "Preparar o PlayStation Vita",
+        "intro": "O Vita3K usa o modo portátil e um único filesystem em emulator/data/Vita3K/fs.",
+        "steps": [
+          {
+            "id": "firmware",
+            "title": "Firmware oficial",
+            "instruction": "Instale o firmware oficial da Sony pelo Vita3K e confirme a versão no ambiente portátil."
+          },
+          {
+            "id": "application",
+            "title": "Aplicativo canônico",
+            "instruction": "Revise o TITLE_ID e a categoria gd do param.sfo e prepare o vínculo com emutool library vita3k-game-plan. Patches exigem o mesmo TITLE_ID e categoria gp."
+          },
+          {
+            "id": "acceptance",
+            "title": "Validar o jogo",
+            "instruction": "Confirme inicialização, controles, save e retorno em Linux. Registre a compatibilidade observada para o título e a build."
+          }
+        ],
+        "completion": "A entrada .psvita contém somente o TITLE_ID validado. Firmware, integridade e funcionamento exigem evidências próprias."
+      }
     }
   },
   "subcollection_overrides": {

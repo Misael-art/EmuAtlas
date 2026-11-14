@@ -341,12 +341,108 @@ def library_plan(root: Path) -> dict:
             'bytes': sum(f.get('size_bytes', 0) for row in moves for f in row['files'])}
 
 
+def _vita3k_binding_paths(root: Path, opdir: Path, manifest: dict, binding: dict, index: int):
+    scope = manifest.get('scope')
+    portable = (scope == 'vita3k_portable_userdata'
+                and binding.get('source') == 'emulator/linux/vita3k/portable'
+                and binding.get('destination') == 'emulator/data/Vita3K')
+    game = scope == 'vita3k_game_bindings'
+    if game:
+        from portable_emulator import vita3k_game_identity
+        role = binding.get('role')
+        if role not in ('app', 'patch'):
+            raise ValueError('Papel do vínculo Vita3K inválido')
+        identity = vita3k_game_identity(root, root / binding['destination'], 'gd' if role == 'app' else 'gp')
+        expected_source = 'emulator/data/Vita3K/fs/ux0/' + role + '/' + identity['title_id']
+        if (binding.get('source') != expected_source or identity['title_id'] != manifest.get('title_id')
+                or identity['sfo_sha256'] != binding.get('sfo_sha256')):
+            raise ValueError('Identidade do aplicativo Vita3K mudou após o plano')
+    if not portable and not game:
+        raise ValueError('Vínculo de runtime fora do escopo portátil Vita3K')
+    link = root / binding['source']
+    _library_target(root, link.parent.relative_to(root).as_posix())
+    target = _library_target(root, binding['destination'])
+    staged = opdir / 'bindings' / str(index)
+    _library_target(root, staged.parent.relative_to(root).as_posix())
+    if binding.get('literal') != os.path.relpath(target, link.parent):
+        raise ValueError('Vínculo Vita3K exige o caminho relativo canônico')
+    return link, target, staged
+
+
+def _vita3k_binding_snapshot(path: Path) -> dict | None:
+    if not os.path.lexists(path):
+        return None
+    info = path.lstat()
+    if not path.is_symlink():
+        raise ValueError('Caminho de vínculo Vita3K ocupado; preservado: ' + str(path))
+    return {'filesystem_id': os.statvfs(path.parent).f_fsid, 'inode': info.st_ino,
+            'mtime_ns': info.st_mtime_ns, 'literal': os.readlink(path)}
+
+
+def _vita3k_binding_layout(link: Path, staged: Path, binding: dict) -> str:
+    at_link, at_staging = _vita3k_binding_snapshot(link), _vita3k_binding_snapshot(staged)
+    expected = binding['snapshot']
+    if expected.get('literal') != binding['literal']:
+        raise ValueError('Preimagem do vínculo Vita3K divergiu do plano')
+    if at_link is None and at_staging == expected:
+        return 'prepared'
+    if at_link == expected and at_staging is None and binding.get('apply_intent'):
+        return 'applied'
+    raise ValueError('Objetos do vínculo Vita3K mudaram fora da operação; preserve e reconcilie')
+
+
+def _vita3k_binding_execute(root: Path, opdir: Path, manifest: dict, binding: dict, index: int,
+                           action: str) -> None:
+    link, target, staged = _vita3k_binding_paths(root, opdir, manifest, binding, index)
+    layout = _vita3k_binding_layout(link, staged, binding)
+    if action != 'rollback' and manifest.get('scope') == 'vita3k_portable_userdata':
+        fs = _library_target(root, binding['destination'] + '/fs')
+        config_path = _library_target(root, binding['destination'] + '/config.yml')
+        if not target.is_dir() or not fs.is_dir() or not config_path.is_file():
+            raise ValueError('Dados Vita3K perderam o layout portátil preparado')
+    if action == 'verify':
+        if layout != 'applied' or not target.is_dir() or link.resolve(strict=True) != target:
+            raise ValueError('Vínculo Vita3K não resolve aos dados compartilhados')
+        return
+    if binding.get('preexisting'):
+        if layout != 'applied':
+            raise ValueError('Vínculo Vita preexistente mudou após a seleção')
+        return
+    expected_layout = 'applied' if action == 'apply' else 'prepared'
+    source, destination = (staged, link) if action == 'apply' else (link, staged)
+    if layout != expected_layout:
+        if action == 'apply' and not target.is_dir():
+            raise ValueError('Prepare os dados Vita3K antes do vínculo portátil')
+        binding[action + '_intent'] = True
+        if action == 'apply':
+            missing = []
+            parent = link.parent
+            while not parent.exists() and parent != root:
+                missing.append(parent.relative_to(root).as_posix())
+                parent = parent.parent
+            manifest.setdefault('created_directories', []).extend(value for value in reversed(missing)
+                if value not in manifest.get('created_directories', []))
+        romtool.atomic_json(opdir / 'manifest.json', manifest)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        _library_rename_exclusive(source, destination)
+        if _vita3k_binding_layout(link, staged, binding) != expected_layout:
+            raise ValueError('Vínculo Vita3K divergiu após publicação')
+    romtool.sync_directory_chain(source.parent)
+    romtool.sync_directory_chain(destination.parent)
+    binding[action + '_completed'] = True
+    romtool.atomic_json(opdir / 'manifest.json', manifest)
+
+
 def library_execute(root: Path, operation_id: str, action: str, confirmed: bool = False) -> dict:
     import fcntl
     opdir = romtool.operation_dir(operation_id)
     manifest = json.loads((opdir / 'manifest.json').read_text())
     if manifest.get('kind') != 'emulator_library_migration':
         raise ValueError('Operação não é migração da biblioteca de emuladores')
+    bindings = manifest.get('vita3k_bindings', [])
+    if (not isinstance(bindings, list) or any(not isinstance(row, dict) for row in bindings)
+            or len({row.get('source') for row in bindings}) != len(bindings)):
+        raise ValueError('Vínculos Vita3K inválidos ou repetidos')
     if action != 'verify' and not confirmed:
         raise ValueError('Ação exige --apply')
     lock = os.open(romtool.OPS_ROOT / 'emulator-controls.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
@@ -359,6 +455,11 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
             raise ValueError('Rollback requer operação aplicada')
         applied = manifest['status'] in ('completed_verified', 'applied', 'failed', 'applying', 'rolling_back')
         # Recheck every precondition before the first mutation.
+        for index, binding in enumerate(manifest.get('vita3k_bindings', [])):
+            link, target, staged = _vita3k_binding_paths(root, opdir, manifest, binding, index)
+            layout = _vita3k_binding_layout(link, staged, binding)
+            if action == 'verify' and layout != 'applied':
+                raise ValueError('Vínculo Vita3K ainda não publicado')
         for move in manifest['moves']:
             source = _library_source(root, move)
             destination = _library_target(root, move['destination'])
@@ -423,6 +524,8 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
             if current_sha not in allowed:
                 raise ValueError('Referência mudou: ' + edit['path'])
         if action == 'verify':
+            for index, binding in enumerate(manifest.get('vita3k_bindings', [])):
+                _vita3k_binding_execute(root, opdir, manifest, binding, index, action)
             manifest['status'] = 'completed_verified'
         elif action == 'apply':
             manifest['status'] = 'applying'
@@ -503,6 +606,8 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
                     romtool.atomic_json(opdir / 'manifest.json', manifest)
                     romtool.append_event(operation_id, 'runtime_moved', action='library_apply', status='applied',
                                          source=move['source'], destination=move['destination'])
+                for index, binding in enumerate(manifest.get('vita3k_bindings', [])):
+                    _vita3k_binding_execute(root, opdir, manifest, binding, index, action)
                 for edit in manifest['edits']:
                     path = root / edit['path']
                     missing = []
@@ -554,6 +659,8 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
                 if hashlib.sha256(before).hexdigest() != edit['sha256_before']:
                     raise ValueError('Preimagem alterada')
                 romtool.atomic_write_bytes(path, before, mode=edit['mode'])
+            for index in reversed(range(len(manifest.get('vita3k_bindings', [])))):
+                _vita3k_binding_execute(root, opdir, manifest, manifest['vita3k_bindings'][index], index, action)
             for move in reversed(manifest['moves']):
                 source = root / move['destination']
                 destination = _library_source(root, move)
@@ -594,7 +701,8 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
         romtool.atomic_json(opdir / 'manifest.json', manifest)
         romtool.append_event(operation_id, 'library_' + action, action='library_' + action,
                              status=manifest['status'], details={'moves': len(manifest['moves'])})
-        romtool.rebuild_history_index()
+        if not manifest.get('history_index_deferred'):
+            romtool.rebuild_history_index()
         return {'operation_id': operation_id, 'status': manifest['status'], 'moves': len(manifest['moves'])}
     finally:
         os.close(lock)
@@ -672,6 +780,232 @@ def native_configuration_plan(root: Path) -> dict:
                          details={'files': len(edits)})
     romtool.rebuild_history_index()
     return {'operation_id': operation_id, 'status': 'prepared', 'edits': len(edits)}
+
+
+def _unfinished_vita3k_plan(root: Path, fingerprint: str, operation_id: str | None):
+    paths = ([romtool.operation_dir(operation_id) / 'manifest.json'] if operation_id else
+             sorted(romtool.OPS_ROOT.glob('emulator-library-vita3k-data-*/manifest.json')))
+    unfinished = []
+    for path in paths:
+        _library_target(root, path.relative_to(root).as_posix())
+        if path.stat().st_size > 1024 * 1024:
+            raise ValueError('Manifesto Vita3K excessivo; preserve para revisão')
+        record = json.loads(path.read_text())
+        if (record.get('kind') != 'emulator_library_migration'
+                or record.get('scope') != 'vita3k_portable_userdata'
+                or record.get('operation_id') != path.parent.name):
+            raise ValueError('Manifesto de preparação Vita3K incompatível')
+        if record.get('status') in ('preparing', 'prepared', 'applying', 'failed', 'applied'):
+            if record.get('recipe_sha256') != fingerprint:
+                raise ValueError('Preparação Vita3K pendente usa outro pin; reconcilie antes de atualizar')
+            unfinished.append(record)
+    if len(unfinished) > 1:
+        raise ValueError('Há preparações Vita3K múltiplas; selecione --operation-id após revisão')
+    return unfinished[0] if unfinished else None
+
+
+def vita3k_data_plan(root: Path, operation_id: str | None = None) -> dict:
+    """Use upstream portable mode with one shared filesystem and a relative binding."""
+    recipe = load_recipes(root).get('runtimes', {}).get('vita3k', {})
+    if (recipe.get('kind') != 'appimage' or recipe.get('install_dir') != 'vita3k'
+            or recipe.get('entry') != 'Vita3K-x86_64.AppImage'):
+        raise ValueError('Vita3K exige a receita AppImage Linux fixada')
+    program = _library_target(root, 'emulator/linux/vita3k/' + recipe['entry'])
+    expected = recipe.get('entry_sha256', recipe.get('source_sha256'))
+    if (not program.is_file() or not os.access(program, os.X_OK)
+            or program.stat().st_size != recipe.get('source_size_bytes')
+            or _sha256(program) != expected):
+        raise ValueError('Instale e verifique o AppImage Vita3K antes dos dados compartilhados')
+    _check_appimage(program)
+    fingerprint = hashlib.sha256(json.dumps(recipe, sort_keys=True).encode()).hexdigest()
+    pending = _unfinished_vita3k_plan(root, fingerprint, operation_id)
+    if pending:
+        operation_id = pending['operation_id']
+        if pending['status'] in ('applying', 'failed', 'applied'):
+            return {'operation_id': operation_id,
+                    'status': ('verification_resume_required' if pending['status'] == 'applied'
+                               else 'application_resume_required')}
+    userdata = _library_target(root, 'emulator/data/Vita3K')
+    link = program.parent / 'portable'
+    literal = os.path.relpath(userdata, link.parent)
+    userdata_present = userdata.exists()
+    if userdata_present:
+        fs = _library_target(root, 'emulator/data/Vita3K/fs')
+        config_path = _library_target(root, 'emulator/data/Vita3K/config.yml')
+        if not userdata.is_dir() or not fs.is_dir() or not config_path.is_file():
+            raise ValueError('Dados Vita3K existentes exigem reconciliação com o layout portátil upstream')
+    if os.path.lexists(link):
+        if (link.is_symlink() and os.readlink(link) == literal and userdata_present
+                and link.resolve(strict=True) == userdata):
+            return {'status': 'already_configured_verified', 'userdata': 'emulator/data/Vita3K',
+                    'relative_binding': literal, 'gameplay_tested': False}
+        raise ValueError('Caminho portable Vita3K existente preservado para reconciliação')
+    if operation_id:
+        opdir = romtool.operation_dir(operation_id)
+        _library_target(root, opdir.relative_to(root).as_posix())
+        manifest_path = opdir / 'manifest.json'
+        if manifest_path.is_symlink():
+            raise ValueError('Manifesto Vita3K simbólico recusado')
+        manifest = json.loads(manifest_path.read_text())
+        if (manifest.get('scope') != 'vita3k_portable_userdata' or manifest.get('operation_id') != operation_id
+                or manifest.get('recipe_sha256') != fingerprint
+                or manifest.get('status') not in ('preparing', 'prepared')):
+            raise ValueError('Preparação Vita3K exige o mesmo pin e estado retomável')
+        if manifest.get('userdata_preexisted') != userdata_present:
+            raise ValueError('Dados Vita3K apareceram ou desapareceram após o plano; preservados')
+    else:
+        operation_id = 'emulator-library-vita3k-data-' + uuid.uuid4().hex[:8]
+        opdir = romtool.operation_dir(operation_id)
+        opdir.mkdir(parents=True, mode=0o700)
+        manifest = {'schema_version': 1, 'kind': 'emulator_library_migration', 'operation_id': operation_id,
+                    'status': 'preparing', 'scope': 'vita3k_portable_userdata', 'created_at': romtool.now(),
+                    'moves': [], 'edits': [], 'vita3k_bindings': [], 'recipe_sha256': fingerprint,
+                    'program_sha256': expected, 'userdata_preexisted': userdata_present,
+                    'gameplay_tested': False, 'history_index_deferred': True}
+        romtool.atomic_json(opdir / 'manifest.json', manifest)
+    moves = []
+    if not userdata_present:
+        staging = _library_target(root, (opdir / 'staging/Vita3K').relative_to(root).as_posix())
+        (staging / 'fs').mkdir(parents=True, exist_ok=True)
+        config_path = staging / 'config.yml'
+        defaults = b'pref-path: fs\ncheck-for-updates: false\ndiscord-rich-presence: false\n'
+        if config_path.exists():
+            if config_path.is_symlink() or config_path.read_bytes() != defaults:
+                raise ValueError('Configuração Vita3K preparada mudou; preserve e reconcilie')
+        else:
+            romtool.atomic_write_bytes(config_path, defaults, mode=0o644)
+        inventory = _library_tree(staging)
+        if {row['path'] for row in inventory} != {'fs', 'config.yml'}:
+            raise ValueError('Staging Vita3K contém dados além da preparação selecionada')
+        _sync_library_copy(staging, inventory)
+        moves.append({'source': staging.relative_to(root).as_posix(),
+                      'destination': 'emulator/data/Vita3K', 'files': inventory})
+    staged = _library_target(root, (opdir / 'bindings').relative_to(root).as_posix()) / '0'
+    staged.parent.mkdir(exist_ok=True)
+    if os.path.lexists(staged):
+        if not staged.is_symlink() or os.readlink(staged) != literal:
+            raise ValueError('Vínculo Vita3K preparado divergiu; preservado')
+    else:
+        os.symlink(literal, staged, target_is_directory=True)
+    romtool.sync_directory_chain(staged.parent)
+    binding = {'source': 'emulator/linux/vita3k/portable', 'destination': 'emulator/data/Vita3K',
+               'literal': literal, 'snapshot': _vita3k_binding_snapshot(staged)}
+    manifest.update(status='prepared', moves=moves, vita3k_bindings=[binding])
+    romtool.atomic_json(opdir / 'manifest.json', manifest)
+    romtool.append_event(operation_id, 'vita3k_data_prepared', action='library_plan', status='prepared',
+                        details={'shared_userdata': 'emulator/data/Vita3K', 'relative_binding': literal,
+                                 'moves': len(moves), 'gameplay_tested': False})
+    return {'operation_id': operation_id, 'status': 'prepared', 'moves': len(moves), 'bindings': 1, 'edits': 0}
+
+
+def vita3k_game_plan(root: Path, app_directory: Path, descriptor: Path,
+                     patch_directory: Path | None = None, operation_id: str | None = None) -> dict:
+    """Bind a selected canonical extracted application without copying game data."""
+    from portable_emulator import vita3k_game_identity
+    app = vita3k_game_identity(root, app_directory)
+    selected = [('app', app)]
+    if patch_directory is not None:
+        patch = vita3k_game_identity(root, patch_directory, 'gp')
+        if patch['title_id'] != app['title_id']:
+            raise ValueError('Patch Vita de outro TITLE_ID preservado')
+        selected.append(('patch', patch))
+    descriptor = Path(os.path.abspath(descriptor))
+    relative = descriptor.relative_to(root).as_posix()
+    _library_target(root, relative)
+    if not descriptor.is_relative_to(root / 'roms/psvita') or descriptor.suffix.lower() != '.psvita':
+        raise ValueError('Descritor Vita exige .psvita na biblioteca canônica')
+    payload = (app['title_id'] + '\n').encode('ascii')
+    if descriptor.exists() and descriptor.read_bytes() != payload:
+        raise ValueError('Descritor Vita existente diferente preservado')
+    userdata = _library_target(root, 'emulator/data/Vita3K')
+    portable = root / 'emulator/linux/vita3k/portable'
+    if (not userdata.is_dir() or not portable.is_symlink()
+            or os.readlink(portable) != os.path.relpath(userdata, portable.parent)
+            or portable.resolve(strict=True) != userdata):
+        raise ValueError('Prepare os dados portáteis Vita3K antes dos aplicativos')
+    choices = {'descriptor': relative, 'title_id': app['title_id'],
+               'applications': [{'role': role, 'destination': identity['directory'].relative_to(root).as_posix(),
+                                 'sfo_sha256': identity['sfo_sha256']} for role, identity in selected]}
+    fingerprint = hashlib.sha256(json.dumps(choices, sort_keys=True).encode()).hexdigest()
+    paths = ([romtool.operation_dir(operation_id) / 'manifest.json'] if operation_id else
+             sorted(romtool.OPS_ROOT.glob('emulator-library-vita3k-game-*/manifest.json')))
+    pending = []
+    for path in paths:
+        _library_target(root, path.relative_to(root).as_posix())
+        if path.stat().st_size > 1024 * 1024:
+            raise ValueError('Manifesto de aplicativo Vita excessivo')
+        record = json.loads(path.read_text())
+        if record.get('kind') != 'emulator_library_migration' or record.get('scope') != 'vita3k_game_bindings':
+            raise ValueError('Manifesto de aplicativo Vita incompatível')
+        if record.get('selection_sha256') == fingerprint and record.get('status') in (
+                'preparing', 'prepared', 'applying', 'failed', 'applied'):
+            pending.append(record)
+        elif operation_id:
+            raise ValueError('Retomada Vita exige a mesma seleção e estado pendente')
+    if len(pending) > 1:
+        raise ValueError('Preparações Vita múltiplas exigem seleção explícita')
+    if pending:
+        record = pending[0]
+        status = {'applying': 'application_resume_required', 'failed': 'application_resume_required',
+                  'applied': 'verification_resume_required'}.get(record['status'], 'prepared')
+        if record['status'] != 'preparing':
+            return {'operation_id': record['operation_id'], 'status': status}
+        operation_id = record['operation_id']
+        opdir = romtool.operation_dir(operation_id)
+        manifest = record
+    else:
+        operation_id = 'emulator-library-vita3k-game-' + uuid.uuid4().hex[:8]
+        opdir = romtool.operation_dir(operation_id)
+        opdir.mkdir(parents=True, mode=0o700)
+        manifest = {'schema_version': 1, 'kind': 'emulator_library_migration',
+                    'operation_id': operation_id, 'created_at': romtool.now(), 'status': 'preparing',
+                    'scope': 'vita3k_game_bindings', 'title_id': app['title_id'], 'selection': choices,
+                    'selection_sha256': fingerprint, 'moves': [], 'edits': [], 'vita3k_bindings': [],
+                    'history_index_deferred': True, 'gameplay_tested': False}
+        romtool.atomic_json(opdir / 'manifest.json', manifest)
+    bindings = []
+    existing = []
+    for role, identity in selected:
+        link = root / 'emulator/data/Vita3K/fs/ux0' / role / app['title_id']
+        _library_target(root, link.parent.relative_to(root).as_posix())
+        target = identity['directory']
+        literal = os.path.relpath(target, link.parent)
+        if os.path.lexists(link):
+            if not link.is_symlink() or os.readlink(link) != literal or link.resolve(strict=True) != target:
+                raise ValueError('Aplicativo Vita instalado diferente preservado: ' + str(link))
+            existing.append(link.relative_to(root).as_posix())
+            bindings.append({'role': role, 'source': link.relative_to(root).as_posix(),
+                             'destination': target.relative_to(root).as_posix(), 'literal': literal,
+                             'sfo_sha256': identity['sfo_sha256'], 'snapshot': _vita3k_binding_snapshot(link),
+                             'preexisting': True, 'apply_intent': True})
+            continue
+        staged = opdir / 'bindings' / str(len(bindings))
+        staged.parent.mkdir(exist_ok=True)
+        if os.path.lexists(staged):
+            if not staged.is_symlink() or os.readlink(staged) != literal:
+                raise ValueError('Vínculo preparado Vita diferente preservado')
+        else:
+            staged.symlink_to(literal, target_is_directory=True)
+        romtool.sync_directory_chain(staged.parent)
+        bindings.append({'role': role, 'source': link.relative_to(root).as_posix(),
+                         'destination': target.relative_to(root).as_posix(), 'literal': literal,
+                         'sfo_sha256': identity['sfo_sha256'], 'snapshot': _vita3k_binding_snapshot(staged)})
+    edits = []
+    if not descriptor.exists():
+        proposal = opdir / 'proposed' / relative
+        romtool.atomic_write_bytes(proposal, payload, mode=0o644)
+        edits.append({'path': relative, 'sha256_before': None,
+                      'sha256_after': hashlib.sha256(payload).hexdigest(), 'mode': 0o644})
+    configured = not edits and len(existing) == len(bindings)
+    manifest.update(status='completed_verified' if configured else 'prepared', edits=edits,
+                    vita3k_bindings=bindings, existing_bindings=existing)
+    romtool.atomic_json(opdir / 'manifest.json', manifest)
+    romtool.append_event(operation_id, 'vita3k_game_prepared', action='library_plan', status='prepared',
+                        details={'title_id': app['title_id'], 'bindings': len(bindings), 'descriptor': relative,
+                                 'gameplay_tested': False})
+    return {'operation_id': operation_id, 'status': 'already_configured_verified' if configured else 'prepared',
+            'bindings': len(bindings),
+            'edits': len(edits), 'title_id': app['title_id']}
 
 
 def supermodel_data_plan(root: Path) -> dict:
@@ -1406,7 +1740,8 @@ def _probe(path: Path, recipe: dict, scratch: Path) -> dict:
 
 def install_runtime(root: Path, runtime_id: str, confirmed: bool, from_file: Path | None = None,
                     allow_host_duplicate: bool = False, flatpak_query=None,
-                    run_declared_probe: bool = True, target_platform: str = 'linux') -> dict:
+                    run_declared_probe: bool = True, target_platform: str = 'linux',
+                    defer_history_index: bool = False) -> dict:
     if not confirmed:
         raise ValueError("Instalação exige --apply explícito")
     config = load_recipes(root, target_platform)
@@ -1494,6 +1829,7 @@ def install_runtime(root: Path, runtime_id: str, confirmed: bool, from_file: Pat
                    "game_launch_tested": False}
         operation = romtool.command_record_change(SimpleNamespace(
             change_type=CHANGE_TYPE, details_json=json.dumps(details, ensure_ascii=False),
+            defer_history_index=defer_history_index,
             reason=f"Instalar {recipe['display_name']} {recipe['version']} portátil a partir da release oficial fixada."))
         opid = operation["operation_id"]
         if status == "installed_verified":
@@ -1507,7 +1843,8 @@ def install_runtime(root: Path, runtime_id: str, confirmed: bool, from_file: Pat
                              destination=details["installation_path"], sha256_after=entry_sha,
                              sha256_before=details["previous_entry_sha256"], size_after=details["entry_size_bytes"],
                              details={"runtime_id": runtime_id, "version": recipe["version"]})
-        romtool.rebuild_history_index()
+        if not defer_history_index:
+            romtool.rebuild_history_index()
         if from_file == incoming and incoming.is_file():
             incoming.unlink()
         return {"operation_id": opid, **details, "used_by": _used_by(root, recipe)}
