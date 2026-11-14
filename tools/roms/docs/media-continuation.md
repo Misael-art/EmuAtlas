@@ -121,6 +121,8 @@ Quando o perfil Linux declara formatos e suporte a diretórios para a plataforma
 
 ## Origens achatadas e reversão parcial
 
+O plano stray admite `--pdf-stream-eol-review` para um PDF selecionado cujo único aviso do qpdf seja `stream keyword followed by carriage return only`. A revisão exige código 3 do qpdf, identificação exata do arquivo em cada aviso e render de todas as páginas pelo Poppler. Outros avisos, erros e páginas ausentes bloqueiam a promoção. O manifesto conserva os avisos completos e o resultado da leitura, e os bytes originais seguem preservados pelo fluxo reversível. Essa seleção é independente da revisão de hints de linearização.
+
 Novos planos stray preservam o caminho físico relativo de cada origem em `rollback/originals/`. Fontes aninhadas e fontes na raiz podem compartilhar o mesmo basename canônico e continuam com destinos de rollback distintos. Os planos antigos conservam seu layout registrado.
 
 Uma aplicação parcial pode ser revertida quando os movimentos concluídos têm checkpoints e os metadados globais ainda coincidem integralmente com as preimagens. A reversão registra essas assinaturas esperadas, preserva cada payload e admite retomada. Movimentos sem checkpoint e alterações posteriores dos registros globais exigem reconciliação antes da reversão.

@@ -158,7 +158,7 @@ resolve_project_path() {
 
 RETROFE_ROM_ROOT="$(resolve_project_path "${RETROFE_ROM_ROOT:-$ROOT/../../roms}")"
 RETROFE_BIOS_ROOT="$(resolve_project_path "${RETROFE_BIOS_ROOT:-$ROOT/../../bios}")"
-RETROFE_RETROARCH_CORE_ROOT="$(resolve_project_path "${RETROFE_RETROARCH_CORE_ROOT:-${HOME:-}/.var/app/org.libretro.RetroArch/config/retroarch/cores}")"
+RETROFE_RETROARCH_CORE_ROOT="$(resolve_project_path "${RETROFE_RETROARCH_CORE_ROOT:-$ROOT/../../emulator/linux/retroarch-cores}")"
 RETROFE_MAME="${RETROFE_MAME:-$(command -v mame 2>/dev/null || printf 'mame')}"
 if [[ "$RETROFE_MAME" == */* && "$RETROFE_MAME" != /* ]]; then
     RETROFE_MAME="$(resolve_project_path "$RETROFE_MAME")"

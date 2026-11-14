@@ -96,6 +96,8 @@ A interface desta entrega usa **Linux/KDE**. O ensaio isolado com RetroArch real
 
 **Já existe algo instalado?** O fluxo procura componentes disponíveis, reutiliza downloads íntegros e preserva personalizações. Para retomar após uma falha, execute novamente o comando de instalação; o estado real é revalidado.
 
+As dependências Python recebem um cache verificado por versão e host. Atualizações de fontes e templates têm preparação separada, conferência das personalizações e reversão pelo histórico. O guia de releases apresenta esse fluxo. [Atualização e reversão](docs/business/releasing.md)
+
 Pacotes nativos podem exigir autenticação pelo **Polkit/sudo**. A inicialização não abre jogos ou interfaces dos emuladores. Em bibliotecas existentes, revise o plano antes de aplicar.
 
 <details>

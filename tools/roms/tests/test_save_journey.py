@@ -451,6 +451,11 @@ class JourneyTests(unittest.TestCase):
         self.assertEqual(context["content"], context["rom"])
         self.assertEqual(context["core"], "emulator/linux/retroarch-cores/test.so")
         self.assertEqual(run.call_args.kwargs["env"]["APPIMAGELAUNCHER_DISABLE"], "1")
+        profile["retroarch"]["core_root"] = str(self.core.parent)
+        with patch.object(launcher, "run_with_music_paused", return_value=0) as run:
+            self.assertEqual(launcher.launch_retroarch(profile, {"rom_subdir": "sms", "core": "test.so"}, rom), 0)
+        self.assertIsNone(run.call_args.kwargs["journey"])
+        self.assertIn(str(self.core), run.call_args.args[0])
 
     def test_focus_return_script_requires_owned_game_and_current_ui(self):
         from tools.roms import controller_session as controllers

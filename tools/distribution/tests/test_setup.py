@@ -12,6 +12,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
+import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import setup as s
@@ -36,6 +37,90 @@ class SetupTests(unittest.TestCase):
         config['components']['a']['requires'] = ['b']
         with self.assertRaises(ValueError):
             s.graph(config)
+
+    def make_wheel(self, directory, name, version):
+        path = directory / f'{name}-{version}-py3-none-any.whl'
+        with zipfile.ZipFile(path, 'w') as archive:
+            archive.writestr(f'{name}-{version}.dist-info/METADATA',
+                             f'Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n')
+        return path
+
+    def prepare_python_fixture(self, item=None):
+        item = item or {'kind': 'python', 'packages': ['Fixture==1.0']}
+        def run(command, **kwargs):
+            if 'wheel' in command:
+                directory = Path(command[command.index('--wheel-dir') + 1])
+                self.make_wheel(directory, 'Fixture', '1.0')
+                self.make_wheel(directory, 'transitive', '2.0')
+        with patch.object(self.engine, 'run', side_effect=run) as commands:
+            directory = self.engine.prepare_wheelhouse('python-tools', item, Path('/fixture/python'))
+        return item, directory, commands
+
+    def test_python_wheelhouse_locks_transitives_and_reuses_without_acquisition(self):
+        item, directory, commands = self.prepare_python_fixture()
+        manifest = s.verify_wheelhouse(directory, item)
+        self.assertEqual(len(manifest['files']), 2)
+        self.assertIn('transitive==2.0 --hash=sha256:', (directory / 'requirements.txt').read_text())
+        self.assertIn('--only-binary=:all:', commands.call_args.args[0])
+        with patch.object(self.engine, 'run', side_effect=AssertionError('cached closure must be reused')):
+            self.assertEqual(self.engine.prepare_wheelhouse('python-tools', item, Path('/fixture/python')), directory)
+        with patch.object(s, 'python_host', return_value={'abi': 'other host'}):
+            with self.assertRaisesRegex(ValueError, 'outro host'):
+                s.verify_wheelhouse(directory, item)
+
+    def test_changed_wheel_lock_or_extra_file_prevents_reuse(self):
+        item, directory, _ = self.prepare_python_fixture()
+        wheel = next(directory.glob('*.whl'))
+        original = wheel.read_bytes()
+        wheel.write_bytes(original + b'changed')
+        with self.assertRaises(ValueError):
+            s.verify_wheelhouse(directory, item)
+        wheel.write_bytes(original)
+        lock = directory / 'requirements.txt'
+        requirements = lock.read_bytes()
+        lock.write_bytes(requirements + b'other==1\n')
+        with self.assertRaises(ValueError):
+            s.verify_wheelhouse(directory, item)
+        lock.write_bytes(requirements)
+        (directory / 'unexpected').write_text('preserve')
+        with self.assertRaises(ValueError):
+            s.verify_wheelhouse(directory, item)
+
+    def test_python_install_entry_uses_only_verified_wheels_and_runs_pip_check(self):
+        item, directory, _ = self.prepare_python_fixture()
+        python = self.root / 'tools/distribution/.venv/bin/python'
+        python.parent.mkdir(parents=True)
+        python.write_text('fixture')
+        with patch.object(self.engine, 'run') as commands:
+            result = self.engine.action('python-tools', item)
+        install = commands.call_args_list[0].args[0]
+        for option in ['--no-index', '--require-hashes', '--only-binary=:all:']:
+            self.assertIn(option, install)
+        self.assertEqual(commands.call_args_list[-1].args[0][-2:], ['pip', 'check'])
+        self.assertEqual(result['locked_packages'], 2)
+        self.assertEqual(result['wheelhouse_sha256'], w.digest(directory / 'manifest.json'))
+
+    def test_python_preparation_rejects_unpinned_requirements_and_undeclared_source_builds(self):
+        with patch.object(self.engine, 'run') as run:
+            for item in [{'packages': ['Fixture>=1']},
+                         {'packages': ['Fixture==1.0'], 'source_build_packages': ['unknown']}]:
+                with self.assertRaises(ValueError):
+                    self.engine.prepare_wheelhouse('python-tools', item, Path('/fixture/python'))
+            run.assert_not_called()
+
+    def test_interrupted_wheel_publication_reuses_verified_published_closure(self):
+        sync = s.romtool.sync_directory_chain
+        def fail_after_publication(directory):
+            if directory.parent.name == 'wheelhouse' and (directory / 'manifest.json').is_file():
+                raise OSError('fixture sync failure after rename')
+            sync(directory)
+        with patch.object(s.romtool, 'sync_directory_chain', side_effect=fail_after_publication):
+            with self.assertRaises(OSError):
+                self.prepare_python_fixture()
+        item = {'kind': 'python', 'packages': ['Fixture==1.0']}
+        with patch.object(self.engine, 'run', side_effect=AssertionError('no new download after publication')):
+            directory = self.engine.prepare_wheelhouse('python-tools', item, Path('/fixture/python'))
+        self.assertEqual(len(s.verify_wheelhouse(directory, item)['files']), 2)
 
     def test_failed_parent_blocks_dependant_but_not_independent_component_and_resume_rechecks(self):
         self.engine.config = {'components': {'first': {'kind': 'fixture'},

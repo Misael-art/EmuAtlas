@@ -225,7 +225,8 @@ def _alternate_target(canonical: Path, sha: str, reserved: set[str]) -> tuple[Pa
 
 
 def _promotion(project: Path, item: dict, api, stems_cache: dict, reserved: set[str],
-               create_categories: set[str] | None = None, pdf_linearization_review: bool = False) -> dict:
+               create_categories: set[str] | None = None, pdf_linearization_review: bool = False,
+               pdf_stream_eol_review: bool = False) -> dict:
     if item["action"] not in {"preserve_absent", "preserve_different"}:
         return item
     if item.get("category") not in PROMOTABLE_CATEGORIES:
@@ -262,7 +263,8 @@ def _promotion(project: Path, item: dict, api, stems_cache: dict, reserved: set[
     if item.get("variant_subdir") and Path(matches[0]).parent.as_posix() != f"roms/{system_id}/{item['variant_subdir']}":
         return {**item, "promotion_blocker": "a ROM com este basename não está na pasta de variante da mídia aninhada"}
     try:
-        validation = api["media_session"]._validate(source, api, pdf_linearization_review=pdf_linearization_review)
+        validation = api["media_session"]._validate(source, api, pdf_linearization_review=pdf_linearization_review,
+                                                  pdf_stream_eol_review=pdf_stream_eol_review)
     except Exception as exc:  # noqa: BLE001 - recorded as evidence, the file stays in place
         return {**item, "promotion_blocker": f"validação integral falhou: {type(exc).__name__}: {str(exc)[:200]}"}
     canonical = project / "media" / item["relative_path"]
@@ -363,7 +365,7 @@ def _counts(items: list[dict]) -> dict:
 
 def plan(api, promote: bool = False, system_id: str | None = None, nested_variants: bool = False,
          create_categories: list[str] | None = None, nested_game_paths: bool = False,
-         pdf_linearization_review: bool = False) -> dict:
+         pdf_linearization_review: bool = False, pdf_stream_eol_review: bool = False) -> dict:
     project = Path(api["PROJECT_ROOT"])
     reviewed_categories = set(create_categories or [])
     known_systems = _system_ids(project)
@@ -401,7 +403,8 @@ def plan(api, promote: bool = False, system_id: str | None = None, nested_varian
         if promote:
             stems_cache: dict = {}
             reserved: set[str] = set()
-            items = [_promotion(project, item, api, stems_cache, reserved, reviewed_categories, pdf_linearization_review) for item in items]
+            items = [_promotion(project, item, api, stems_cache, reserved, reviewed_categories,
+                                pdf_linearization_review, pdf_stream_eol_review) for item in items]
     operation_id = _operation_id()
     manifest = {
         "schema_version": 1, "operation_id": operation_id, "kind": "media_stray",
@@ -413,6 +416,7 @@ def plan(api, promote: bool = False, system_id: str | None = None, nested_varian
         "tool_source_sha256": _sha256(Path(__file__)),
         "validator_source_sha256": _sha256(Path(api["media_session"].__file__)) if promote else None,
         "pdf_linearization_review": pdf_linearization_review,
+        "pdf_stream_eol_review": pdf_stream_eol_review,
         "permanent_deletion": False, "symlink_left_behind": False,
         "references": _references(project), "summary": _counts(items), "items": items,
         "limits": [
@@ -597,12 +601,24 @@ def _snapshot_lists(api, operation: Path) -> dict:
     return snapshots
 
 
-def _update_lists(api, manifest: dict) -> None:
+def _update_lists(api, manifest: dict, *, update_state: bool = True) -> None:
     if "OUTPUT_ROOT" not in api or "write_csv_atomic" not in api:
         return
     output = Path(api["OUTPUT_ROOT"])
     completed = {item["project_relative"]: item for item in manifest["items"]
                  if item["action"] in {"promoted", "quarantined"}}
+    project = Path(api["PROJECT_ROOT"])
+    source_index = {str(project / relative): (relative, item) for relative, item in completed.items()}
+    target_index = {}
+    pending_index = {}
+    for relative, item in completed.items():
+        target = item.get("destination_relative") if item["action"] == "promoted" else item["rollback_relative"]
+        target_index.setdefault(str(project / target), []).append((relative, item))
+        # Older plans retained the original flat path alongside a nested source.
+        # The manifest supplies both paths, and the case hash must disambiguate.
+        paths = {relative, "roms/media/" + item["relative_path"]}
+        for path in paths:
+            pending_index.setdefault(path, []).append(item)
     catalog_path = output / "catalogo-arquivos.csv"
     if completed and catalog_path.is_file():
         import csv
@@ -610,22 +626,23 @@ def _update_lists(api, manifest: dict) -> None:
             reader = csv.DictReader(stream)
             fields, rows = list(reader.fieldnames or []), list(reader)
         seen = set()
-        project = Path(api["PROJECT_ROOT"])
         for row in rows:
-            for relative, item in completed.items():
-                source = str(project / relative)
-                target = item.get("destination_relative") if item["action"] == "promoted" else item["rollback_relative"]
-                if (row.get("current_absolute_path") == str(project / target)
-                        and row.get("current_operation_id") == manifest["operation_id"]
-                        and row.get("current_sha256") == item["sha256"]):
+            current = row.get("current_absolute_path") or row.get("absolute_path")
+            for relative, item in target_index.get(current, []):
+                if (row.get("current_sha256") or row.get("sha256")) == item["sha256"]:
                     seen.add(relative)
-                    continue
-                if (row.get("current_absolute_path") or row.get("absolute_path")) != source:
-                    continue
-                row.update(current_absolute_path=str(project / target), current_sha256=item["sha256"],
-                           current_size_bytes=item["size_bytes"], current_operation_id=manifest["operation_id"],
-                           current_path_status="mídia canônica verificada" if item["action"] == "promoted" else "quarentena reversível")
-                seen.add(relative)
+            match = source_index.get(current)
+            if match is None:
+                continue
+            relative, item = match
+            recorded_sha = row.get("current_sha256") or row.get("sha256")
+            if recorded_sha and recorded_sha != item["sha256"]:
+                continue
+            target = item.get("destination_relative") if item["action"] == "promoted" else item["rollback_relative"]
+            row.update(current_absolute_path=str(project / target), current_sha256=item["sha256"],
+                       current_size_bytes=item["size_bytes"], current_operation_id=manifest["operation_id"],
+                       current_path_status="mídia canônica verificada" if item["action"] == "promoted" else "quarentena reversível")
+            seen.add(relative)
         for relative, item in completed.items():
             if relative in seen or item["action"] != "promoted":
                 continue
@@ -641,6 +658,8 @@ def _update_lists(api, manifest: dict) -> None:
                     "current_size_bytes": item["size_bytes"], "current_operation_id": manifest["operation_id"],
                     "current_path_status": "mídia canônica verificada"}
             rows.append({key: value for key, value in data.items() if key in fields})
+            # Several historical sources can share one canonical payload.
+            seen.update(key for key, candidate in target_index[str(target)] if candidate["sha256"] == item["sha256"])
         api["write_csv_atomic"](catalog_path, rows, fields)
     pending_path = output / "pendencias-integridade-dependencias.csv"
     if pending_path.is_file():
@@ -655,11 +674,17 @@ def _update_lists(api, manifest: dict) -> None:
         existing = {(row.get("source"), row.get("case_source_relative"), row.get("case_sha256")) for row in rows}
         for row in rows:
             relative = row.get("case_source_relative") or row.get("path")
-            item = completed.get(relative)
-            if item is not None and row.get("source") == "roms-media-stray":
+            candidates = pending_index.get(relative, [])
+            case_hash = row.get("case_sha256")
+            matches = [item for item in candidates if item["sha256"] == case_hash] if case_hash else [
+                item for item in candidates if item["project_relative"] == relative]
+            if len(matches) == 1 and row.get("source") == "roms-media-stray":
+                item = matches[0]
                 target = item.get("destination_relative") if item["action"] == "promoted" else item["rollback_relative"]
+                original_operation = item.get("source_operation_id", manifest["operation_id"])
                 row.update(path=target, status="resolvido: " + item["action"],
-                           next_step="Resultado verificado; rollback pelo manifesto " + manifest["operation_id"])
+                           case_sha256=item["sha256"],
+                           next_step="Resultado verificado; rollback pelo manifesto " + original_operation)
         for item in manifest["items"]:
             if item["action"] in {QUARANTINE_ACTION, "quarantined", "promoted"}:
                 continue
@@ -674,7 +699,7 @@ def _update_lists(api, manifest: dict) -> None:
             })
         api["write_csv_atomic"](pending_path, rows, fields)
     state_path = output / "estado-final-verificacao.json"
-    if state_path.is_file() and not state_path.is_symlink():
+    if update_state and state_path.is_file() and not state_path.is_symlink():
         state = json.loads(state_path.read_text(encoding="utf-8"))
         state["media_stray"] = {"as_of": api["now"](), "operation_id": manifest["operation_id"],
                                 "status": manifest["status"], "summary": manifest["summary"],
@@ -910,7 +935,8 @@ def dispatch(args, api) -> dict:
     if command == "plan":
         return plan(api, getattr(args, "promote", False), getattr(args, "system_id", None),
                     getattr(args, "nested_variants", False), getattr(args, "create_category", None),
-                    getattr(args, "nested_game_paths", False), getattr(args, "pdf_linearization_review", False))
+                    getattr(args, "nested_game_paths", False), getattr(args, "pdf_linearization_review", False),
+                    getattr(args, "pdf_stream_eol_review", False))
     if command == "apply":
         return apply(args.operation_id, args.apply, api)
     if command == "status":

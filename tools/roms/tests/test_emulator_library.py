@@ -3,7 +3,9 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
 import struct
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -42,6 +44,54 @@ class NativeLibraryTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(value))
         return path
+
+    def test_frontend_defaults_to_project_cores_and_preserves_explicit_override(self):
+        source = (Path(__file__).resolve().parents[3] /
+                  'frontend/RetroFE/Tools/launchers/retrofe/launch-retrofe.sh').read_text()
+        helper = source[source.index('resolve_project_path() {'):source.index('RETROFE_ROM_ROOT="$(resolve_project_path')]
+        assignment = next(line for line in source.splitlines() if line.startswith('RETROFE_RETROARCH_CORE_ROOT="'))
+        frontend = self.root / 'frontend/RetroFE'
+        script = f'ROOT={shlex.quote(str(frontend))}\n' + helper + assignment + '\nprintf "%s" "$RETROFE_RETROARCH_CORE_ROOT"\n'
+        env = dict(os.environ)
+        env.pop('RETROFE_RETROARCH_CORE_ROOT', None)
+        actual = subprocess.check_output(['bash', '-c', script], env=env, text=True)
+        self.assertEqual(actual, str(self.root / 'emulator/linux/retroarch-cores'))
+        env['RETROFE_RETROARCH_CORE_ROOT'] = str(self.root / 'chosen cores')
+        self.assertEqual(subprocess.check_output(['bash', '-c', script], env=env, text=True), env['RETROFE_RETROARCH_CORE_ROOT'])
+
+    def test_reference_edits_use_durable_writer_and_ignore_old_temporary_name(self):
+        target = self.root / 'emulator/data/RetroArch/retroarch.cfg'
+        target.parent.mkdir(parents=True)
+        before, after = b'old configuration', b'new configuration'
+        target.write_bytes(before)
+        stale = target.with_name(target.name + '.emulator-library-tmp')
+        stale.write_bytes(b'older interrupted staging')
+        opid = 'configuration-durability'
+        operation = romtool.operation_dir(opid)
+        for folder, data in [('rollback/files', before), ('proposed', after)]:
+            path = operation / folder / target.relative_to(self.root)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        romtool.atomic_json(operation / 'manifest.json', {
+            'operation_id': opid, 'kind': 'emulator_library_migration', 'status': 'prepared',
+            'moves': [], 'edits': [{'path': target.relative_to(self.root).as_posix(),
+                'sha256_before': hashlib.sha256(before).hexdigest(), 'sha256_after': hashlib.sha256(after).hexdigest(),
+                'mode': 0o640, 'after_move': False}]})
+        with patch.object(romtool, 'atomic_write_bytes', wraps=romtool.atomic_write_bytes) as publish:
+            runtime.library_execute(self.root, opid, 'apply', True)
+            publish.assert_any_call(target, after, mode=0o640)
+        self.assertEqual(stale.read_bytes(), b'older interrupted staging')
+        # A cut after publication can leave the old prepared manifest on disk.
+        manifest = json.loads((operation / 'manifest.json').read_text())
+        manifest['status'] = 'prepared'
+        romtool.atomic_json(operation / 'manifest.json', manifest)
+        runtime.library_execute(self.root, opid, 'apply', True)
+        runtime.library_execute(self.root, opid, 'verify')
+        self.assertEqual(target.read_bytes(), after)
+        with patch.object(romtool, 'atomic_write_bytes', wraps=romtool.atomic_write_bytes) as publish:
+            runtime.library_execute(self.root, opid, 'rollback', True)
+            publish.assert_any_call(target, before, mode=0o640)
+        self.assertEqual(target.read_bytes(), before)
 
     def test_zip_traversal_drive_names_and_links_are_refused_before_publication(self):
         for index, name in enumerate(['../escape.exe', 'C:\\escape.exe', 'NUL.txt', 'name.']):

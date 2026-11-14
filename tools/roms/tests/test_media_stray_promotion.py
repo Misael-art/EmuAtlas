@@ -307,5 +307,87 @@ class PromotionTests(unittest.TestCase):
         self.assertTrue(nested.is_file())
 
 
+class RecordReconciliationTests(unittest.TestCase):
+    def setUp(self):
+        from tools.roms import romtool
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.output = self.root / 'outputs'
+        self.output.mkdir()
+        self.api = {'PROJECT_ROOT': self.root, 'OUTPUT_ROOT': self.output,
+                    'write_csv_atomic': romtool.write_csv_atomic, 'atomic_json': romtool.atomic_json,
+                    'now': lambda: 'fixture'}
+        self.fields = ['source', 'path', 'status', 'next_step', 'case_sha256', 'case_source_relative']
+        self.catalog_fields = ['system_id', 'source', 'absolute_path', 'current_absolute_path', 'current_sha256',
+                               'current_path_status', 'current_size_bytes', 'current_operation_id']
+        self.sha = 'a' * 64
+        self.item = {'project_relative': 'roms/media/nes/background/translation-pt-br/Game.png',
+                     'relative_path': 'nes/background/Game.png', 'sha256': self.sha, 'size_bytes': 10,
+                     'system_id': 'nes', 'category': 'background', 'action': 'promoted',
+                     'destination_relative': 'media/nes/background/Game.png',
+                     'source_operation_id': 'original-move'}
+        self.manifest = {'operation_id': 'current-reconciliation', 'items': [self.item]}
+        self.write('catalogo-arquivos.csv', [], self.catalog_fields)
+        self.write('pendencias-integridade-dependencias.csv', [], self.fields)
+        (self.output / 'estado-final-verificacao.json').write_text('{"latest":true}')
+
+    def write(self, name, rows, fields):
+        self.api['write_csv_atomic'](self.output / name, rows, fields)
+
+    def rows(self, name):
+        with (self.output / name).open(encoding='utf-8-sig', newline='') as stream:
+            return list(csv.DictReader(stream))
+
+    def test_old_flat_case_requires_matching_hash_and_keeps_original_operation(self):
+        source = 'roms/media/nes/background/Game.png'
+        self.write('pendencias-integridade-dependencias.csv', [
+            {'source': 'roms-media-stray', 'path': source, 'case_source_relative': source,
+             'case_sha256': sha, 'status': 'pending'} for sha in [self.sha, 'b'*64, '']], self.fields)
+        media_stray._update_lists(self.api, self.manifest, update_state=False)
+        rows = self.rows('pendencias-integridade-dependencias.csv')
+        self.assertEqual([row['status'] for row in rows], ['resolvido: promoted', 'pending', 'pending'])
+        self.assertIn('original-move', rows[0]['next_step'])
+        self.assertEqual((self.output / 'estado-final-verificacao.json').read_text(), '{"latest":true}')
+
+    def test_existing_target_from_another_operation_is_reused_and_repeat_is_idempotent(self):
+        target = str(self.root / self.item['destination_relative'])
+        self.write('catalogo-arquivos.csv', [{'current_absolute_path': target,
+                   'current_sha256': self.sha, 'current_operation_id': 'newer-operation'}], self.catalog_fields)
+        for _ in range(2):
+            media_stray._update_lists(self.api, self.manifest, update_state=False)
+        rows = self.rows('catalogo-arquivos.csv')
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['current_operation_id'], 'newer-operation')
+
+    def test_two_historical_sources_share_one_catalog_target(self):
+        second = {**self.item, 'project_relative': 'roms/media/nes/background/hack/Game.png'}
+        self.manifest['items'].append(second)
+        media_stray._update_lists(self.api, self.manifest, update_state=False)
+        media_stray._update_lists(self.api, self.manifest, update_state=False)
+        self.assertEqual(len(self.rows('catalogo-arquivos.csv')), 1)
+
+    def test_exact_source_case_with_other_bytes_stays_pending(self):
+        source = self.item['project_relative']
+        self.write('pendencias-integridade-dependencias.csv', [{'source': 'roms-media-stray',
+                   'path': source, 'case_source_relative': source, 'case_sha256': 'b'*64,
+                   'status': 'pending'}], self.fields)
+        media_stray._update_lists(self.api, self.manifest, update_state=False)
+        self.assertEqual(self.rows('pendencias-integridade-dependencias.csv')[0]['status'], 'pending')
+
+    def test_historical_catalog_source_with_different_bytes_keeps_its_provenance(self):
+        source = str(self.root / self.item['project_relative'])
+        self.write('catalogo-arquivos.csv', [{'absolute_path': source, 'current_absolute_path': source,
+                   'current_sha256': 'b'*64, 'current_operation_id': 'older-content'}], self.catalog_fields)
+        media_stray._update_lists(self.api, self.manifest, update_state=False)
+        rows = self.rows('catalogo-arquivos.csv')
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]['current_sha256'], 'b'*64)
+        self.assertEqual(rows[0]['current_absolute_path'], source)
+        self.assertEqual(rows[0]['current_operation_id'], 'older-content')
+        self.assertEqual(rows[1]['current_sha256'], self.sha)
+        self.assertEqual(rows[1]['current_absolute_path'], str(self.root / self.item['destination_relative']))
+
+
 if __name__ == "__main__":
     unittest.main()

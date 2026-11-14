@@ -316,7 +316,7 @@ def _configure(manifest, restore, api):
     _save(manifest, api)
 
 
-def _validate(path, api, *, pdf_linearization_review=False):
+def _validate(path, api, *, pdf_linearization_review=False, pdf_stream_eol_review=False):
     optimizer = api["media_optimizer"]
     ext = path.suffix.lower()
     if ext in {".png", ".jpg", ".jpeg"}:
@@ -350,14 +350,20 @@ def _validate(path, api, *, pdf_linearization_review=False):
         reviewed_warnings = bool(pdf_linearization_review and check.returncode == 3 and warnings
                                  and len(warnings) == len(warning_lines)
                                  and all(any(re.fullmatch(pattern, line) for pattern in linearization_patterns) for line in warnings))
-        if check.returncode and not reviewed_warnings:
+        stream_eol_pattern = (rf"WARNING: {re.escape(str(path))} \(object \d+ \d+, offset \d+\): "
+                              r"stream keyword followed by carriage return only")
+        reviewed_stream_eol = bool(pdf_stream_eol_review and check.returncode == 3 and warning_lines
+                                  and all(re.fullmatch(stream_eol_pattern, line) for line in warning_lines))
+        if check.returncode and not (reviewed_warnings or reviewed_stream_eol):
             raise ValueError("qpdf não aprovou o PDF sem warnings")
         with tempfile.TemporaryDirectory(dir=path.parent, prefix=".pdf-validation-") as raw:
             result = optimizer._run([shutil.which("pdftoppm"), "-scale-to", "64", "-png", str(path), str(Path(raw)/"page")], timeout=1800)
             if result.returncode or len(list(Path(raw).glob("page-*.png"))) != int(info["Pages"]):
                 raise ValueError("Nem todas as páginas PDF foram decodificadas")
         return {**info, "qpdf_exit_code": check.returncode, "qpdf_warnings": warnings,
-                "full_page_render": True, "linearization_warnings_reviewed": reviewed_warnings}
+                "full_page_render": True, "linearization_warnings_reviewed": reviewed_warnings,
+                "stream_eol_warnings_reviewed": reviewed_stream_eol,
+                "qpdf_warning_lines": warning_lines}
     raise ValueError(f"Formato sem perfil de entrada: {ext}")
 
 

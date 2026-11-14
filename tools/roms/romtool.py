@@ -7294,6 +7294,8 @@ def build_parser() -> argparse.ArgumentParser:
                                   help="seleção explícita de categoria canônica ausente; exige --promote, validação integral e ROM única")
     media_stray_plan.add_argument("--nested-game-paths", action="store_true",
                                   help="achata mídia aninhada somente com pasta relativa de ROM existente e associação exata nesse escopo")
+    media_stray_plan.add_argument("--pdf-stream-eol-review", action="store_true",
+                                 help="revisa somente warnings CR no início de streams PDF; exige render integral e preserva os bytes")
     media_stray_plan.add_argument("--pdf-linearization-review", action="store_true",
                                   help="aceita somente warnings conhecidos de linearização após render integral de todas as páginas; bytes preservados")
     media_stray_apply = media_stray_commands.add_parser("apply")

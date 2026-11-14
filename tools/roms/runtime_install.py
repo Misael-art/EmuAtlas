@@ -304,8 +304,8 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
                     if edit['path'].startswith(move['destination'] + '/') and (root / move['source']).exists():
                         path = root / move['source'] / edit['path'][len(move['destination']) + 1:]
                         break
-            allowed = {edit['sha256_before'], edit['sha256_after']} if action == 'rollback' or (action == 'apply' and applied) else {
-                edit['sha256_before'] if action == 'apply' else edit['sha256_after']}
+            allowed = ({edit['sha256_before'], edit['sha256_after']} if action in ('apply', 'rollback')
+                       else {edit['sha256_after']})
             current_sha = _sha256(path) if path.is_file() else None
             if current_sha not in allowed:
                 raise ValueError('Referência mudou: ' + edit['path'])
@@ -364,11 +364,7 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
                     data = (opdir / 'proposed' / edit['path']).read_bytes()
                     if hashlib.sha256(data).hexdigest() != edit['sha256_after']:
                         raise ValueError('Snapshot alterado: ' + edit['path'])
-                    temporary = path.with_name(path.name + '.emulator-library-tmp')
-                    with temporary.open('xb') as stream:
-                        stream.write(data)
-                    temporary.chmod(edit['mode'])
-                    os.replace(temporary, path)
+                    romtool.atomic_write_bytes(path, data, mode=edit['mode'])
                 manifest['status'] = 'applied'
             except Exception:
                 manifest['status'] = 'failed'
@@ -390,8 +386,7 @@ def library_execute(root: Path, operation_id: str, action: str, confirmed: bool 
                 before = (opdir / 'rollback/files' / edit['path']).read_bytes()
                 if hashlib.sha256(before).hexdigest() != edit['sha256_before']:
                     raise ValueError('Preimagem alterada')
-                path.write_bytes(before)
-                path.chmod(edit['mode'])
+                romtool.atomic_write_bytes(path, before, mode=edit['mode'])
             for move in reversed(manifest['moves']):
                 source = root / move['destination']
                 destination = _library_source(root, move)
