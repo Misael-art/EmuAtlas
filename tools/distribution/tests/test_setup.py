@@ -336,6 +336,23 @@ class ReuseProvenanceTests(unittest.TestCase):
         self.assertEqual((second['status'], second['receipt']), ('reused', 'verified'))
         self.assertEqual(before, {p: p.stat().st_mtime_ns for p in (self.root / 'tools/emu').iterdir()})
 
+    def test_zip_archive_uses_the_native_extractor_and_preserves_customer_data(self):
+        archive = self.root / 'official.zip'
+        with zipfile.ZipFile(archive, 'w') as bundle:
+            bundle.writestr('emu', Path(shutil.which('true')).read_bytes())
+            bundle.writestr('LICENSE.md', 'upstream license fixture')
+        item = {**self.item, 'format': 'zip', 'member_map': {'emu': 'emu', 'LICENSE.md': 'UPSTREAM-LICENSE.md'}}
+        customer = self.root / 'tools/emu/config/settings.txt'
+        customer.parent.mkdir(parents=True)
+        customer.write_text('customer preferences')
+        with patch.object(self.engine, 'acquire', return_value=archive):
+            result = self.engine.archive('emu', item)
+        self.assertEqual(result['status'], 'installed')
+        self.assertEqual(customer.read_text(), 'customer preferences')
+        self.assertEqual((self.root / 'tools/emu/UPSTREAM-LICENSE.md').read_text(), 'upstream license fixture')
+        with patch.object(self.engine, 'publish', side_effect=AssertionError('reuse should preserve files')):
+            self.assertEqual(self.engine.archive('emu', item)['status'], 'reused')
+
     def test_changed_member_or_recipe_invalidates_reuse(self):
         self.engine.archive('emu', self.item)
         (self.root / 'tools/emu/data.txt').write_bytes(b'customized')

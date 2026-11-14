@@ -7,7 +7,7 @@
 **Um lugar para organizar a biblioteca, preparar o host e conectar a experiência.**
 
 <p>
-  <img alt="Versão 0.2.0-alpha.6" src="https://img.shields.io/badge/vers%C3%A3o-0.2.0--alpha.6-83f6d5?style=flat-square&amp;labelColor=101c2d" />
+  <img alt="Versão 0.2.0-alpha.7" src="https://img.shields.io/badge/vers%C3%A3o-0.2.0--alpha.7-83f6d5?style=flat-square&amp;labelColor=101c2d" />
   <img alt="Linux x86_64" src="https://img.shields.io/badge/Linux-x86__64-6ac5fc?style=flat-square&amp;labelColor=101c2d" />
   <img alt="Python 3.10 ou superior" src="https://img.shields.io/badge/Python-3.10%2B-b9a3f5?style=flat-square&amp;labelColor=101c2d" />
   <img alt="Prévia de engenharia" src="https://img.shields.io/badge/status-pr%C3%A9via_de_engenharia-f4c786?style=flat-square&amp;labelColor=101c2d" />
@@ -121,15 +121,15 @@ Leia o [guia de instalação automatizada](docs/business/automated-install.md) p
 
 <table>
   <tr>
-    <td align="center"><strong>62</strong><br/>componentes no fluxo de instalação</td>
+    <td align="center"><strong>63</strong><br/>componentes no fluxo de instalação</td>
     <td align="center"><strong>24</strong><br/>núcleos libretro com receitas</td>
-    <td align="center"><strong>3</strong><br/>frontends integrados ao instalador</td>
+    <td align="center"><strong>4</strong><br/>frontends integrados ao instalador</td>
   </tr>
 </table>
 
 | Camada | O que o projeto prepara |
 | :--- | :--- |
-| **Frontends** | RetroFE, ES-DE e Quiver Launcher. |
+| **Frontends** | RetroFE, ES-DE, Pegasus e Quiver Launcher. O [Pegasus portátil](frontend/pegasus-frontend/README.md) compartilha os perfis de execução e a mídia canônica. |
 | **Launcher alternativo** | [RocketLauncher](docs/business/architecture.md), adicionado localmente para lançamento de jogos pelos frontends; ativação no Linux pendente de validação. |
 | **Emulação** | RetroArch, MAME, Dolphin, DuckStation, PCSX2, RPCS3, PPSSPP, Flycast, Cemu, melonDS, Azahar e xemu. |
 | **Host** | Dependências de mídia, arquivos compactados, fontes, janelas, Python, Wine e ferramentas de compilação. |

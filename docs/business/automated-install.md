@@ -16,12 +16,12 @@ Sem argumentos, o script apenas planeja. Se Python estiver ausente, somente a ex
 - **Apps:** Steam, RetroArch, Dolphin, Flycast, Azahar, melonDS, PCSX2, PPSSPP, Cemu e xemu via Flatpak por usuário. Instalações já disponíveis são reutilizadas; Steam nativo evita uma segunda instalação Flatpak.
 - **Runtimes portáteis:** receitas existentes de DuckStation, RPCS3, shadPS4 e alternativas dos demais emuladores, com origem/tamanho/hash. As alternativas reutilizam o host quando configuráveis, em vez de baixar uma cópia indiscriminadamente.
 - **Núcleos:** os 24 arquivos libretro distintos usados no perfil possuem receitas pinadas. URLs rolantes do buildbot não ignoram mudanças: outro hash bloqueia até uma revisão.
-- **Frontends:** ES-DE adquirido por hash, Quiver preparado por seu instalador existente e RetroFE compilado de commit exato. A biblioteca pessoal de temas não acompanha a release; há um fallback textual próprio para uma instalação vazia.
+- **Frontends:** ES-DE adquirido por hash, Quiver preparado por seu instalador existente RetroFE compilado de commit exato e Pegasus Linux por ZIP pinado. O [launcher Pegasus](../../frontend/pegasus-frontend/README.md) usa modo portátil, cache local e o perfil compartilhado. A biblioteca pessoal de temas não acompanha a release; há um fallback textual próprio para uma instalação vazia.
 - **Ferramentas:** venv local com versões declaradas de Pillow/amitools/py7zr/requests; wrappers de xdftool/xdfscan; ZArchive compilado com a política lossless de nível máximo; orbis-unpkg via Cargo com versão e lock upstream; Skraper pela origem pinada, com Wine do host.
 - **Pesquisa:** Eden-NX2 possui receita de compilação para x86-64-v3; KytyPS5 e PS5PCEM têm aquisição pinada. Xenia Canary Linux usa pasta própria e não substitui a instalação Windows existente. Instalar esses protótipos não os homologa para gameplay ou venda.
 - **Configuração:** disco virtual vazio oficial do xemu (preservando um disco do usuário existente), raízes canônicas, perfis/coleções/launchers e mídia por plataforma; configurações e atalhos do desktop/menu sem abrir GUIs. O perfil de uma instalação nova só é alterado automaticamente enquanto seu hash gerenciado continuar intacto.
 
-O grafo tem 59 componentes, considerando grupos de pacotes e núcleos individuais. Os números podem mudar por release; o JSON é a seleção efetiva. Nenhum aplicativo sem relação com o ecossistema de emulação é instalado por inferência.
+O grafo tem 63 componentes, considerando grupos de pacotes e núcleos individuais. Os números podem mudar por release; o JSON é a seleção efetiva. Nenhum aplicativo sem relação com o ecossistema de emulação é instalado por inferência.
 
 ## Retomada e preservação
 

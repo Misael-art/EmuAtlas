@@ -7,8 +7,8 @@
   "files": [
     {
       "target": ".github/workflows/ci.yml",
-      "sha256": "4c2adeb3d888eaa6813c11518ad8ef9367e987ed252a6432470bd2647c034970",
-      "size_bytes": 3213,
+      "sha256": "a962322db3600bed4a858d065d4da9cd93bc6d1236eb16a51e605c10c299f591",
+      "size_bytes": 3270,
       "mode": "0644"
     },
     {
@@ -25,8 +25,8 @@
     },
     {
       "target": "README.md",
-      "sha256": "734250b1adaaa84dbe967fb5dc9c5c5b169c9c600ffe137f25fdd6f69d128e1f",
-      "size_bytes": 16476,
+      "sha256": "9d972739290d9c158cb63e62c7fc5a9ea98f59545196e5c08566da92a4934b66",
+      "size_bytes": 16602,
       "mode": "0644"
     },
     {
@@ -37,14 +37,14 @@
     },
     {
       "target": "docs/business/README.md",
-      "sha256": "051f8afa2b3504187000022bd361053e75204de54dd413f3bb12229f951e2bd5",
+      "sha256": "a96236ff4f1a36d197bf540290aa15d7d9d3477684076e43aff292c045b45cc3",
       "size_bytes": 3918,
       "mode": "0644"
     },
     {
       "target": "docs/business/architecture.md",
-      "sha256": "4c3e58a757ffe5f04d2b34a984453fcb7286c0f5c52da1c5af25c8436180a1f8",
-      "size_bytes": 9392,
+      "sha256": "1c95f08702360c4df1bcf1d14b3e76a8032d7adbe249f7b6885258dec10a96bf",
+      "size_bytes": 9550,
       "mode": "0644"
     },
     {
@@ -61,8 +61,8 @@
     },
     {
       "target": "docs/business/automated-install.md",
-      "sha256": "a23d9f8e1a384b2e00c6ce02cd787916ca919580efc018a5fd11b92b1c0cfdac",
-      "size_bytes": 9914,
+      "sha256": "e826a29a1bfa2bb1a88d4e1b8fd3efb6c435fab939fbb0b2d31f1dc37c741827",
+      "size_bytes": 10065,
       "mode": "0644"
     },
     {
@@ -79,8 +79,8 @@
     },
     {
       "target": "docs/business/quality-and-roadmap.md",
-      "sha256": "9db748c611ac6d5ebaa594714f27bb9395cbca4aaf8fde46dbce55337df8fd61",
-      "size_bytes": 3455,
+      "sha256": "b7e9b61aa4d572ab7c81155bb193069bed6dd515a36ddd853e8322756cc09ea0",
+      "size_bytes": 3608,
       "mode": "0644"
     },
     {
@@ -372,6 +372,18 @@
       "mode": "0644"
     },
     {
+      "target": "frontend/pegasus-frontend/README.md",
+      "sha256": "3c991bccabe5fd222ccb576616017daacf7a3f9458e51ca40a7c9500e2c6f0fd",
+      "size_bytes": 2885,
+      "mode": "0644"
+    },
+    {
+      "target": "frontend/pegasus-frontend/launch.sh",
+      "sha256": "a43cdffc8ae815d868e95c88de3c46115691ab6902703901c91b6a245a68870e",
+      "size_bytes": 301,
+      "mode": "0755"
+    },
+    {
       "target": "install.sh",
       "sha256": "15588c7f000437e336f1cbde52de8c7134fe701e583adfd572fb197ac81b73c4",
       "size_bytes": 1250,
@@ -385,8 +397,8 @@
     },
     {
       "target": "tools/distribution/config/component-review.json",
-      "sha256": "41fbb277545990ceeaee059c58e57f01ed16208d4818fa6d6710d99c3a33eb39",
-      "size_bytes": 795,
+      "sha256": "490252ad91b641c9a5830c4928f7c4de5a98a3a84d6a8ee27819e3906a13e949",
+      "size_bytes": 1239,
       "mode": "0644"
     },
     {
@@ -397,8 +409,8 @@
     },
     {
       "target": "tools/distribution/config/installation.json",
-      "sha256": "da2a8dae9ea5aed5b260382dd01d7ef1fcad0ac118ec124ad670ab3892a8fb59",
-      "size_bytes": 18976,
+      "sha256": "b5a7f24079d0162f5ac9070bfead330397840d6142f0efa78abbb6840835379c",
+      "size_bytes": 19874,
       "mode": "0644"
     },
     {
@@ -409,8 +421,8 @@
     },
     {
       "target": "tools/distribution/config/release-files.json",
-      "sha256": "92a2ebf1e09cf4edfd171ec09df59c61d09542494ed26e38be667f58ecb0b214",
-      "size_bytes": 24461,
+      "sha256": "0c2c9023edf1d76d3a7792a62ff014d9904a5e8adc1e5892d01bccbda0add519",
+      "size_bytes": 24877,
       "mode": "0644"
     },
     {
@@ -457,14 +469,14 @@
     },
     {
       "target": "tools/distribution/repository/github/ci.yml",
-      "sha256": "4c2adeb3d888eaa6813c11518ad8ef9367e987ed252a6432470bd2647c034970",
-      "size_bytes": 3213,
+      "sha256": "a962322db3600bed4a858d065d4da9cd93bc6d1236eb16a51e605c10c299f591",
+      "size_bytes": 3270,
       "mode": "0644"
     },
     {
       "target": "tools/distribution/setup.py",
-      "sha256": "e7ca625ead6407bb10b23e1eab7eaa35fcacc85ced118378535cc2cf70a6488d",
-      "size_bytes": 45734,
+      "sha256": "6167ca6711d735173a206ba542ddef0e4fe732ab6b0b3572250e9ecbdadaf1ad",
+      "size_bytes": 46047,
       "mode": "0644"
     },
     {
@@ -523,8 +535,8 @@
     },
     {
       "target": "tools/distribution/tests/test_setup.py",
-      "sha256": "9eb6eb8bd085e79a95d43e1e281d84e1612280cf69acbd2aea1324860371a2f3",
-      "size_bytes": 19563,
+      "sha256": "dc1b3cd006db8e2b99e49b8141de19c870c566e8e8e6402e8751e9096d3590a6",
+      "size_bytes": 20726,
       "mode": "0644"
     },
     {
@@ -763,8 +775,8 @@
     },
     {
       "target": "tools/roms/materialize-collection-media-paths.py",
-      "sha256": "bbb4052f05bd1447e845b2a89377c2120c6af5bae6db7a84725bba90ed70357d",
-      "size_bytes": 92652,
+      "sha256": "605235aba88ea93b81e417667d835dbabd5a1b137d5990cfb63c87c984cec184",
+      "size_bytes": 102547,
       "mode": "0644"
     },
     {
@@ -787,8 +799,8 @@
     },
     {
       "target": "tools/roms/media_stray.py",
-      "sha256": "3a1dddbac3be28149b85df44b071e8a90d6a303353dfd6474b51321bcc497159",
-      "size_bytes": 54096,
+      "sha256": "ec4609cea6ac8b8d32ed80b796000ef26825517d27e8ff0478c54d426229c79c",
+      "size_bytes": 54154,
       "mode": "0644"
     },
     {
@@ -859,8 +871,8 @@
     },
     {
       "target": "tools/roms/romtool.py",
-      "sha256": "b2b443102a8df1b5dd6819cdd5ea1a860731c417f8bf65de2ae93c07e50aafde",
-      "size_bytes": 478963,
+      "sha256": "269d8e600657bbb74cb8b9c82a1d6132305ad444a47574c118f0dd0c274dc1fa",
+      "size_bytes": 479514,
       "mode": "0644"
     },
     {
@@ -979,8 +991,8 @@
     },
     {
       "target": "tools/roms/tests/test_emulator_library.py",
-      "sha256": "9c7b248b9aa15dca28ba0f8fdbdd2a5d51888d74b388927f1086030dd5b7359a",
-      "size_bytes": 16809,
+      "sha256": "0d54b478add177d518d8d1b683fb980dc05534e281c39b649290fd66a7e15c2d",
+      "size_bytes": 17517,
       "mode": "0644"
     },
     {
@@ -1059,6 +1071,12 @@
       "target": "tools/roms/tests/test_module_identity.py",
       "sha256": "7a8b1833562aaf6ea507a077a3d33be9495c3ce7f368a859868a2c0ac766341a",
       "size_bytes": 1559,
+      "mode": "0644"
+    },
+    {
+      "target": "tools/roms/tests/test_pegasus_media_projection.py",
+      "sha256": "8ed72a502d4db5b4ef053735d9f0f7a1b18d85944e6e1387a6b4f07d0d74876c",
+      "size_bytes": 14126,
       "mode": "0644"
     },
     {

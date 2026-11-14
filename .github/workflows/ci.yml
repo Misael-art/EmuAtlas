@@ -60,6 +60,7 @@ jobs:
           tools.roms.tests.test_launch_subjects
           tools.roms.tests.test_disc_sets
           tools.roms.tests.test_launch_entries_projection
+          tools.roms.tests.test_pegasus_media_projection
           tools.roms.tests.test_asset_catalog_policy
           tools.roms.tests.test_emulator_library
           tools.roms.tests.test_input_recovery_unit

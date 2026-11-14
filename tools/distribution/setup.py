@@ -615,7 +615,12 @@ class Installer:
         parent.mkdir(parents=True, exist_ok=True)
         stage = Path(tempfile.mkdtemp(prefix='.unpack-', dir=parent))
         try:
-            if item['format'] == '7z':
+            if item['format'] == 'zip':
+                from runtime_install import _extract_package
+                _extract_package(source, stage / 'payload', {
+                    'format': 'zip_tree', 'max_unpacked_bytes': item.get('max_unpacked_bytes', 2 << 30)})
+                stage = stage / 'payload'
+            elif item['format'] == '7z':
                 # py7zr is installed into the project venv. It handles archive parsing;
                 # validate every name/link before extraction into private staging.
                 python = self.root / 'tools/distribution/.venv/bin/python'

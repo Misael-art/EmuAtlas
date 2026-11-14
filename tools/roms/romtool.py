@@ -2042,8 +2042,22 @@ def esde_processes_running() -> list[dict]:
     return running
 
 
+def pegasus_processes_running() -> list[dict]:
+    running = []
+    for process in Path('/proc').glob('[0-9]*'):
+        try:
+            executable = os.readlink(process / 'exe')
+        except OSError:
+            continue
+        name = Path(executable.removesuffix(' (deleted)')).name.casefold()
+        if name in {'pegasus-fe', 'pegasus-fe.exe', 'pegasus-frontend', 'pegasus-frontend.exe'}:
+            running.append({'pid': int(process.name), 'executable': executable})
+    return running
+
+
 def frontend_processes_running() -> dict[str, list[dict]]:
-    return {"retrofe": retrofe_processes_running(), "esde": esde_processes_running()}
+    return {"retrofe": retrofe_processes_running(), "esde": esde_processes_running(),
+            "pegasus": pegasus_processes_running()}
 
 
 def validate_game_media_source(path: Path, *, allow_leaf_symlink: bool = False) -> None:

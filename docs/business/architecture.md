@@ -13,6 +13,7 @@ O repositório contém código, receitas e documentação. Uma instalação acre
 | frontend/RetroFE/UserData/ | Estado próprio do frontend | Não |
 | emulator/linux/, emulator/windows/ | Binários e dependências nativas por SO | Somente launchers revisados; binários fora da release |
 | emulator/data/ | Dados únicos de emuladores e recursos portáveis | Não |
+| frontend/pegasus-frontend/ | Runtime adquirido, launcher e dados portáteis em config/ | Código e receita, com jogos e mídia nas raízes compartilhadas |
 | frontend/ES-DE/ | Launcher e executável adquirido na origem | Código; não o executável |
 | frontend/RocketLauncher/ | Launcher alternativo de jogos, com módulos, plugins e configuração locais | Pacote local do usuário; fora do instalador/release |
 | roms/<system_id>/ | Conteúdo fornecido pelo cliente | Não |

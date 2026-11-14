@@ -723,7 +723,7 @@ def apply(operation_id: str, confirmed: bool, api) -> dict:
     project = Path(api["PROJECT_ROOT"])
     operation = Path(api["operation_dir"](operation_id))
     running = []
-    for probe in ("retrofe_processes_running", "esde_processes_running"):
+    for probe in ("retrofe_processes_running", "esde_processes_running", "pegasus_processes_running"):
         if api.get(probe):
             running += list(api[probe]() or [])
     if running and any(item["action"] in PROMOTE_ACTIONS | {QUARANTINE_ACTION} for item in manifest["items"]):
@@ -862,7 +862,7 @@ def rollback(operation_id: str, confirmed: bool, api) -> dict:
     if snapshots and not expected_metadata:
         raise ValueError("Rollback de metadados legado exige reconciliação das pós-imagens")
     running = []
-    for probe in ("retrofe_processes_running", "esde_processes_running"):
+    for probe in ("retrofe_processes_running", "esde_processes_running", "pegasus_processes_running"):
         if api.get(probe):
             running += list(api[probe]() or [])
     if running:

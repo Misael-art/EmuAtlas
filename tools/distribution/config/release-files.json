@@ -730,6 +730,19 @@
     {
       "source": "tools/roms/tests/test_media_session.py",
       "target": "tools/roms/tests/test_media_session.py"
+    },
+    {
+      "source": "frontend/pegasus-frontend/launch.sh",
+      "target": "frontend/pegasus-frontend/launch.sh",
+      "mode": "0755"
+    },
+    {
+      "source": "frontend/pegasus-frontend/README.md",
+      "target": "frontend/pegasus-frontend/README.md"
+    },
+    {
+      "source": "tools/roms/tests/test_pegasus_media_projection.py",
+      "target": "tools/roms/tests/test_pegasus_media_projection.py"
     }
   ]
 }

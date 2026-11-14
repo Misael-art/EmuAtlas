@@ -59,6 +59,18 @@ class NativeLibraryTests(unittest.TestCase):
         env['RETROFE_RETROARCH_CORE_ROOT'] = str(self.root / 'chosen cores')
         self.assertEqual(subprocess.check_output(['bash', '-c', script], env=env, text=True), env['RETROFE_RETROARCH_CORE_ROOT'])
 
+    def test_pegasus_executable_identity_participates_in_the_shared_frontend_guard(self):
+        process = self.root / 'proc/41'
+        process.mkdir(parents=True)
+        executable = self.root / 'frontend/pegasus-frontend/pegasus-fe'
+        (process / 'exe').symlink_to(executable)
+        with patch.object(Path, 'glob', return_value=[process]):
+            running = romtool.pegasus_processes_running()
+        self.assertEqual(running, [{'pid': 41, 'executable': str(executable)}])
+        with patch.object(romtool, 'frontend_processes_running', return_value={'pegasus': running}):
+            with self.assertRaisesRegex(ValueError, 'frontends'):
+                runtime._library_guard(self.root)
+
     def test_reference_edits_use_durable_writer_and_ignore_old_temporary_name(self):
         target = self.root / 'emulator/data/RetroArch/retroarch.cfg'
         target.parent.mkdir(parents=True)

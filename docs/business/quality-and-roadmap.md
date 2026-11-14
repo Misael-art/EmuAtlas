@@ -12,12 +12,13 @@ Cada transição pede evidência própria. Não pular de checksum correto para �
 | --- | --- | --- |
 | Estrutura/configuração vazia | Implementada e submetida a teste de repetição/realocação | Repetir em host limpo contratado |
 | Exportação do pacote | Allowlist, SHA-256 e arquivo determinístico | Revisão do diff, integridade e licença da seleção |
-| Instalador de host | Grafo de 59 componentes, pacotes/Flatpak/fontes/configuração e retomada | Aceitação em hosts limpos por distribuição |
+| Instalador de host | Grafo de 63 componentes, pacotes/Flatpak/fontes/configuração e retomada | Aceitação em hosts limpos por distribuição |
 | Dependências Python | Wheelhouse por identidade do host, transitivas com SHA-256 e instalação local com hashes | Preparação e reinstalação nos hosts contratados |
 | Atualização de fontes | Staging, preimagens, checkpoints por arquivo, verificação e reversão condicionada | Ensaio de atualização da seleção publicada no host contratado |
 | Ferramentas de organização | Código existente reutilizado | Insumos e regressões do escopo do cliente |
 | Mídias | Download de itens pinados + fluxos de ingestão existentes | Provedor/licença configurados e associação revisada |
 | RetroFE e temas | Receita de compilação e fallback textual; temas pessoais não empacotados | Build em host limpo, direitos, testes visuais e navegação |
+| Pegasus Linux | Receita pinada, dados portáteis, projeção por entrada e launcher nativo | Gameplay, controles físicos e temas no host contratado |
 | Desktop/Steam Deck | Proteções existentes mantidas | Teste físico: entrar, jogar, sair/crash e recuperar atalhos |
 | Windows/macOS/ARM | Não homologados | Portar dependências, paths e controles antes de vender suporte |
 | Switch 2 / Eden-NX2 | Experimental, gameplay não comprovado | Build compatível e aceitação física; fora da oferta inicial |

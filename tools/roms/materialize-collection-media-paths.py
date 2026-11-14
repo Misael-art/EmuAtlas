@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import stat
 import signal
 import shutil
@@ -604,7 +605,9 @@ def mutation_event(manifest_path,event,**details):
 
 def planned_target(manifest: dict, item: dict) -> Path:
     if manifest.get("consumer") == "pegasus":
-        allowed = {"../pegasus-frontend/game_dirs.txt", "../pegasus-frontend/metafiles/canonical-media.metadata.pegasus.txt"}
+        allowed = {"../pegasus-frontend/game_dirs.txt", "../pegasus-frontend/metafiles/canonical-media.metadata.pegasus.txt",
+                   "../pegasus-frontend/config/game_dirs.txt",
+                   "../pegasus-frontend/config/metafiles/canonical-media.metadata.pegasus.txt"}
         if item["path"] not in allowed:
             raise ValueError("Destino fora da allowlist Pegasus")
     elif manifest.get("consumer") == "launch_entries":
@@ -629,6 +632,17 @@ def planned_target(manifest: dict, item: dict) -> Path:
 
 
 def validate_consumer_references(manifest: dict) -> None:
+    if manifest.get("consumer") == "pegasus" and manifest.get("portable_runtime"):
+        for item in manifest["runtime_config_inputs"]:
+            if item['project_path'] not in {'frontend/RetroFE/Config/profiles/host-linux.json',
+                                             'frontend/RetroFE/Config/platform-catalog.json'}:
+                raise ValueError('Configuração fora da allowlist do perfil Pegasus')
+            source = PROJECT_ROOT / item['project_path']
+            if source.is_symlink() or sha256_bytes(source.read_bytes()) != item['sha256']:
+                raise ValueError('Perfil de execução mudou desde o plano Pegasus')
+        for system, expected in manifest['entry_snapshots'].items():
+            if _entry_snapshot(system) != expected:
+                raise ValueError('Entradas da plataforma mudaram desde o plano Pegasus')
     if manifest.get("consumer") == "launch_entries":
         if _entry_snapshot(manifest["system_id"]) != manifest["entry_snapshot"]:
             raise ValueError("Descritores ou arquivos da plataforma mudaram desde o plano de entradas")
@@ -807,17 +821,51 @@ def make_launch_entries_plan(path, system):
     return manifest
 
 
-def make_pegasus_plan(path: Path) -> dict[str, Any]:
+def pegasus_launch_command(text, system_id, profile):
+    commands = re.findall(r"^(?:launch|command):\s*(.+)$", text, re.MULTILINE)
+    if len(commands) != 1:
+        return None, 'comando ausente, múltiplo ou específico de jogo preservado'
+    try:
+        tokens = shlex.split(commands[0])
+    except ValueError:
+        return None, 'comando pessoal/ambíguo preservado'
+    if (len(tokens) != 6 or tokens[:4] != ['launch:/usr/bin/flatpak', 'run', 'org.libretro.RetroArch', '-L']
+            or tokens[5] != '{file.path}'
+            or Path(tokens[4]).parent.parts[-6:] != ('.var', 'app', 'org.libretro.RetroArch', 'config', 'retroarch', 'cores')):
+        return None, 'comando pessoal preservado'
+    candidates = {name: value for name, value in profile.get('collections', {}).items()
+                  if value.get('rom_subdir') == system_id and value.get('adapter') not in {None, 'unavailable'}}
+    if len(candidates) != 1:
+        return None, 'perfil nativo ausente ou múltiplo para a plataforma'
+    collection = next(iter(candidates))
+    if any(char in collection for char in ('"', '\r', '\n', '\x00')):
+        return None, 'nome da coleção exige revisão de escape no frontend'
+    command = ('"{env.EMUATLAS_PYTHON}" '
+               '"{env.EMUATLAS_ROOT}/frontend/RetroFE/Tools/launchers/emulators/host-emulator-launcher.py" '
+               f'--collection "{collection}" --item "{{file.path}}"')
+    return command, ''
+
+
+def make_pegasus_plan(path: Path, portable_runtime: bool = False) -> dict[str, Any]:
     if path.exists():
         raise FileExistsError(path)
     consumer = PROJECT_ROOT / "frontend/pegasus-frontend"
+    program_root = consumer
+    if consumer.is_symlink():
+        raise ValueError('Raiz Pegasus simbólica preservada')
+    if (consumer / 'config').is_dir():
+        if (consumer / 'game_dirs.txt').exists():
+            raise ValueError('Dados Pegasus duplicados na raiz e em config; reconcilie a migração')
+        consumer = consumer / 'config'
+    elif portable_runtime:
+        raise ValueError('Migre os dados Pegasus para config pelo executor de biblioteca antes do plano portátil')
     directories = consumer / "game_dirs.txt"
     if consumer.is_symlink() or directories.is_symlink() or not directories.is_file():
         raise ValueError("Configuração Pegasus canônica ausente ou simbólica")
     data = load_json(PLATFORM_CATALOG_PATH)
     systems = {row["id"]: row for row in data.get("systems", []) if row.get("kind") == "platform"}
     old_lines = directories.read_text().splitlines()
-    new_lines, blocked, changed = [], [], 0
+    new_lines, blocked, changed, retired = [], [], 0, []
     for line in old_lines:
         # The legacy spelling is a proven project path; do not rebase another home/disk.
         old_prefix = str(PROJECT_ROOT.with_name("Emulation") / "roms") + "/"
@@ -825,9 +873,19 @@ def make_pegasus_plan(path: Path) -> dict[str, Any]:
             relative = Path(line[len(old_prefix):])
             target = PROJECT_ROOT / "roms" / relative
             if ".." not in relative.parts and target.is_dir() and not target.is_symlink():
-                new_lines.append(str(target)); changed += 1
+                new_lines.append(Path(os.path.relpath(target, program_root)).as_posix() if portable_runtime else str(target)); changed += 1
+            elif portable_runtime and not Path(line).exists() and not Path(line).is_symlink():
+                retired.append({'path': line, 'reason': 'referência gerenciada legada sem diretório de origem ou alvo atual'})
             else:
                 new_lines.append(line); blocked.append({"path": line, "reason": "diretório legado sem alvo atual comprovado"})
+        elif portable_runtime and Path(line).is_absolute() and Path(line).is_relative_to(PROJECT_ROOT):
+            target = Path(line)
+            if target.is_dir() and not target.is_symlink():
+                new_lines.append(Path(os.path.relpath(target, program_root)).as_posix()); changed += 1
+            elif not target.exists() and not target.is_symlink():
+                retired.append({'path': line, 'reason': 'referência gerenciada sem diretório atual'})
+            else:
+                new_lines.append(line); blocked.append({'path': line, 'reason': 'diretório gerenciado ambíguo/simbólico preservado'})
         else:
             new_lines.append(line)
     projection = consumer / "metafiles/canonical-media.metadata.pegasus.txt"
@@ -838,6 +896,16 @@ def make_pegasus_plan(path: Path) -> dict[str, Any]:
                "box_full": "cover-full", "logo": "clearlogo", "marquee": "marquee", "background": "background",
                "screenshot": "screenshot", "titlescreen": "screentitle", "video": "video", "music": "music"}
     output, references, sources, games, collections = [marker, ""], {}, [], 0, 0
+    launch_games, snapshots, runtime_inputs = 0, {}, []
+    profile = {}
+    if portable_runtime:
+        profile_path = ROOT / 'Config/profiles/host-linux.json'
+        if profile_path.is_symlink() or not profile_path.is_file():
+            raise ValueError('Perfil nativo único necessário para a projeção de execução')
+        profile = load_json(profile_path)
+        runtime_inputs = [{'project_path': source.relative_to(PROJECT_ROOT).as_posix(),
+                           'sha256': sha256_bytes(source.read_bytes())}
+                          for source in [profile_path, PLATFORM_CATALOG_PATH]]
     for system_id, record in sorted(systems.items()):
         rom_root = PROJECT_ROOT / "roms" / record.get("rom_subdir", system_id)
         metadata = rom_root / "metadata.pegasus.txt"
@@ -851,14 +919,19 @@ def make_pegasus_plan(path: Path) -> dict[str, Any]:
         name = match.group(1).strip()
         short = re.search(r"^shortname:\s*(.+)$", text, re.MULTILINE)
         output.extend([f"collection: {name}", f"shortname: {short.group(1).strip() if short else system_id}", ""])
-        extensions = {value.casefold().lstrip(".") for value in record.get("extensions", [])}
-        by_stem = defaultdict(list)
-        for current, dirs, files in os.walk(rom_root, followlinks=False):
-            base = Path(current); dirs[:] = [value for value in dirs if not (base / value).is_symlink()]
-            for filename in files:
-                candidate = base / filename
-                if not candidate.is_symlink() and candidate.suffix.casefold().lstrip(".") in extensions:
-                    by_stem[candidate.stem].append(candidate)
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from media_stray import _rom_stems, media_session
+        ignored = sorted(media_session._track_paths(rom_root, include_playlists=True))
+        for dependency in ignored:
+            output.append(f'ignore-file: {Path(os.path.relpath(dependency, projection.parent)).as_posix()}')
+        by_stem = {stem: [PROJECT_ROOT / value for value in values]
+                   for stem, values in _rom_stems(PROJECT_ROOT, system_id).items()}
+        launch = None
+        if portable_runtime:
+            launch, reason = pegasus_launch_command(text, system_id, profile)
+            if reason:
+                blocked.append({'path': str(metadata), 'reason': reason})
+            snapshots[system_id] = _entry_snapshot(system_id)
         collections += 1
         for stem, candidates in sorted(by_stem.items()):
             if any(char in str(candidates[0]) for char in ("\r", "\n")):
@@ -878,9 +951,12 @@ def make_pegasus_plan(path: Path) -> dict[str, Any]:
                 relative = payload.relative_to(PROJECT_ROOT).as_posix()
                 references[relative] = {"project_path": relative, "sha256": sha256_bytes(payload.read_bytes())}
                 media_lines.append(f"assets.{field}: {Path(os.path.relpath(payload, projection.parent)).as_posix()}")
-            if media_lines:
-                output.extend([f"game: {stem}", f"file: {Path(os.path.relpath(candidates[0], projection.parent)).as_posix()}", *media_lines, ""])
-                games += 1
+            if media_lines or launch:
+                launch_lines = ['launch: ' + launch] if launch else []
+                output.extend([f"game: {stem}", f"file: {Path(os.path.relpath(candidates[0], projection.parent)).as_posix()}",
+                               *launch_lines, *media_lines, ""])
+                games += bool(media_lines)
+                launch_games += bool(launch)
     files = []
     for target, after in [(directories, ("\n".join(new_lines) + "\n").encode()), (projection, ("\n".join(output) + "\n").encode())]:
         exists = target.is_file()
@@ -894,12 +970,83 @@ def make_pegasus_plan(path: Path) -> dict[str, Any]:
     manifest = {"schema_version": 1, "operation": "retrofe_collection_media_path_migration", "mode": "consumer",
                 "consumer": "pegasus", "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
                 "status": "prepared", "files": files, "links": [], "reference_files": list(references.values()), "source_files": sources,
+                "portable_runtime": portable_runtime, "runtime_config_inputs": runtime_inputs,
+                "working_directory": program_root.relative_to(PROJECT_ROOT).as_posix(),
+                "entry_snapshots": snapshots, "retired_missing_managed_references": retired,
                 "summary": {"directory_paths_rebased": changed, "collections": collections, "games_with_media": games,
+                            "games_with_launcher": launch_games, "retired_missing_managed_references": len(retired),
                             "canonical_media_references": len(references), "blocked": len(blocked)}, "blocked": blocked}
     for item in files:
         planned_target(manifest, item)
     save_json_atomic(path, manifest)
     return manifest
+
+
+def launch_pegasus(arguments):
+    arguments = list(arguments)
+    if arguments[:1] == ['--']:
+        arguments.pop(0)
+    sys.path.insert(0, str(PROJECT_ROOT / 'tools/distribution'))
+    from setup import Installer
+    import workspace
+    engine = Installer(PROJECT_ROOT)
+    recipe = engine.config['components']['pegasus']
+    program = PROJECT_ROOT / 'frontend/pegasus-frontend'
+    app = engine.root / recipe['target_dir'] / recipe['entry']
+    if app != program / 'pegasus-fe':
+        raise ValueError('Receita Pegasus fora da instalação canônica')
+    reusable, reason = engine.receipt_reuse('pegasus', recipe, 'archive')
+    if not reusable:
+        raise ValueError('Runtime Pegasus sem recibo íntegro. ' + reason)
+    engine.check_elf(app)
+    data = program / 'config'
+    cache = data / 'cache'
+    for path in [program, data, cache, cache / 'pegasus-frontend']:
+        engine_path = path.relative_to(engine.root).as_posix()
+        workspace.safe_path(engine.root, engine_path)
+        if path.exists() and not path.is_dir():
+            raise ValueError('Diretório Pegasus ocupado por outro tipo de arquivo')
+    environment = {**os.environ, 'EMUATLAS_ROOT': str(PROJECT_ROOT), 'EMUATLAS_PYTHON': sys.executable,
+                   'XDG_CACHE_HOME': str(cache), 'QT_QPA_PLATFORM': 'xcb'}
+    utilities = [['--help'], ['-h'], ['--help-all'], ['--version'], ['-v']]
+    if arguments in utilities:
+        return subprocess.call([str(app), '--portable', *arguments], cwd=program, env=environment)
+    if any((program / name).exists() or (program / name).is_symlink()
+           for name in ['settings.txt', 'game_dirs.txt', 'metafiles', 'stats.db', 'theme_settings']):
+        raise ValueError('Dados Pegasus legados na raiz. Conclua a migração revisada de biblioteca para config')
+    for name in ['settings.txt', 'game_dirs.txt', 'metafiles', 'stats.db', 'theme_settings']:
+        workspace.safe_path(engine.root, (data / name).relative_to(engine.root).as_posix())
+    projection = data / 'metafiles/canonical-media.metadata.pegasus.txt'
+    if projection.is_file():
+        workspace.safe_path(engine.root, projection.relative_to(engine.root).as_posix())
+        text = projection.read_text()
+        if not text.startswith('# emulation-managed canonical-media v1\n'):
+            raise ValueError('Projeção Pegasus pessoal/divergente preservada')
+        for match in re.finditer(r'^(file|assets\.[A-Za-z_]+): (.+)$', text, re.MULTILINE):
+            target = (projection.parent / match[2]).resolve()
+            expected = PROJECT_ROOT / ('roms' if match[1] == 'file' else 'media')
+            exists = target.is_file() or (match[1] == 'file' and target.is_dir())
+            if not target.is_relative_to(expected) or not exists:
+                raise ValueError('Referência Pegasus ausente/externa. Refaça o plano de consumidor portátil')
+    if arguments == ['--check']:
+        print(json.dumps({'status': 'ready', 'version_recipe': recipe['version'],
+                          'runtime': str(app), 'userdata': str(data), 'gameplay_tested': False}, ensure_ascii=False))
+        return 0
+    if pegasus_processes():
+        raise ValueError('Pegasus já está em execução. Use a sessão existente')
+    lock = PROJECT_ROOT / 'outputs/installation/pegasus-session.lock'
+    workspace.safe_path(engine.root, lock.relative_to(engine.root).as_posix())
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if pegasus_processes():
+            raise ValueError('Pegasus já está em execução. Use a sessão existente')
+        command = [sys.executable, str(ROOT / 'Tools/launchers/retrofe/steam-input.py'),
+                   '--root', str(ROOT), 'session-run', '--', str(app), '--portable', *arguments]
+        return subprocess.call(command, cwd=program, env=environment)
+    finally:
+        os.close(fd)
 
 
 def pegasus_processes() -> list[int]:
@@ -1510,6 +1657,8 @@ def main() -> int:
     subparsers.add_parser("audit", help="audita apontamentos, separadores de mídia e arte de plataforma")
     subparsers.add_parser('ensure-runtime',help='preflight portátil e idempotente de mídia antes de abrir o RetroFE')
     subparsers.add_parser('check-runtime',help='verifica configuração de mídia sem gravar')
+    pegasus_launcher = subparsers.add_parser('launch-pegasus', help='abre a instalação portátil canônica do Pegasus')
+    pegasus_launcher.add_argument('launcher_arguments', nargs=argparse.REMAINDER)
     runtime_parser=subparsers.add_parser('runtime-plan',help='prepara plano revisável de apontamentos e aliases por título exato')
     runtime_parser.add_argument('--manifest',type=Path)
     entries_parser = subparsers.add_parser("entries-plan", help="projeta entradas CUE/GDI/M3U e exclui dependências dos menus e scraping")
@@ -1518,6 +1667,8 @@ def main() -> int:
     consumer_parser = subparsers.add_parser("consumer-plan", help="projeta fontes e mídia canônicas em consumidores com adaptador explícito")
     consumer_parser.add_argument("--frontend", choices=("pegasus",), required=True)
     consumer_parser.add_argument("--manifest", type=Path, required=True)
+    consumer_parser.add_argument('--portable-runtime', action='store_true',
+                                 help='projeta comandos legados reconhecidos pelo perfil nativo e diretórios relativos ao launcher')
     plan_parser = subparsers.add_parser("plan", help="prepara migração reversível de paths e separadores de mídia")
     plan_parser.add_argument("--manifest", type=Path, help="destino do manifesto; padrão Manifests/ com timestamp")
     apply_parser = subparsers.add_parser("apply", help="aplica plano conferido; exige --apply")
@@ -1535,6 +1686,8 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
+        if args.command == 'launch-pegasus':
+            return launch_pegasus(args.launcher_arguments)
         if args.command == 'launch-runtime':
             return launch_runtime(args.launcher_arguments)
         media_map = load_json(MEDIA_MAP_PATH)
@@ -1543,7 +1696,7 @@ def main() -> int:
             print(json.dumps({"manifest": str(args.manifest), "status": result["status"], "summary": result["summary"]}, ensure_ascii=False, indent=2))
             return 0
         if args.command == "consumer-plan":
-            result = make_pegasus_plan(args.manifest)
+            result = make_pegasus_plan(args.manifest, args.portable_runtime)
             print(json.dumps({"manifest": str(args.manifest), "status": result["status"], "summary": result["summary"]}, ensure_ascii=False, indent=2))
             return 0
         if args.command in {'ensure-runtime','check-runtime','runtime-plan'}:
