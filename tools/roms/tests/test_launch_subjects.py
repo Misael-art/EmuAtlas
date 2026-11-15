@@ -1,4 +1,5 @@
 """Shared name resolution excludes declared tracks and preserves physical ambiguity."""
+import csv
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -175,3 +176,139 @@ class LaunchSubjectTests(unittest.TestCase):
             "rom_subdir": "test", "extensions": "unknown"}}}))
         (self.roms / "Game.bin").write_bytes(b"fixture")
         self.assertEqual(media_session._rom_names(self.root, "test"), {})
+
+
+class SemanticMediaRekeyTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.source = self.root / "media/test/cover/Game.png"
+        self.target = self.root / "media/test/background/Game (Alt 2).png"
+        self.source.parent.mkdir(parents=True)
+        self.target.parent.mkdir(parents=True)
+        self.source.write_bytes(b"reviewed original illustration")
+        (self.root / "roms/test").mkdir(parents=True)
+        self.review_id = "media-cover-review-fixture"
+        self.review_path = self.root / "outputs/operations" / self.review_id / "manifest.json"
+        self.review_path.parent.mkdir(parents=True)
+        with (self.root / "outputs/catalogo-arquivos.csv").open("w", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=["source", "destination_proposal", "current_path_status", "metadata_recheck",
+                                                       "function_hint", "current_absolute_path", "current_sha256",
+                                                       "current_size_bytes", "current_operation_id"])
+            writer.writeheader()
+            writer.writerow({"source": "RetroFE_game_media", "destination_proposal": str(self.source), "function_hint": "cover"})
+        (self.root / "outputs/estado-final-verificacao.json").write_text("{}\n")
+        (self.root / "outputs/RELATORIO-CONSOLIDACAO.md").write_text("# Fixture\n")
+        self.review = {"operation_id": self.review_id, "kind": "media_cover_review", "read_only": True,
+                       "status": "completed_verified", "items": [{"source": "test/cover/Game.png",
+                       "sha256": romtool.sha256_file(self.source), "classification": "not-cover",
+                       "target_media_type": "background"}]}
+        self.review_path.write_text(json.dumps(self.review))
+        self.action = {"action": "media_rekey_link", "source": str(self.source), "destination": str(self.target),
+                       "system_id": "test", "media_type": "background", "source_media_type": "cover",
+                       "semantic_review_operation_id": self.review_id, "game_title_hint": "Game",
+                       "classification": "media", "item_identity": "Game illustration",
+                       "reason": "Selected visual classification with intact bytes",
+                       "reference_check": "preserved_by_relative_symlink", "validation_result": "fixture",
+                       "dependency_check": "Exact single game entry"}
+        self.stack = self.enterContext(ExitStack())
+        for key, value in {"PROJECT_ROOT": self.root, "MEDIA_DEST_ROOT": self.root / "media",
+                           "OUTPUT_ROOT": self.root / "outputs", "OPS_ROOT": self.root / "outputs/operations"}.items():
+            self.stack.enter_context(patch.object(romtool, key, value))
+        for key, value in {"load_policy": {}, "frontend_processes_running": {},
+                           "retrofe_processes_running": [], "supersede_prior_plans": []}.items():
+            self.stack.enter_context(patch.object(romtool, key, return_value=value))
+        for key in ("ensure_allowed", "append_event", "rebuild_history_index"):
+            self.stack.enter_context(patch.object(romtool, key))
+
+    def plan(self):
+        request = self.root / "request.json"
+        request.write_text(json.dumps({"actions": [self.action]}))
+        return romtool.plan_actions(request)
+
+    def test_selected_role_change_preserves_bytes_alias_and_rollback(self):
+        original = self.source.read_bytes()
+        manifest = self.plan()
+        item = manifest["items"][0]
+        self.assertEqual(item["media"]["semantic_review_sha256"], romtool.sha256_file(self.review_path))
+        romtool.apply_media_action(item, manifest["operation_id"])
+        self.assertTrue(self.source.is_symlink())
+        self.assertFalse(self.source.readlink().is_absolute())
+        self.assertEqual(self.target.read_bytes(), original)
+        romtool.rollback_media_action(item, manifest["operation_id"])
+        self.assertFalse(self.source.is_symlink())
+        self.assertEqual(self.source.read_bytes(), original)
+        self.assertFalse(self.target.exists())
+
+    def test_normal_apply_verify_and_rollback_entry_points(self):
+        from types import SimpleNamespace
+        original = self.source.read_bytes()
+        manifest = self.plan()
+        operation_id = manifest["operation_id"]
+        applied = romtool.apply_operation(operation_id, True)
+        self.assertEqual(applied["status"], "completed_verified")
+        with (self.root / "outputs/catalogo-arquivos.csv").open() as stream:
+            row = next(csv.DictReader(stream))
+        self.assertEqual(row["function_hint"], "background")
+        self.assertEqual(row["current_absolute_path"], str(self.target))
+        verified = romtool.command_media_verify(SimpleNamespace(operation_id=operation_id))
+        self.assertTrue(all(item["status"] == "verified_relative_alias_and_payload" for item in verified["items"]))
+        self.assertEqual(romtool.rollback_operation(operation_id, True)["status"], "rolled_back_verified")
+        self.assertFalse(self.source.is_symlink())
+        self.assertEqual(self.source.read_bytes(), original)
+        with (self.root / "outputs/catalogo-arquivos.csv").open() as stream:
+            row = next(csv.DictReader(stream))
+        self.assertEqual(row["function_hint"], "cover")
+        self.assertEqual(row["current_absolute_path"], str(self.source))
+
+    def test_changed_review_blocks_the_whole_normal_apply_preflight(self):
+        manifest = self.plan()
+        self.review_path.write_text(json.dumps(self.review) + "\n")
+        with self.assertRaisesRegex(ValueError, "mudou desde o plano"):
+            romtool.apply_operation(manifest["operation_id"], True)
+        stored = json.loads((romtool.operation_dir(manifest["operation_id"]) / "manifest.json").read_text())
+        self.assertEqual(stored["status"], "prepared")
+        self.assertFalse(self.source.is_symlink())
+        self.assertFalse(self.target.exists())
+
+    def test_missing_review_role_or_source_hash_never_moves(self):
+        for field, value in (("target_media_type", "manual"), ("classification", "front-cover"), ("sha256", "0" * 64)):
+            with self.subTest(field=field):
+                review = json.loads(json.dumps(self.review))
+                review["items"][0][field] = value
+                self.review_path.write_text(json.dumps(review))
+                with self.assertRaisesRegex(ValueError, "não comprova"):
+                    self.plan()
+                self.assertTrue(self.source.is_file())
+                self.assertFalse(self.target.exists())
+
+    def test_review_mutation_blocks_before_payload_move(self):
+        manifest = self.plan()
+        self.review_path.write_text(json.dumps(self.review) + "\n")
+        with self.assertRaisesRegex(ValueError, "mudou desde o plano"):
+            romtool.apply_media_action(manifest["items"][0], manifest["operation_id"])
+        self.assertFalse(self.source.is_symlink())
+        self.assertFalse(self.target.exists())
+
+    def test_other_category_pairs_and_missing_review_are_rejected(self):
+        for change in ({"source_media_type": "cover-front"}, {"semantic_review_operation_id": ""}):
+            with self.subTest(change=change):
+                details = dict(self.action, **change)
+                with self.assertRaises(ValueError):
+                    romtool.media_semantic_rekey_proof(self.source, details, romtool.sha256_file(self.source))
+
+    def test_active_frontend_blocks_selected_role_change(self):
+        manifest = self.plan()
+        with patch.object(romtool, "frontend_processes_running", return_value={"esde": [123]}):
+            with self.assertRaisesRegex(RuntimeError, "Feche os frontends"):
+                romtool.apply_media_action(manifest["items"][0], manifest["operation_id"])
+        self.assertTrue(self.source.is_file())
+        self.assertFalse(self.target.exists())
+        item = manifest["items"][0]
+        romtool.apply_media_action(item, manifest["operation_id"])
+        with patch.object(romtool, "frontend_processes_running", return_value={"esde": [123]}):
+            with self.assertRaisesRegex(RuntimeError, "Feche os frontends"):
+                romtool.rollback_media_action(item, manifest["operation_id"])
+        self.assertTrue(self.source.is_symlink())
+        self.assertTrue(self.target.is_file())

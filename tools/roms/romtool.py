@@ -2154,6 +2154,36 @@ def media_title_key(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip().casefold()
 
 
+def media_semantic_rekey_proof(source: Path, details: dict, source_sha256: str) -> dict:
+    """Bind selected legacy cover illustrations to a reviewed background role."""
+    previous_type = details.get("source_media_type", details["media_type"])
+    if previous_type == details["media_type"]:
+        return {}
+    if (previous_type, details["media_type"]) != ("cover", "background"):
+        raise ValueError("Mudança semântica de mídia sem perfil aprovado")
+    operation_id = details.get("semantic_review_operation_id", "")
+    if not re.fullmatch(r"media-cover-review-[A-Za-z0-9._-]+", operation_id):
+        raise ValueError("Reclassificação exige revisão visual oficial")
+    path = operation_dir(operation_id) / "manifest.json"
+    reject_symlink_components(path)
+    raw = path.read_bytes()
+    review_sha256 = hashlib.sha256(raw).hexdigest()
+    if details.get("semantic_review_sha256", review_sha256) != review_sha256:
+        raise ValueError("Revisão semântica mudou desde o plano")
+    review = json.loads(raw)
+    if (review.get("operation_id") != operation_id or review.get("kind") != "media_cover_review"
+            or review.get("status") != "completed_verified" or review.get("read_only") is not True):
+        raise ValueError("Revisão semântica incompleta ou incompatível")
+    relative = source.relative_to(MEDIA_DEST_ROOT).as_posix()
+    entries = [entry for entry in review.get("items", []) if entry.get("source") == relative]
+    if (len(entries) != 1 or entries[0].get("sha256") != source_sha256
+            or entries[0].get("classification") != "not-cover"
+            or entries[0].get("target_media_type") != "background"):
+        raise ValueError("Revisão não comprova a função background deste conteúdo")
+    return {"source_media_type": previous_type, "semantic_review_operation_id": operation_id,
+            "semantic_review_sha256": review_sha256}
+
+
 def validate_media_operation_quarantine(path: Path, operation_id: str) -> None:
     quarantine_root = operation_dir(operation_id) / "quarantine"
     absolute = Path(os.path.abspath(path))
@@ -2210,6 +2240,10 @@ def apply_media_action(item: dict, operation_id: str) -> None:
     current_source = path_snapshot(source, include_hash=True)
     if current_source["kind"] != "file" or current_source["sha256"] != expected_hash:
         raise ValueError(f"Payload de mídia mudou desde o plano: {source}")
+    if kind == "media_rekey_link":
+        semantic = media_semantic_rekey_proof(source, media, expected_hash)
+        if semantic and any(frontend_processes_running().values()):
+            raise RuntimeError("Feche os frontends antes de reclassificar mídia")
 
     if kind == "media_move_link":
         if os.path.lexists(destination) or source.is_symlink() or not source.is_file():
@@ -2343,6 +2377,8 @@ def rollback_media_action(item: dict, operation_id: str) -> str:
     """Restore the original frontend file/link state without touching shared payloads."""
     if retrofe_processes_running():
         raise RuntimeError("Feche o RetroFE antes do rollback dos caminhos de mídia")
+    if item.get("media", {}).get("source_media_type") and any(frontend_processes_running().values()):
+        raise RuntimeError("Feche os frontends antes de reverter a classificação de mídia")
     kind = item["action"]
     source, destination = Path(item["source"]), Path(item["destination"])
     alias = media_item_alias(item)
@@ -2878,7 +2914,8 @@ def plan_actions(plan_path: Path) -> dict:
             elif kind == "media_rekey_link":
                 media_type = str(action.get("media_type", ""))
                 validate_game_media_destination(
-                    source, system_id=str(action.get("system_id", "")), media_type=media_type,
+                    source, system_id=str(action.get("system_id", "")),
+                    media_type=str(action.get("source_media_type", media_type)),
                     require_matching_type=True)
                 ensure_allowed(source)
             else:
@@ -3034,6 +3071,7 @@ def plan_actions(plan_path: Path) -> dict:
                                  "media_type_evidence": action.get("media_type_evidence", ""),
                                  "media_validation": action.get("media_validation", ""),
                                  "frontend_references": action.get("frontend_references", [])}
+                media_details.update(media_semantic_rekey_proof(source, action, pre["sha256"]))
                 if not (reuses_existing or reuses_planned):
                     planned_media_payloads.add(payload_key)
                     planned_media_targets[str(destination)] = (pre["sha256"], payload_key[3])
@@ -3986,7 +4024,7 @@ def apply_operation(operation_id: str, confirmed: bool) -> dict:
                 ensure_allowed(source)
             elif kind == "media_rekey_link":
                 validate_game_media_destination(source, system_id=str(item.get("system_id", "")),
-                                                media_type=media_type)
+                                                media_type=str(media.get("source_media_type", media_type)))
                 ensure_allowed(source)
                 reject_symlink_components(source)
             else:
@@ -4008,6 +4046,9 @@ def apply_operation(operation_id: str, confirmed: bool) -> dict:
                     raise FileExistsError(f"Destino de payload já existe: {destination}")
                 planned_media_hashes[str(destination)] = current["sha256"]
             elif kind == "media_rekey_link":
+                semantic = media_semantic_rekey_proof(source, media, current["sha256"])
+                if semantic and any(frontend_processes_running().values()):
+                    raise RuntimeError("Feche os frontends antes de reclassificar mídia")
                 if media.get("reuses_existing_payload"):
                     if (destination.is_symlink() or not destination.is_file()
                             or sha256_file(destination) != current["sha256"]):
@@ -6313,11 +6354,23 @@ def update_game_media_rekey_records(manifest: dict, rolled_back: bool) -> dict:
         previous = Path(item["source"])
         canonical = Path(item["destination"])
         old_path, new_path = (canonical, previous) if rolled_back else (previous, canonical)
+        media = item.get("media", {})
+        current_type = media.get("media_type", "")
+        if rolled_back:
+            current_type = media.get("source_media_type", current_type)
+        snapshot = {**item.get("precondition", {}), **(item.get("after") or {})}
+        current_fields = {"current_absolute_path": str(new_path),
+                          "current_operation_id": manifest["operation_id"],
+                          "current_sha256": snapshot.get("sha256", ""),
+                          "current_size_bytes": snapshot.get("size_bytes", "")}
+        if media.get("source_media_type"):
+            current_fields.update(media_type=current_type, function_hint=current_type)
         count = 0
         for row in rows:
             if row.get("source") != "RetroFE_game_media" or row.get("destination_proposal") != str(old_path):
                 continue
             row["destination_proposal"] = str(new_path)
+            row.update({field: value for field, value in current_fields.items() if field in fields})
             row["current_path_status"] = (
                 f"rollback verified; payload restored to {new_path}" if rolled_back else
                 f"canonical payload renamed to {new_path}; old media path remains a relative symlink")
@@ -6340,6 +6393,9 @@ def update_game_media_rekey_records(manifest: dict, rolled_back: bool) -> dict:
         for row in state_items:
             if row.get("canonical_path") == old_path:
                 row["canonical_path"] = new_path
+                if item.get("media", {}).get("source_media_type"):
+                    row["media_type"] = (item["media"]["source_media_type"] if rolled_back
+                                         else item["media"]["media_type"])
         rekeys = media_state.setdefault("canonical_path_renames", [])
         rekeys[:] = [row for row in rekeys if row.get("previous_path") != previous]
         rekeys.append({"previous_path": previous, "canonical_path": canonical,
@@ -6358,10 +6414,11 @@ def update_game_media_rekey_records(manifest: dict, rolled_back: bool) -> dict:
     if marker not in report:
         title = "Rollback verificado de nomes canônicos de mídia" if rolled_back else "Alinhamento de nomes canônicos de mídia"
         section = ["", marker, f"## {title} ({now()})", "",
-                   f"- Operação `{manifest['operation_id']}`: {len(items)} payloads de mídia renomeados; "
-                   "o caminho canônico antigo permanece como symlink relativo.",
+                   f"- A operação `{manifest['operation_id']}` organizou {len(items)} payloads de mídia. "
+                   + ("Os arquivos retornaram aos caminhos anteriores." if rolled_back else
+                      "Os caminhos anteriores continuam acessíveis por aliases relativos."),
                    "- As referências do RetroFE continuam resolvendo sem alterar configurações; SHA-256 foi conferido antes e depois.",
-                   "- Esta etapa só renomeia payloads cuja associação de título foi validada; mídia sem título único mantém basename de origem."]
+                   "- A evidência dos itens identifica o jogo associado ou a plataforma representada pela arte padrão."]
         if rolled_back:
             section[1] = marker
         report = report.rstrip() + "\n" + "\n".join(section) + "\n"
@@ -6372,6 +6429,7 @@ def update_game_media_rekey_records(manifest: dict, rolled_back: bool) -> dict:
         change_type="game-media-canonical-rekey-records",
         reason=f"Atualização incremental dos caminhos canônicos de mídia da operação {manifest['operation_id']}.",
         artifacts_json=json.dumps([str(path.relative_to(PROJECT_ROOT)) for path in changed], ensure_ascii=False),
+        defer_history_index=manifest.get("history_index_refresh") == "deferred",
     )
     artifact_record = command_record_artifacts(args)
     manifest["project_artifact_record_id"] = artifact_record["operation_id"]

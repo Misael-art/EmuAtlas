@@ -139,6 +139,12 @@ No RetroFE, as dependências entram em `exclude.txt` e `exclude_all.txt` nas col
 
 Quando o perfil Linux declara formatos e suporte a diretórios para a plataforma, a associação de mídia considera essas capacidades junto do catálogo. Pastas contêiner e archives sem suporte no perfil seguem como dependências ou fontes de revisão. Instalações anteriores sem esse perfil conservam a resolução legada.
 
+### Ilustrações em cover legado
+
+Uma revisão oficial `media covers review` pode vincular `classification=not-cover` e `target_media_type=background` ao SHA-256 de uma ilustração. O plano selecionado da ação existente `media_rekey_link` declara `source_media_type=cover`, `media_type=background` e `semantic_review_operation_id`. A revisão identifica a entrada única do jogo ou a plataforma representada na arte padrão. A decodificação integral acompanha a evidência do item.
+
+O planejador fixa o hash do manifesto de revisão e da imagem, e a aplicação os reconfere com os frontends fechados. O destino conserva os bytes e recebe o sufixo Alt quando já existir outra ilustração diferente. O caminho legado permanece acessível por alias relativo. A verificação e a reversão usam o fluxo existente de mídia. Este perfil atende a mudança selecionada entre `cover` e `background`.
+
 ## Origens achatadas e reversão parcial
 
 O plano stray admite `--pdf-stream-eol-review` para um PDF selecionado cujo único aviso do qpdf seja `stream keyword followed by carriage return only`. A revisão exige código 3 do qpdf, identificação exata do arquivo em cada aviso e render de todas as páginas pelo Poppler. Outros avisos, erros e páginas ausentes bloqueiam a promoção. O manifesto conserva os avisos completos e o resultado da leitura, e os bytes originais seguem preservados pelo fluxo reversível. Essa seleção é independente da revisão de hints de linearização.

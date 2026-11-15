@@ -180,6 +180,8 @@ workspace/
 
 A mídia compartilhada possui uma origem canônica. Aliases relativos oferecem compatibilidade entre consumidores, evitando criar uma biblioteca de payloads para cada frontend.
 
+Ilustrações encontradas nas capas legadas podem receber classificação visual por conteúdo e ser organizadas como fundos. Cada mudança mantém seus bytes, a referência anterior por alias relativo e a possibilidade de reversão. A associação identifica o jogo ou a plataforma representada. [Curadoria e organização de mídia](tools/roms/docs/media-continuation.md)
+
 Os emuladores usam a [estrutura portátil em emulator/](emulator/README.md), com binários separados por SO e dados compartilhados. O Linux atual foi preservado; os pacotes Windows estão preparados para aceitação nativa. Runtimes com pastas fixas exigem NTFS e preparação dos vínculos após mudar de unidade. A execução física no Windows e os binários Windows dos frontends ainda estão pendentes.
 
 ## Estado do projeto
