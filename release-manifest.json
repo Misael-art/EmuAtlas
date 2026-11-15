@@ -367,8 +367,8 @@
     },
     {
       "target": "frontend/RetroFE/Tools/materializers/reorganize-shared-assets.py",
-      "sha256": "3397a638af383353c67847b27a841305f56fb1543c702d0dc4d628296ef0f2bd",
-      "size_bytes": 137143,
+      "sha256": "534e32f8646db2102b63ed68dddd814ce40be1bbc4267b7a68b3c57e1c624a77",
+      "size_bytes": 138022,
       "mode": "0644"
     },
     {
@@ -571,8 +571,8 @@
     },
     {
       "target": "tools/roms/cd_compaction.py",
-      "sha256": "32c2c5c1682a3957ae630e57334e2b54ee233a2eb46f54b844c70e5ac71d8a7c",
-      "size_bytes": 25245,
+      "sha256": "5d135b7a299bd68ddec7ccbdc049b22304261d16ef395a211573e359fcf52060",
+      "size_bytes": 30642,
       "mode": "0644"
     },
     {
@@ -607,8 +607,8 @@
     },
     {
       "target": "tools/roms/docs/media-continuation.md",
-      "sha256": "7941038f0c4003acdbab2a35d33da2c5b64956ac3fb4b978c49f6f4ef6323d61",
-      "size_bytes": 36025,
+      "sha256": "690a08da4983d15869ce1daaa66622de71c51d265a01fd7a6b97094f92c55d72",
+      "size_bytes": 37173,
       "mode": "0644"
     },
     {
@@ -979,8 +979,8 @@
     },
     {
       "target": "tools/roms/tests/test_asset_catalog_policy.py",
-      "sha256": "be88dab7ddf604b7992493dd062c677c9fd5f47bfa5e3ee996f60ba823858b2d",
-      "size_bytes": 20351,
+      "sha256": "d55415e1c5277c46cb03a304dfb16f93e52f0c30829ec92722d8c1aa2a6af5a4",
+      "size_bytes": 25509,
       "mode": "0644"
     },
     {
@@ -997,8 +997,8 @@
     },
     {
       "target": "tools/roms/tests/test_cd_compaction.py",
-      "sha256": "a9c534474052296416cf6755822550acd4cdcf723d2a32a926b929f0c623792b",
-      "size_bytes": 14236,
+      "sha256": "862ab77654d5d4c1f52cfe506cdb23b113e48520a2d8bc2b0b8ecce31817e0d9",
+      "size_bytes": 18044,
       "mode": "0644"
     },
     {

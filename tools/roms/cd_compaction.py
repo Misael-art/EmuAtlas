@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import tempfile
 import uuid
+import xml.etree.ElementTree as ET
 
 try:
     from . import disc_sets, runtime_install
@@ -152,11 +153,105 @@ def _runtime(root, system, profile):
     return supported
 
 
+def _gamelist_path(value):
+    parts = [part for part in value.strip().replace("\\", "/").split("/") if part not in {"", "."}]
+    if parts and parts[0] == "roms":
+        parts = parts[1:]
+    return "/".join(parts)
+
+
+def _game_metadata(game):
+    def signature(node):
+        return (node.tag, tuple(sorted(node.attrib.items())), node.text or "",
+                node.tail.strip() if node.tail else "", tuple(signature(child) for child in node))
+
+    ignored = {"path", "hidden", "nomultiscrape", "nogamecount"}
+    result = {"@attributes": tuple(sorted(game.attrib.items()))}
+    for node in game:
+        if node.tag in ignored:
+            continue
+        if node.tag in result:
+            raise ValueError("Metadado repetido na gamelist exige revisão")
+        result[node.tag] = signature(node)
+    return result
+
+
+def _retire_track_metadata(before, after, source, destination, tracks, reference_file):
+    """Keep one game entry and retain retired raw records in the operation proof."""
+    pattern = re.compile(rb"<game\b[^>]*>.*?</game\s*>", re.I | re.S)
+    blocks = list(pattern.finditer(before))
+    parsed = ET.fromstring(before)
+    if len(blocks) != len(parsed.findall("game")):
+        raise ValueError("Estrutura de gamelist exige revisão antes de consolidar faixas")
+    games = [ET.fromstring(block.group()) for block in blocks]
+    paths = [_gamelist_path(game.findtext("path") or "") for game in games]
+    dependent = [index for index, path in enumerate(paths) if path in tracks]
+    affected_paths = [node for node in parsed.iter("path") if _gamelist_path(node.text or "") in tracks]
+    if len(affected_paths) != len(dependent):
+        raise ValueError("Referência de faixa fora de uma entrada de jogo suportada")
+    if not dependent:
+        return after, []
+    if len({paths[index] for index in dependent}) != len(dependent):
+        raise ValueError("A gamelist repete uma faixa dependente")
+    primary = [index for index, path in enumerate(paths) if path in {source, destination}]
+    if len(primary) > 1:
+        raise ValueError("Mais de uma entrada principal na gamelist do CD")
+    promoted = not primary
+    primary_index = primary[0] if primary else max(dependent, key=lambda index: len(_game_metadata(games[index])))
+    metadata = _game_metadata(games[primary_index])
+    for index in dependent:
+        if any(len(games[index].findall(tag)) > 1 for tag in ("hidden", "nomultiscrape", "nogamecount")):
+            raise ValueError("Sinalizadores repetidos na faixa exigem revisão")
+        flags = [games[index].findtext(tag) for tag in ("hidden", "nomultiscrape", "nogamecount")]
+        if any(value is not None for value in flags) and flags != ["true", "true", "true"]:
+            raise ValueError("Sinalizadores pessoais da faixa exigem revisão")
+        conflicting = [key for key, value in _game_metadata(games[index]).items() if metadata.get(key) != value]
+        if conflicting:
+            raise ValueError("Metadados da faixa diferem da entrada principal; preservar e revisar "
+                             + reference_file + ": " + ", ".join(conflicting))
+    retired = [{"reference_file": reference_file, "path": paths[index],
+                "action": "promote_common_metadata_to_primary" if promoted and index == primary_index else "retire_dependent_entry",
+                "raw_xml": blocks[index].group().decode("utf-8")} for index in dependent]
+    remove = set(dependent) - {primary_index}
+    managed_flags = promoted and all(games[primary_index].findtext(tag) == "true"
+                                     for tag in ("hidden", "nomultiscrape", "nogamecount"))
+    index = -1
+
+    def replace(match):
+        nonlocal index
+        index += 1
+        if index in remove:
+            return b""
+        block = match.group()
+        if managed_flags and index == primary_index:
+            for tag in ("hidden", "nomultiscrape", "nogamecount"):
+                block = re.sub(rb"<" + tag.encode() + rb">\s*true\s*</" + tag.encode() + rb">", b"", block)
+        return block
+
+    if len(list(pattern.finditer(after))) != len(blocks):
+        raise ValueError("Reescrita da gamelist mudou sua estrutura")
+    result = pattern.sub(replace, after)
+    if any(_gamelist_path(node.text or "") in tracks for node in ET.fromstring(result).iter("path")):
+        raise ValueError("Referência de faixa fora de uma entrada de jogo suportada")
+    return result, retired
+
+
 def _references(cue, inputs, destination, system, api):
     root = api["PROJECT_ROOT"]
     platform = root / "roms" / system
-    updates, blockers, exclusions = api["compression_reference_updates"](
-        {"system_id": system, "source": str(cue), "destination": str(destination)})
+    source_paths = {row["path"]: (cue.parent / row["path"]).relative_to(platform).as_posix() for row in inputs}
+    destination_relative = destination.relative_to(platform).as_posix()
+    updates, blockers, exclusions = api["variant_organization"]._path_refs_for_moves(
+        {name: destination_relative for name in source_paths}, system, root,
+        root / "frontend/ES-DE/UserData", source_paths)
+    retired = []
+    track_paths = set(source_paths.values()) - {cue.relative_to(platform).as_posix()}
+    for item in updates:
+        after, removed = _retire_track_metadata(item["before_bytes"], item["after_bytes"],
+                                               cue.relative_to(platform).as_posix(), destination_relative,
+                                               track_paths, item["path"])
+        item.update(after_bytes=after, sha256_after=_digest(after), size_after=len(after))
+        retired.extend(removed)
     members = {cue.parent / row["path"] for row in inputs}
     playlists = set()
     for descriptor in sorted(platform.rglob("*")):
@@ -200,7 +295,7 @@ def _references(cue, inputs, destination, system, api):
                 blockers.append({"path": path, "reason": "Referência exige regra de atualização explícita"})
     if blockers:
         raise ValueError("Referências CD pendentes: " + json.dumps(blockers, ensure_ascii=False))
-    return updates, exclusions
+    return updates, exclusions, retired
 
 
 def _save(manifest, api):
@@ -235,7 +330,7 @@ def plan(system, source, profile_id, api):
     if not executable:
         raise FileNotFoundError("Conversor CD ausente: " + profile["tool_executable"])
     tool = Path(executable).resolve()
-    updates, exclusions = _references(cue, proof["inputs"], destination, system, api)
+    updates, exclusions, retired = _references(cue, proof["inputs"], destination, system, api)
     # Same-basename subchannel files remain beside the CHD, with their bytes guarded.
     sidecars = []
     for path in sorted(cue.parent.iterdir()):
@@ -261,6 +356,7 @@ def plan(system, source, profile_id, api):
                 "profile": profile, "runtime": runtime, "tool": str(tool),
                 "tool_sha256": api["sha256_file"](tool), "source_proof": proof,
                 "sidecars": sidecars, "edits": updates, "reference_exclusions": exclusions,
+                "retired_track_metadata": retired,
                 "source_size_bytes": sum(item["size_bytes"] for item in proof["inputs"]),
                 "history_index_refresh": "deferred", "originals_preserved": True,
                 "functional_validation": "native_gameplay_disc_swap_saves_and_return_pending"}
@@ -393,12 +489,13 @@ def apply(manifest, confirmed, api):
             raise FileExistsError("Destino CHD existente preservado")
         if inspect_cue(source, api) != manifest["source_proof"]:
             raise ValueError("Conjunto CD mudou desde o plano")
-        updates, exclusions = _references(source, manifest["source_proof"]["inputs"],
-                                          root / manifest["destination"], manifest["system_id"], api)
+        updates, exclusions, retired = _references(source, manifest["source_proof"]["inputs"],
+                                                   root / manifest["destination"], manifest["system_id"], api)
         current = [{"path": Path(row["path"]).relative_to(root).as_posix(),
                     "sha256_before": row["sha256_before"], "sha256_after": row["sha256_after"]} for row in updates]
         expected = [{key: row[key] for key in ("path", "sha256_before", "sha256_after")} for row in manifest["edits"]]
-        if current != expected or exclusions != manifest["reference_exclusions"]:
+        if (current != expected or exclusions != manifest["reference_exclusions"]
+                or retired != manifest.get("retired_track_metadata", [])):
             raise ValueError("Referências CD mudaram desde o plano")
         if shutil.disk_usage(opdir).free < 2 * manifest["source_size_bytes"] + 10 * 1024**3:
             raise ValueError("Reserva insuficiente para candidato e roundtrip CD")

@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
 from tools.roms import catalog_projection, cd_compaction as cd, romtool, runtime_install
@@ -112,6 +113,72 @@ class CdCompactionTests(unittest.TestCase):
             self.assertEqual(romtool.main(["compact", "cd", "plan", "--system-id", "psx", "--source", "Game.cue"]), 0)
         value = json.loads(output.getvalue())
         self.assertEqual(cd._load(value["operation_id"], self.api)["source_proof"]["tracks"][1]["index_01"], 150)
+
+    def track_gamelist(self, primary=True, extra="", flags=True):
+        main = '<game><path>./Game.cue</path><name>Personal</name><playcount>7</playcount></game>' if primary else ""
+        managed = '<hidden>true</hidden><nomultiscrape>true</nomultiscrape><nogamecount>true</nogamecount>' if flags else ""
+        tracks = ''.join('<game><path>./' + name + '</path><name>Personal</name><playcount>7</playcount>'
+                         + managed + extra + '</game>' for name in ("Data.bin", "Audio.bin"))
+        return ('<?xml version="1.0"?><gameList>\r\n<!-- keep -->' + main + tracks + '</gameList>').encode()
+
+    def test_dependent_track_entries_are_consolidated_and_rollback_is_exact(self):
+        before = self.track_gamelist()
+        self.gamelist.write_bytes(before)
+        manifest = self.plan()
+        self.assertEqual(len(manifest["retired_track_metadata"]), 2)
+        self.apply(manifest)
+        games = ET.fromstring(self.gamelist.read_bytes()).findall("game")
+        self.assertEqual([game.findtext("path") for game in games], ["./Game.chd"])
+        self.assertEqual(games[0].findtext("playcount"), "7")
+        self.assertIn(b"<!-- keep -->", self.gamelist.read_bytes())
+        cd.rollback(manifest, True, self.api)
+        self.assertEqual(self.gamelist.read_bytes(), before)
+
+    def test_track_only_metadata_can_supply_one_visible_primary(self):
+        self.gamelist.write_bytes(self.track_gamelist(primary=False))
+        manifest = self.plan()
+        self.apply(manifest)
+        games = ET.fromstring(self.gamelist.read_bytes()).findall("game")
+        self.assertEqual(len(games), 1)
+        self.assertEqual(games[0].findtext("path"), "./Game.chd")
+        self.assertIsNone(games[0].find("hidden"))
+        self.assertEqual(games[0].findtext("playcount"), "7")
+
+    def test_track_personal_metadata_is_never_discarded(self):
+        for extra in ("<favorite>true</favorite>", "<playcount>9</playcount>"):
+            with self.subTest(extra=extra):
+                before = self.track_gamelist(extra=extra)
+                self.gamelist.write_bytes(before)
+                with self.assertRaisesRegex(ValueError, "Metadados|repetido"):
+                    self.plan()
+                self.assertEqual(self.gamelist.read_bytes(), before)
+        self.converter.assert_not_called()
+
+    def test_track_personal_flags_are_preserved_for_review(self):
+        self.gamelist.write_bytes(self.track_gamelist(flags=False).replace(
+            b"<playcount>7</playcount></game>", b"<playcount>7</playcount><hidden>false</hidden></game>"))
+        with self.assertRaisesRegex(ValueError, "Sinalizadores pessoais"):
+            self.plan()
+
+    def test_duplicate_primary_or_track_is_refused(self):
+        for duplicate in (b'<game><path>./Game.cue</path></game>', b'<game><path>./Data.bin</path></game>'):
+            with self.subTest(duplicate=duplicate):
+                self.gamelist.write_bytes(self.track_gamelist().replace(b"</gameList>", duplicate + b"</gameList>"))
+                with self.assertRaisesRegex(ValueError, "entrada principal|repete uma faixa"):
+                    self.plan()
+
+    def test_loose_track_reference_is_refused(self):
+        self.gamelist.write_bytes(b'<gameList><folder><path>./Data.bin</path></folder></gameList>')
+        with self.assertRaisesRegex(ValueError, "fora de uma entrada"):
+            self.plan()
+
+    def test_retired_metadata_proof_is_guarded_before_conversion(self):
+        self.gamelist.write_bytes(self.track_gamelist())
+        manifest = self.plan()
+        manifest["retired_track_metadata"][0]["raw_xml"] = "changed proof"
+        with self.assertRaisesRegex(ValueError, "Referências CD mudaram"):
+            self.apply(manifest)
+        self.converter.assert_not_called()
 
     def test_completed_checkpoint_without_catalog_items_is_reconciled(self):
         manifest = self.plan()

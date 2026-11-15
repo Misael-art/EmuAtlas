@@ -67,6 +67,115 @@ class AssetCatalogPolicyTests(unittest.TestCase):
         self.tool.write_manifest(self.path, manifest)
         return manifest
 
+    def audit_fixture(self):
+        target = self.shared / "images/controllers/fixture.png"
+        target.parent.mkdir(parents=True)
+        self.asset.rename(target)
+        self.asset = target
+        relative = target.relative_to(self.root).as_posix()
+        record = {"path": relative, "sha256": self.tool.digest_file(target), "size_bytes": target.stat().st_size}
+        aliases = []
+        for name in ("One", "Two"):
+            alias = self.root / "layouts/Fixture/collections/_common/medium_artwork/controller" / (name + ".png")
+            alias.parent.mkdir(parents=True, exist_ok=True)
+            alias.symlink_to(os.path.relpath(target, alias.parent))
+            aliases.append({"path": alias.relative_to(self.root).as_posix(), "target": relative,
+                            "sha256": record["sha256"], "size_bytes": record["size_bytes"]})
+        return {"canonical_assets": [record], "layout_aliases": aliases, "mode": "deduplicated",
+                "main_artwork_aliases": [], "source_artwork_aliases": [], "source_artwork_assets": [],
+                "static_layout_aliases": []}
+
+    def test_audit_hashes_stable_shared_object_once_for_multiple_aliases(self):
+        catalog = self.audit_fixture()
+        materializer = self.tool.MATERIALIZER
+        with patch.object(materializer, "check_target", wraps=materializer.check_target) as checked:
+            result = materializer.audit_catalog(catalog)
+        self.assertEqual(result["layout_aliases"], 2)
+        self.assertEqual(checked.call_count, 1)
+
+    def test_audit_cache_is_scoped_to_one_invocation(self):
+        catalog = self.audit_fixture()
+        materializer = self.tool.MATERIALIZER
+        with patch.object(materializer, "check_target", wraps=materializer.check_target) as checked:
+            materializer.audit_catalog(catalog)
+            materializer.audit_catalog(catalog)
+        self.assertEqual(checked.call_count, 2)
+
+    def test_audit_checks_alias_expected_hash_even_for_cached_object(self):
+        catalog = self.audit_fixture()
+        catalog["layout_aliases"][0]["sha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "Hash/tamanho"):
+            self.tool.MATERIALIZER.audit_catalog(catalog)
+
+    def test_audit_checks_alias_expected_size_even_for_cached_object(self):
+        catalog = self.audit_fixture()
+        catalog["layout_aliases"][0]["size_bytes"] += 1
+        with self.assertRaisesRegex(ValueError, "Hash/tamanho"):
+            self.tool.MATERIALIZER.audit_catalog(catalog)
+
+    def test_audit_detects_mutation_after_hash_before_cache_publication(self):
+        catalog = self.audit_fixture()
+        materializer = self.tool.MATERIALIZER
+        original = materializer.check_target
+
+        def mutate(path, digest, size):
+            original(path, digest, size)
+            path.write_bytes(path.read_bytes()[:-1] + b"X")
+
+        with patch.object(materializer, "check_target", side_effect=mutate):
+            with self.assertRaisesRegex(ValueError, "mudou durante"):
+                materializer.audit_catalog(catalog)
+
+    def test_audit_detects_changed_object_with_original_size_and_mtime(self):
+        catalog = self.audit_fixture()
+        materializer = self.tool.MATERIALIZER
+        cookie = materializer._audit_target_cookie
+        initial = self.asset.stat()
+        count = 0
+
+        def mutate(path):
+            nonlocal count
+            count += 1
+            if count == 4:
+                path.write_bytes(path.read_bytes()[:-1] + b"X")
+                os.utime(path, ns=(initial.st_atime_ns, initial.st_mtime_ns))
+            return cookie(path)
+
+        with patch.object(materializer, "_audit_target_cookie", side_effect=mutate):
+            with self.assertRaisesRegex(ValueError, "Hash/tamanho"):
+                materializer.audit_catalog(catalog)
+
+    def test_audit_rehashes_replaced_inode(self):
+        catalog = self.audit_fixture()
+        materializer = self.tool.MATERIALIZER
+        cookie = materializer._audit_target_cookie
+        initial = self.asset.stat()
+        count = 0
+
+        def replace(path):
+            nonlocal count
+            count += 1
+            if count == 4:
+                replacement = self.root / "replacement.png"
+                replacement.write_bytes(path.read_bytes())
+                os.utime(replacement, ns=(initial.st_atime_ns, initial.st_mtime_ns))
+                path.rename(self.root / "preserved-original.png")
+                replacement.rename(path)
+            return cookie(path)
+
+        with patch.object(materializer, "_audit_target_cookie", side_effect=replace):
+            with patch.object(materializer, "check_target", wraps=materializer.check_target) as checked:
+                materializer.audit_catalog(catalog)
+        self.assertEqual(checked.call_count, 2)
+
+    def test_audit_rejects_canonical_symlink(self):
+        catalog = self.audit_fixture()
+        source = self.root / "preserved-original.png"
+        self.asset.rename(source)
+        self.asset.symlink_to(os.path.relpath(source, self.asset.parent))
+        with self.assertRaises(ValueError):
+            self.tool.MATERIALIZER.audit_catalog(catalog)
+
     def test_refresh_verify_and_exact_rollback(self):
         self.plan()
         result = self.tool.apply_manifest(self.path)
