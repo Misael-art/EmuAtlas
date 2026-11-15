@@ -78,15 +78,57 @@ def clone(source, destination, writable=True):
     destination.chmod(stat.S_IMODE(source.stat().st_mode) | (stat.S_IWUSR if writable else 0))
 
 
+def _track_paths(directory, *, include_playlists=False):
+    """Find local members declared by valid disc descriptors and optional M3U sets."""
+    try:
+        from . import romtool
+    except ImportError:
+        import romtool
+    tracks = set()
+    root = directory.resolve()
+    validators = {".cue": (romtool.verify_cue, "references"), ".gdi": (romtool.verify_gdi, "tracks")}
+    if include_playlists:
+        validators[".m3u"] = (romtool.verify_m3u, "references")
+    for current, dirs, files in os.walk(directory, followlinks=False):
+        parent = Path(current)
+        dirs[:] = [name for name in dirs if not (parent / name).is_symlink()]
+        for name in files:
+            descriptor = parent / name
+            validator = validators.get(descriptor.suffix.lower())
+            if validator is None or descriptor.is_symlink() or descriptor.stat().st_size > 1024 * 1024:
+                continue
+            check, key = validator
+            result = check(descriptor)
+            if result["status"] != "valid":
+                continue
+            targets = []
+            for reference in result[key]:
+                target = Path(reference["name"])
+                if not target.is_absolute():
+                    target = descriptor.parent / target
+                targets.append(Path(os.path.abspath(target)))
+            if any(not target.resolve().is_relative_to(root) or not target.is_file() for target in targets):
+                continue
+            if descriptor.suffix.lower() == ".m3u" and any(target.suffix.lower() == ".m3u" for target in targets):
+                continue
+            tracks.update(targets)
+    return tracks
+
+
 def _rom_names(root, system):
-    """Exact physical paths only; never infer identity from a similar title."""
+    """Share the catalog-filtered physical-name index with stray promotion."""
+    try:
+        from . import media_stray
+    except ImportError:
+        import media_stray
+    root = Path(root).resolve()
     directory = root / "roms" / system
     names = {}
-    if directory.is_dir():
-        for current, dirs, files in os.walk(directory, followlinks=False):
-            for name in dirs + files:
-                path = Path(current) / name
-                names.setdefault(path.stem, set()).add(path.relative_to(directory).with_suffix("").as_posix())
+    for stem, values in media_stray._rom_stems(root, system, allow_unconfigured=True).items():
+        for value in values:
+            path = root / value
+            relative = path.relative_to(directory)
+            names.setdefault(stem, set()).add(relative.as_posix())
     return names
 
 
@@ -274,7 +316,7 @@ def _configure(manifest, restore, api):
     _save(manifest, api)
 
 
-def _validate(path, api, *, pdf_linearization_review=False):
+def _validate(path, api, *, pdf_linearization_review=False, pdf_stream_eol_review=False):
     optimizer = api["media_optimizer"]
     ext = path.suffix.lower()
     if ext in {".png", ".jpg", ".jpeg"}:
@@ -286,9 +328,13 @@ def _validate(path, api, *, pdf_linearization_review=False):
         if result.returncode:
             raise ValueError("Decodificação integral da imagem falhou")
         return info
-    if ext == ".mp4":
+    if ext in {".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v",
+               ".mp3", ".ogg", ".flac", ".wav", ".m4a", ".aac", ".opus"}:
         info = optimizer._probe_av(path)
-        optimizer._decode_video(path)
+        expected = "audio" if ext in {".mp3", ".ogg", ".flac", ".wav", ".m4a", ".aac", ".opus"} else "video"
+        if not any(stream.get("codec_type") == expected for stream in info["streams"]):
+            raise ValueError(f"Arquivo sem stream {expected} esperado")
+        optimizer._decode_video(path, threads=1)
         return info
     if ext == ".pdf":
         info = optimizer._probe_pdf(path)
@@ -308,14 +354,20 @@ def _validate(path, api, *, pdf_linearization_review=False):
         reviewed_warnings = bool(pdf_linearization_review and check.returncode == 3 and warnings
                                  and len(warnings) == len(warning_lines)
                                  and all(any(re.fullmatch(pattern, line) for pattern in linearization_patterns) for line in warnings))
-        if check.returncode and not reviewed_warnings:
+        stream_eol_pattern = (rf"WARNING: {re.escape(str(path))} \(object \d+ \d+, offset \d+\): "
+                              r"stream keyword followed by carriage return only")
+        reviewed_stream_eol = bool(pdf_stream_eol_review and check.returncode == 3 and warning_lines
+                                  and all(re.fullmatch(stream_eol_pattern, line) for line in warning_lines))
+        if check.returncode and not (reviewed_warnings or reviewed_stream_eol):
             raise ValueError("qpdf não aprovou o PDF sem warnings")
         with tempfile.TemporaryDirectory(dir=path.parent, prefix=".pdf-validation-") as raw:
             result = optimizer._run([shutil.which("pdftoppm"), "-scale-to", "64", "-png", str(path), str(Path(raw)/"page")], timeout=1800)
             if result.returncode or len(list(Path(raw).glob("page-*.png"))) != int(info["Pages"]):
                 raise ValueError("Nem todas as páginas PDF foram decodificadas")
         return {**info, "qpdf_exit_code": check.returncode, "qpdf_warnings": warnings,
-                "full_page_render": True, "linearization_warnings_reviewed": reviewed_warnings}
+                "full_page_render": True, "linearization_warnings_reviewed": reviewed_warnings,
+                "stream_eol_warnings_reviewed": reviewed_stream_eol,
+                "qpdf_warning_lines": warning_lines}
     raise ValueError(f"Formato sem perfil de entrada: {ext}")
 
 
@@ -407,9 +459,14 @@ def reconcile(manifest, api):
             if parts[0] not in rom_names:rom_names[parts[0]]=_rom_names(api["PROJECT_ROOT"],parts[0])
             names = rom_names[parts[0]]
             matches = names.get(source.stem, set())
+            if len(matches) != 1:
+                raise ValueError("Mídia exige entrada local única; dependências declaradas por CUE/GDI/M3U não são entradas de jogo")
             if len(parts) > 3:
                 rom_relative = Path(*parts[2:]).with_suffix('').as_posix()
-                if matches != {rom_relative}:
+                matched = Path(next(iter(matches)))
+                if not (api["PROJECT_ROOT"] / "roms" / parts[0] / matched).is_dir():
+                    matched = matched.with_suffix("")
+                if matched.as_posix() != rom_relative:
                     raise ValueError("Mídia aninhada sem ROM exata única; não achatar títulos ambíguos")
             destination = root / canonical_rel
             if any(p.is_symlink() for p in (root/parts[0],destination.parent)):
@@ -421,9 +478,6 @@ def reconcile(manifest, api):
                     raise ValueError("Mídia canônica mudou fora da sessão; preservar para reconciliação")
             elif os.path.lexists(destination):
                 raise ValueError("Destino novo apareceu fora da sessão")
-            else:
-                if len(matches) != 1:
-                    raise ValueError("Novo nome de mídia não corresponde a ROM/diretório de jogo local único")
             incoming_hash = api["sha256_file"](source)
             item.update(system_id=parts[0], media_type=media_type, incoming_sha256=incoming_hash,
                         incoming_bytes=source.stat().st_size, destination_relative=canonical_rel.as_posix(),

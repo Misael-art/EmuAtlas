@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+from email.parser import BytesParser
 import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
+import platform
 import re
 import shutil
 import signal
 import subprocess
 import sys
+import sysconfig
 import tarfile
 import tempfile
 import zipfile
@@ -21,6 +24,9 @@ import uuid
 from urllib.request import Request, build_opener
 
 import workspace as w
+
+sys.path.insert(0, str(w.SOURCE_ROOT / 'tools/roms'))
+import romtool
 
 RECIPE_PATH = w.HERE / "config/installation.json"
 GOOD = {"installed", "verified", "reused", "configured"}
@@ -41,10 +47,82 @@ def os_info(path=Path('/etc/os-release')):
 
 
 def atomic_json(path, value):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_name(path.name + f'.{os.getpid()}.tmp')
-    temp.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
-    os.replace(temp, path)
+    romtool.atomic_json(path, value)
+
+
+def python_host():
+    return {'python': platform.python_version(), 'implementation': sys.implementation.name,
+            'abi': sysconfig.get_config_var('SOABI'), 'platform': sysconfig.get_platform(),
+            'libc': list(platform.libc_ver()), 'distribution': os_info()['id']}
+
+
+def wheel_requirements(files):
+    return ''.join(f"{item['name']}=={item['version']} --hash=sha256:{item['sha256']}\n"
+                   for item in sorted(files, key=lambda item: item['name']))
+
+
+def pinned_python_packages(packages):
+    result = {}
+    for package in packages:
+        match = re.fullmatch(r'([A-Za-z0-9][A-Za-z0-9_.-]*)==([A-Za-z0-9][A-Za-z0-9.+!_-]*)', package)
+        if not match:
+            raise ValueError('Requisito Python deve ter nome e versão exatos: ' + package)
+        name = re.sub(r'[-_.]+', '-', match[1]).lower()
+        if name in result:
+            raise ValueError('Requisito Python repetido: ' + name)
+        result[name] = match[2]
+    if not result:
+        raise ValueError('Receita Python vazia')
+    return result
+
+
+def wheel_inventory(directory):
+    files, names = [], set()
+    for path in sorted(directory.glob('*.whl')):
+        if path.is_symlink() or not path.is_file():
+            raise ValueError('Wheel deve ser arquivo regular')
+        with zipfile.ZipFile(path) as archive:
+            metadata_files = [name for name in archive.namelist() if name.endswith('.dist-info/METADATA')]
+            if len(metadata_files) != 1 or archive.testzip() is not None:
+                raise ValueError('Wheel inválido: ' + path.name)
+            metadata = BytesParser().parsebytes(archive.read(metadata_files[0]))
+        name, version = metadata.get('Name', ''), metadata.get('Version', '')
+        if (len(metadata.get_all('Name', [])) != 1 or len(metadata.get_all('Version', [])) != 1
+                or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', name)
+                or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.+!_-]*', version)):
+            raise ValueError('Identidade inválida no wheel: ' + path.name)
+        name = re.sub(r'[-_.]+', '-', name).lower()
+        if name in names:
+            raise ValueError('Distribuição repetida no wheelhouse: ' + name)
+        names.add(name)
+        files.append({'file': path.name, 'name': name, 'version': version,
+                      'size_bytes': path.stat().st_size, 'sha256': w.digest(path)})
+    if not files:
+        raise ValueError('Wheelhouse vazio')
+    return files
+
+
+def verify_wheelhouse(directory, item):
+    directory = w.root_path(directory)
+    manifest = w.read(w.safe_path(directory, 'manifest.json'))
+    if (manifest.get('schema_version') != 1 or manifest.get('host') != python_host()
+            or manifest.get('packages') != item['packages']
+            or manifest.get('source_build_packages') != item.get('source_build_packages', [])):
+        raise ValueError('Wheelhouse pertence a outro host Python ou receita')
+    expected = {row['file'] for row in manifest['files']} | {'manifest.json', 'requirements.txt'}
+    if {path.name for path in directory.iterdir()} != expected:
+        raise ValueError('Arquivos inesperados/ausentes no wheelhouse')
+    actual = wheel_inventory(directory)
+    if actual != manifest['files']:
+        raise ValueError('Wheelhouse alterado após preparação')
+    requirements = w.safe_path(directory, 'requirements.txt')
+    if requirements.read_text() != wheel_requirements(actual):
+        raise ValueError('Lock Python alterado após preparação')
+    available = {row['name']: row['version'] for row in actual}
+    for name, version in pinned_python_packages(item['packages']).items():
+        if available.get(name) != version:
+            raise ValueError('Requisito pinado ausente no wheelhouse: ' + name)
+    return manifest
 
 
 def graph(config, selected=None):
@@ -67,10 +145,10 @@ def graph(config, selected=None):
 
 
 class Installer:
-    def __init__(self, root, config=None, jobs=2):
+    def __init__(self, root, config=None, jobs=1):
         self.root = w.root_path(root)
         self.config = config or w.read(RECIPE_PATH)
-        self.jobs = min(max(int(jobs), 1), 4)
+        self.jobs = min(max(int(jobs), 1), 2)
         self.host = os_info()
         self.state = w.safe_path(self.root, 'outputs/installation')
         self.work = w.safe_path(self.root, 'work/installation')
@@ -119,6 +197,57 @@ class Installer:
     def query(self, argv):
         p = subprocess.run(argv, capture_output=True, text=True, timeout=30, env=self.env)
         return p.returncode, (p.stdout + p.stderr).strip()
+
+    def prepare_wheelhouse(self, name, item, python):
+        packages = pinned_python_packages(item['packages'])
+        build_names = item.get('source_build_packages', [])
+        if any(value not in packages for value in build_names):
+            raise ValueError('Build Python deve selecionar pacote pinado da receita')
+        identity = {'host': python_host(), 'packages': item['packages'],
+                    'source_build_packages': build_names}
+        key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+        directory = w.safe_path(self.work, 'wheelhouse/' + key)
+        directory.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(directory.parent / 'prepare.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if directory.exists():
+                verify_wheelhouse(directory, item)
+                romtool.sync_directory_chain(directory)
+                return directory
+            # Preserve an interrupted preparation for diagnosis and reuse only a
+            # complete published cache. Pip's temporary build files stay on disk.
+            stage = Path(tempfile.mkdtemp(prefix='.prepare-', dir=directory.parent))
+            temporary = stage / 'temporary'
+            temporary.mkdir()
+            wheels = stage / 'wheels'
+            wheels.mkdir()
+            env = dict(self.env, TMPDIR=str(temporary), PIP_CACHE_DIR=str(self.work / 'pip-cache'))
+            command = [str(python), '-m', 'pip', 'wheel', '--disable-pip-version-check',
+                       '--wheel-dir', str(wheels), '--only-binary=:all:']
+            if build_names:
+                command.append('--no-binary=' + ','.join(build_names))
+            self.run([*command, *item['packages']], timeout=900, env=env)
+            files = wheel_inventory(wheels)
+            for row in files:
+                with (wheels / row['file']).open('rb') as stream:
+                    os.fsync(stream.fileno())
+            romtool.atomic_write_bytes(wheels / 'requirements.txt', wheel_requirements(files).encode())
+            atomic_json(wheels / 'manifest.json', {'schema_version': 1, **identity, 'files': files,
+                         'prepared_at': dt.datetime.now(dt.timezone.utc).isoformat(), 'component': name})
+            verify_wheelhouse(wheels, item)
+            # Rename publishes the entire verified closure. Existing cache paths
+            # are protected by this preparation lock and are never replaced.
+            wheels.rename(directory)
+            romtool.sync_directory_chain(directory)
+            romtool.sync_directory_chain(stage)
+            if not any(temporary.iterdir()):
+                temporary.rmdir()
+            if not any(stage.iterdir()):
+                stage.rmdir()
+            return directory
+        finally:
+            os.close(fd)
 
     def installed_package(self, package):
         # rustup and older 7-Zip packages may already supply these commands.
@@ -309,6 +438,24 @@ class Installer:
         if romtool.PROJECT_ROOT != self.root:
             raise ValueError('Execute o instalador a partir da release implantada no destino')
         config = runtime.load_recipes(self.root)
+        if item.get('package_platform'):
+            platform = item['package_platform']
+            prepared = runtime.install_package(self.root, item['runtime_id'], platform)
+            if prepared['status'] == 'already_installed_verified':
+                result, status = prepared, 'reused'
+            else:
+                recipe = config['packages'][platform][item['runtime_id']]
+                source = self.acquire({'url': recipe['source_url'], 'size_bytes': recipe['source_size_bytes'],
+                                       'sha256': recipe['source_sha256'], 'allowed_hosts': config['allowed_download_hosts']})
+                result = runtime.install_package(self.root, item['runtime_id'], platform, True, from_file=source)
+                status = 'installed'
+            data = None
+            if platform == 'linux' and item['runtime_id'] == 'supermodel':
+                data = runtime.supermodel_data_plan(self.root)
+                if data['status'] == 'prepared':
+                    runtime.library_execute(self.root, data['operation_id'], 'apply', True)
+                    data = runtime.library_execute(self.root, data['operation_id'], 'verify')
+            return {'status': status, 'operation_id': result['operation_id'], 'shared_data': data}
         recipe = config['runtimes'].get(item['runtime_id'])
         if recipe is None:
             template = w.read(w.HERE / 'templates/tools/roms/config/portable-runtimes.json')
@@ -316,26 +463,38 @@ class Installer:
         flatpaks, _ = runtime.host_flatpaks()
         existing = runtime.scan_host(self.root, recipe, flatpaks)
         if existing:
-            return {'status': 'reused', 'host_sources': existing}
-        if item['runtime_id'] not in config['runtimes']:
-            path = self.root / 'tools/roms/config/portable-runtimes.json'
-            backup = self.state / 'backups' / ('portable-runtimes.' + w.digest(path) + '.json')
-            backup.parent.mkdir(parents=True, exist_ok=True)
-            if not backup.exists():
-                shutil.copy2(path, backup)
-            config['runtimes'][item['runtime_id']] = recipe
-            atomic_json(path, config)
-        target = self.root / 'emulator/linux' / recipe.get('install_dir', item['runtime_id']) / recipe['entry']
-        if target.is_symlink():
-            raise ValueError('Runtime symlink preservado')
-        expected = recipe.get('entry_sha256') or (recipe['source_sha256'] if recipe['format'] == 'appimage' else None)
-        if target.is_file() and expected and w.digest(target) == expected:
-            return {'status': 'verified', 'entry': str(target.relative_to(self.root))}
-        source = self.acquire({'url': recipe['source_url'], 'size_bytes': recipe['source_size_bytes'],
-                               'sha256': recipe['source_sha256'], 'allowed_hosts': config['allowed_download_hosts']})
-        result = runtime.install_runtime(self.root, item['runtime_id'], True, from_file=source,
-                                         run_declared_probe=False)
-        return {'status': 'installed', 'operation_id': result['operation_id']}
+            result = {'status': 'reused', 'host_sources': existing}
+        else:
+            if item['runtime_id'] not in config['runtimes']:
+                path = self.root / 'tools/roms/config/portable-runtimes.json'
+                backup = self.state / 'backups' / ('portable-runtimes.' + w.digest(path) + '.json')
+                backup.parent.mkdir(parents=True, exist_ok=True)
+                if not backup.exists():
+                    shutil.copy2(path, backup)
+                config['runtimes'][item['runtime_id']] = recipe
+                atomic_json(path, config)
+            target = self.root / 'emulator/linux' / recipe.get('install_dir', item['runtime_id']) / recipe['entry']
+            if target.is_symlink():
+                raise ValueError('Runtime symlink preservado')
+            expected = recipe.get('entry_sha256') or (recipe['source_sha256'] if recipe['format'] == 'appimage' else None)
+            if target.is_file() and expected and w.digest(target) == expected:
+                result = {'status': 'verified', 'entry': str(target.relative_to(self.root))}
+            else:
+                source = self.acquire({'url': recipe['source_url'], 'size_bytes': recipe['source_size_bytes'],
+                                       'sha256': recipe['source_sha256'], 'allowed_hosts': config['allowed_download_hosts']})
+                installed = runtime.install_runtime(self.root, item['runtime_id'], True, from_file=source,
+                                                    run_declared_probe=False,
+                                                    defer_history_index=item['runtime_id'] == 'vita3k')
+                result = {'status': 'installed', 'operation_id': installed['operation_id']}
+        if item['runtime_id'] in ('core-bluemsx', 'vita3k'):
+            data = (runtime.bluemsx_cbios_plan(self.root) if item['runtime_id'] == 'core-bluemsx'
+                    else runtime.vita3k_data_plan(self.root))
+            if data['status'] in ('prepared', 'application_resume_required'):
+                runtime.library_execute(self.root, data['operation_id'], 'apply', True)
+            if data['status'] in ('prepared', 'application_resume_required', 'verification_resume_required'):
+                data = runtime.library_execute(self.root, data['operation_id'], 'verify')
+            result['shared_data'] = data
+        return result
 
     def source_tree(self, name, item):
         parent = w.safe_path(self.work, 'builds/' + name)
@@ -351,7 +510,23 @@ class Installer:
                 raise ValueError('Fonte existente sem proveniência Git')
             status = self.query(['git', '-C', str(source), 'status', '--porcelain'])[1]
             if status:
-                raise ValueError('Fonte Git com alterações; preservada')
+                if self.query(['git', '-C', str(source), 'rev-parse', 'HEAD'])[1] != item['commit']:
+                    raise ValueError('Fonte Git alterada em outro commit; preservada')
+                for row in status.splitlines():
+                    change = row.strip().split(' ', 1)
+                    patches = [patch for patch in item.get('patches', [])
+                               if len(change) == 2 and patch['file'] == change[1]]
+                    if len(change) != 2 or change[0] != 'M' or not patches:
+                        raise ValueError('Fonte Git com alterações pessoais; preservada')
+                    data = w.safe_path(source, change[1]).read_bytes()
+                    for patch in reversed(patches):
+                        if data.count(patch['after'].encode()) == 1:
+                            data = data.replace(patch['after'].encode(), patch['before'].encode())
+                    original = subprocess.check_output(
+                        ['git', '-C', str(source), 'show', 'HEAD:' + change[1]], timeout=30)
+                    if data != original:
+                        raise ValueError('Fonte Git diverge dos patches revisados; preservada')
+                return parent, source
             self.run(['git', '-C', str(source), 'sparse-checkout', 'init', '--cone'])
             self.run(['git', '-C', str(source), 'sparse-checkout', 'set', *item['sparse_paths']])
             self.run(['git', '-C', str(source), 'fetch', '--depth=1', '--filter=blob:none', 'origin', item['commit']], timeout=600)
@@ -377,13 +552,15 @@ class Installer:
             baseline = w.read(marker).get('files')
             if not baseline:
                 raise ValueError('Inventário da fonte ausente; revisar staging existente')
-            patches = {p['file']: p for p in item.get('patches', [])}
             for relative, expected in baseline.items():
                 p = w.safe_path(source, relative)
                 data = p.read_bytes()
                 if hashlib.sha256(data).hexdigest() != expected:
-                    patch = patches.get(relative)
-                    if not patch or data.count(patch['after'].encode()) != 1 or hashlib.sha256(data.replace(patch['after'].encode(), patch['before'].encode())).hexdigest() != expected:
+                    patches = [patch for patch in item.get('patches', []) if patch['file'] == relative]
+                    for patch in reversed(patches):
+                        if data.count(patch['after'].encode()) == 1:
+                            data = data.replace(patch['after'].encode(), patch['before'].encode())
+                    if hashlib.sha256(data).hexdigest() != expected:
                         raise ValueError('Fonte mudou desde a aquisição: ' + relative)
         return parent, source
 
@@ -406,9 +583,11 @@ class Installer:
         for patch in item.get('patches', []):
             path = w.safe_path(source, patch['file'])
             data = path.read_bytes()
+            if data.count(patch['after'].encode()) == 1:
+                continue
             if data.count(patch['before'].encode()) == 1:
                 path.write_bytes(data.replace(patch['before'].encode(), patch['after'].encode()))
-            elif data.count(patch['after'].encode()) != 1:
+            else:
                 raise ValueError('Patch não corresponde à fonte pinada')
         substitutions = {'{source}': str(source), '{build}': str(parent / 'build'),
                          '{prefix}': str(parent / 'prefix'), '{jobs}': str(self.jobs)}
@@ -486,7 +665,12 @@ class Installer:
         parent.mkdir(parents=True, exist_ok=True)
         stage = Path(tempfile.mkdtemp(prefix='.unpack-', dir=parent))
         try:
-            if item['format'] == '7z':
+            if item['format'] == 'zip':
+                from runtime_install import _extract_package
+                _extract_package(source, stage / 'payload', {
+                    'format': 'zip_tree', 'max_unpacked_bytes': item.get('max_unpacked_bytes', 2 << 30)})
+                stage = stage / 'payload'
+            elif item['format'] == '7z':
                 # py7zr is installed into the project venv. It handles archive parsing;
                 # validate every name/link before extraction into private staging.
                 python = self.root / 'tools/distribution/.venv/bin/python'
@@ -569,9 +753,17 @@ class Installer:
             venv = w.safe_path(self.root, 'tools/distribution/.venv')
             if not (venv / 'bin/python').is_file():
                 self.run([sys.executable, '-m', 'venv', str(venv)])
+            wheelhouse = self.prepare_wheelhouse(name, item, venv / 'bin/python')
+            manifest = verify_wheelhouse(wheelhouse, item)
             self.run([str(venv / 'bin/python'), '-m', 'pip', 'install', '--disable-pip-version-check',
-                      '--report', str(self.state / 'python-install-report.json'), *item['packages']], timeout=600)
-            return {'status': 'installed', 'python': str(venv / 'bin/python')}
+                      '--no-index', '--find-links', str(wheelhouse), '--only-binary=:all:', '--require-hashes',
+                      '--report', str(self.state / 'python-install-report.json'),
+                      '-r', str(wheelhouse / 'requirements.txt')], timeout=600)
+            self.run([str(venv / 'bin/python'), '-m', 'pip', 'check'], timeout=60)
+            return {'status': 'installed', 'python': str(venv / 'bin/python'),
+                    'wheelhouse': str(wheelhouse.relative_to(self.root)),
+                    'wheelhouse_sha256': w.digest(wheelhouse / 'manifest.json'),
+                    'locked_packages': len(manifest['files'])}
         if kind == 'cargo':
             target = w.safe_path(self.root, item['target'])
             if target.is_file():
@@ -663,7 +855,7 @@ def main():
     p.add_argument('command', choices=['plan', 'install', 'status'])
     p.add_argument('--root', type=Path, default=w.SOURCE_ROOT)
     p.add_argument('--components', nargs='+')
-    p.add_argument('--jobs', type=int, default=2)
+    p.add_argument('--jobs', type=int, default=1, choices=[1, 2])
     p.add_argument('--apply', action='store_true')
     args = p.parse_args()
     try:

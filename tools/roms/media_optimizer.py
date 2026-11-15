@@ -770,10 +770,18 @@ def _encode(profile: dict, source: Path, candidate: Path, item: dict) -> None:
         raise ValueError(f"Conversor não produziu candidato válido: {candidate}")
 
 
-def _decode_video(path: Path) -> None:
+def _decode_video(path: Path, *, threads: int | None = None) -> None:
     executable = shutil.which("ffmpeg")
-    result = _run([executable, "-hide_banner", "-nostdin", "-v", "error", "-xerror", "-i", str(path),
-                   "-map", "0:v?", "-map", "0:a?", "-f", "null", "-"], timeout=7200)
+    if not executable:
+        raise FileNotFoundError("ffmpeg não está disponível")
+    thread_args = []
+    if threads is not None:
+        if not isinstance(threads, int) or isinstance(threads, bool) or threads < 1:
+            raise ValueError("A quantidade de threads de decodificação precisa ser positiva")
+        thread_args = ["-threads", str(threads)]
+    result = _run([executable, "-hide_banner", "-nostdin", "-v", "error", "-xerror",
+                   *thread_args, "-i", str(path), "-map", "0:v?", "-map", "0:a?",
+                   *thread_args, "-f", "null", "-"], timeout=7200)
     if result.returncode:
         raise ValueError(f"Decodificação completa falhou ({path.name}): {_text(result.stderr).strip()[-1000:]}")
 

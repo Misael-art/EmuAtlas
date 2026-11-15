@@ -237,7 +237,7 @@
     },
     "Commodore Amiga": {
       "rom_subdir": "amiga1200",
-      "extensions": "adf,adz,dms,ipf,zip,7z",
+      "extensions": "adf,adz,dms,ipf,m3u,zip,7z",
       "adapter": "retroarch",
       "launcher": "RetroArch Host",
       "core": "puae_libretro.so",
@@ -253,7 +253,10 @@
       "core": "bluemsx_libretro.so",
       "bios_files": [
         "Databases/msxromdb.xml",
-        "Machines/Shared Roms/MSX.rom"
+        "Machines/MSX2 - C-BIOS/config.ini",
+        "Machines/MSX2 - C-BIOS/cbios_main_msx2.rom",
+        "Machines/MSX2 - C-BIOS/cbios_logo_msx2.rom",
+        "Machines/MSX2 - C-BIOS/cbios_sub.rom"
       ],
       "subcollections": [
         "Microsoft MSX 2",
@@ -1352,7 +1355,14 @@
       "subcollections": [],
       "rom_path": "../../roms/msx2",
       "bios_root": "../../bios",
-      "core": "bluemsx_libretro.so"
+      "core": "bluemsx_libretro.so",
+      "bios_files": [
+        "Databases/msxromdb.xml",
+        "Machines/MSX2 - C-BIOS/config.ini",
+        "Machines/MSX2 - C-BIOS/cbios_main_msx2.rom",
+        "Machines/MSX2 - C-BIOS/cbios_logo_msx2.rom",
+        "Machines/MSX2 - C-BIOS/cbios_sub.rom"
+      ]
     },
     "MSX Turbo R": {
       "display_name": "MSX Turbo R",
@@ -1736,13 +1746,37 @@
     "Sega Model 3": {
       "display_name": "Sega Model 3",
       "rom_subdir": "model3",
-      "extensions": "7z,zip",
-      "adapter": "unavailable",
-      "launcher": "Host Emulator Unavailable",
+      "extensions": "zip",
+      "adapter": "command",
+      "launcher": "Host Command",
       "menu_visible": true,
       "subcollections": [],
       "rom_path": "../../roms/model3",
-      "bios_root": "../../bios"
+      "bios_root": "../../bios",
+      "command": "../../emulator/linux/supermodel/supermodel-0.4-20261113-git-2806f14/supermodel",
+      "args": [
+        "{item}",
+        "-game-xml-file={program_dir}/Config/Games.xml",
+        "-log-output={userdata}/Supermodel.log"
+      ],
+      "userdata_subdir": "Supermodel",
+      "working_directory": "{userdata}",
+      "runtime_id": "supermodel",
+      "probe_args": [
+        "--version"
+      ],
+      "onboarding_defaults": [
+        {
+          "path": "Config/Supermodel.ini",
+          "format": "ini",
+          "section": "Global",
+          "key": "Network",
+          "value": "0",
+          "reason": "Prepare the project-local Config directory before native startup and keep network emulation disabled by default."
+        }
+      ],
+      "probe_working_directory": "{userdata}",
+      "runtime_version": "0.4-20261113-git-2806f14"
     },
     "SNK Neo Geo CD (neogeocdjp)": {
       "display_name": "SNK Neo Geo CD",
@@ -1832,6 +1866,71 @@
       "subcollections": [],
       "rom_path": "../../roms/x68000",
       "bios_root": "../../bios"
+    },
+    "Sony Playstation Vita": {
+      "display_name": "Sony PlayStation Vita",
+      "rom_subdir": "psvita",
+      "extensions": "psvita",
+      "adapter": "command",
+      "launcher": "Host Command",
+      "menu_visible": true,
+      "subcollections": [],
+      "rom_path": "../../roms/psvita",
+      "bios_root": "../../bios",
+      "command": "../../emulator/linux/vita3k/Vita3K-x86_64.AppImage",
+      "args": [
+        "--appimage-extract-and-run",
+        "--frontend",
+        "sdl",
+        "--keep-config",
+        "-r",
+        "{title_id}"
+      ],
+      "userdata_subdir": "Vita3K",
+      "working_directory": "{userdata}",
+      "runtime_id": "vita3k",
+      "probe_args": [
+        "--appimage-extract-and-run",
+        "--version",
+        "--keep-config",
+        "--frontend",
+        "sdl"
+      ],
+      "probe_working_directory": "{userdata}",
+      "environment": {
+        "APPIMAGELAUNCHER_DISABLE": "1",
+        "DWARFS_WORKERS": "1",
+        "DWARFS_CACHESIZE": "64M",
+        "DWARFS_READAHEAD": "1M",
+        "TMPDIR": "{program_dir}",
+        "DISABLE_AUTO_UPDATES": "1"
+      },
+      "runtime_version": "0.2.1 build 4304",
+      "launch_inputs": [
+        "psvita"
+      ],
+      "onboarding_guide": {
+        "title": "Preparar o PlayStation Vita",
+        "intro": "O Vita3K usa o modo portátil e um único filesystem em emulator/data/Vita3K/fs.",
+        "steps": [
+          {
+            "id": "firmware",
+            "title": "Firmware oficial",
+            "instruction": "Instale o firmware oficial da Sony pelo Vita3K e confirme a versão no ambiente portátil."
+          },
+          {
+            "id": "application",
+            "title": "Aplicativo canônico",
+            "instruction": "Revise o TITLE_ID e a categoria gd do param.sfo e prepare o vínculo com emutool library vita3k-game-plan. Patches exigem o mesmo TITLE_ID e categoria gp."
+          },
+          {
+            "id": "acceptance",
+            "title": "Validar o jogo",
+            "instruction": "Confirme inicialização, controles, save e retorno em Linux. Registre a compatibilidade observada para o título e a build."
+          }
+        ],
+        "completion": "A entrada .psvita contém somente o TITLE_ID validado. Firmware, integridade e funcionamento exigem evidências próprias."
+      }
     }
   },
   "subcollection_overrides": {

@@ -1,11 +1,13 @@
 """Session-only input routing. No grabs, global remaps, services or key logs.
 
-The Steam lease stays with steam-input.py. Four stable SDL pads let native
+The Steam lease stays with steam-input.py. Stable SDL pads let native
 emulators keep their port assignments while physical controllers hotplug.
 """
 from __future__ import annotations
 
 import json
+import importlib.util
+import hashlib
 from contextlib import closing
 import os
 from pathlib import Path
@@ -17,22 +19,160 @@ import time
 import uuid
 
 VID = 0x1209
-PRODUCTS = tuple(0xE101 + i for i in range(4))
+DEFAULT_PLAYERS = 8
+PRODUCTS = tuple(0xE101 + i for i in range(DEFAULT_PLAYERS))
 EXIT_SECONDS = 2.0
+ORDER_PATH = Path('frontend/RetroFE/UserData/retrofe/controller-order.json')
 
 
-def slots(devices, docked, previous=()):
-    """Deck is P1 handheld; external pads fill dock ports in connection order.
+def player_capacity(root):
+    config = Path(root) / 'frontend/RetroFE/Config/controller-artwork.json'
+    value = json.loads(config.read_text()).get('player_capacity', DEFAULT_PLAYERS) if config.exists() else DEFAULT_PLAYERS
+    if type(value) is not int or not 1 <= value <= 128:
+        raise ValueError('Capacidade de jogadores inválida no mapeamento dos controles.')
+    return value
 
-    Compact disconnected ports; preserve surviving controllers' relative order.
-    The built-in pad is intentionally excluded in dock mode.
+
+def device_key(row):
+    return row.get('controller_id') or hashlib.sha256(row['path'].encode()).hexdigest()
+
+
+def load_preferences(root):
+    from emulator_controls import target
+    path = target(root, ORDER_PATH)
+    if not path.exists():
+        return {'schema': 1, 'revision': 0, 'slots': None, 'models': {}}
+    if path.stat().st_size > 16384:
+        raise ValueError('Preferências de controles excedem o tamanho suportado.')
+    value = json.loads(path.read_text())
+    if not isinstance(value, dict):
+        raise ValueError('Preferências de controles inválidas.')
+    ports = value.get('slots')
+    if (value.get('schema') != 1 or type(value.get('revision')) is not int
+            or value['revision'] < 0 or not isinstance(value.get('models', {}), dict)):
+        raise ValueError('Preferências de controles inválidas.')
+    if ports is not None:
+        capacity = player_capacity(root)
+        if not isinstance(ports, list) or not 1 <= len(ports) <= capacity:
+            raise ValueError('A ordem excede a capacidade configurada de jogadores.')
+        keys = [key for key in ports if key is not None]
+        if any(not isinstance(key, str) or not 1 <= len(key) <= 128 for key in keys) or len(set(keys)) != len(keys):
+            raise ValueError('Identidade duplicada ou inválida na ordem dos controles.')
+        value['slots'] = ports + [None] * (capacity-len(ports))
+    models = value.get('models', {})
+    if any(not isinstance(k, str) or not isinstance(v, str) or len(k) > 128 or len(v) > 128 for k, v in models.items()):
+        raise ValueError('Identificação visual de controle inválida.')
+    return {**value, 'models': models}
+
+
+def save_preferences(root, value, expected_revision):
+    """One durable preference file, serialized with native control preparation."""
+    from emulator_controls import configuration_lock, target
+    import romtool
+    with configuration_lock():
+        previous = load_preferences(root)
+        if previous['revision'] != expected_revision:
+            raise ValueError('A ordem mudou em outra janela. Tente novamente.')
+        path = target(root, ORDER_PATH)
+        before = path.read_bytes() if path.exists() else None
+        after = {**value, 'schema': 1, 'revision': expected_revision + 1}
+        operation_id = 'controller-order-' + time.strftime('%Y%m%dT%H%M%S-') + uuid.uuid4().hex[:8]
+        directory = romtool.operation_dir(operation_id)
+        directory.mkdir(mode=0o700)
+        if before is not None:
+            romtool.atomic_write_bytes(directory / 'before.json', before, mode=0o600)
+        payload = (json.dumps(after, ensure_ascii=False, indent=2) + '\n').encode()
+        romtool.atomic_write_bytes(directory / 'after.json', payload, mode=0o600)
+        manifest = {'operation_id': operation_id, 'kind': 'controller_assignment',
+            'created_at': romtool.now(), 'status': 'prepared', 'path': str(ORDER_PATH),
+            'sha256_before': hashlib.sha256(before).hexdigest() if before is not None else None,
+            'sha256_after': hashlib.sha256(payload).hexdigest(), 'slots': after['slots'],
+            'models': after['models'], 'physical_gameplay_verified': False}
+        romtool.write_manifest(manifest)
+        try:
+            if (path.read_bytes() if path.exists() else None) != before:
+                raise ValueError('Preferências alteradas durante a aplicação.')
+            romtool.atomic_write_bytes(path, payload, mode=0o600)
+            if path.read_bytes() != payload:
+                raise RuntimeError('A nova ordem não foi confirmada em disco.')
+            manifest['status'] = 'completed_verified'
+            romtool.write_manifest(manifest)
+            romtool.append_event(operation_id, 'controller_order_updated', status='completed_verified',
+                destination=str(ORDER_PATH), sha256_before=manifest['sha256_before'],
+                sha256_after=manifest['sha256_after'])
+        except Exception as exc:
+            if path.exists() and path.read_bytes() == payload:
+                if before is None:
+                    os.rename(path, directory / 'uncommitted.json')
+                else:
+                    romtool.atomic_write_bytes(path, before, mode=0o600)
+            manifest['status'] = 'failed_restored'
+            manifest['error'] = str(exc)
+            romtool.write_manifest(manifest)
+            raise
+        return after
+
+
+def assign_player(root, devices, assigned, source_id, player, revision):
+    capacity = player_capacity(root)
+    if type(player) is not int or not 0 <= player < capacity:
+        raise ValueError('Jogador de destino inválido.')
+    available = {device_key(row): row for row in devices if row.get('routable', True)}
+    if source_id not in available:
+        raise ValueError('O controle foi desconectado ou está sem mapeamento seguro.')
+    by_path = {row['path']: key for key, row in available.items()}
+    ports = [by_path.get(path) for path in assigned]
+    ports = (ports + [None] * capacity)[:capacity]
+    source = ports.index(source_id) if source_id in ports else None
+    if source == player:
+        return load_preferences(root)
+    if source is not None:
+        ports[source], ports[player] = ports[player], ports[source]
+    else:
+        ports[player] = source_id
+    prefs = load_preferences(root)
+    return save_preferences(root, {**prefs, 'slots': ports}, revision)
+
+
+def identify_controller(root, source_id, model, revision):
+    prefs = load_preferences(root)
+    models = {**prefs['models'], source_id: model}
+    return save_preferences(root, {**prefs, 'models': models}, revision)
+
+
+def slots(devices, docked, previous=(), preferred=None, capacity=DEFAULT_PLAYERS):
+    """Use explicit ports when present, preserving holes and surviving identities.
+
+    Automatic handheld order starts with Deck. Automatic dock order uses external
+    pads. An explicit preference can place the built-in pad in either mode.
     """
     external = [d for d in devices if d['kind'] == 'external']
     order = {key: i for i, key in enumerate(previous)}
     external.sort(key=lambda d: (order.get(d['path'], 999), d['path']))
     builtins = [d for d in devices if d['kind'] == 'deck']
     chosen = external if docked else builtins[:1] + external
-    return [d['path'] for d in chosen[:4]]
+    if preferred is not None:
+        available = {device_key(d): d['path'] for d in devices if d['kind'] in {'deck', 'external'}}
+        selected = [available.get(key) for key in preferred] + [None] * (capacity-len(preferred))
+        remaining = [d['path'] for d in chosen if d['path'] not in selected]
+        for n, path in enumerate(selected):
+            if path is None and remaining:
+                selected[n] = remaining.pop(0)
+        return selected
+    return [d['path'] for d in chosen[:capacity]]
+
+
+def source_mapping(row, pads):
+    from mobile_controller import REMOTE_PRODUCT, RAW_MAPPING
+    if row.get('vendor') == VID and row.get('product') == REMOTE_PRODUCT and row.get('mobile'):
+        return dict(RAW_MAPPING)
+    matches = [p for p in pads if p.get('path') == row['path']]
+    if not matches:
+        matches = [p for p in pads if (p.get('vendor'), p.get('product')) == (row['vendor'], row['product'])]
+    unique = {json.dumps(p['mapping'], sort_keys=True): p['mapping'] for p in matches if p.get('mapping')}
+    if len(unique) == 1:
+        return next(iter(unique.values()))
+    return None
 
 
 class HeldChord:
@@ -92,7 +232,7 @@ class OwnedProcesses:
 
 class KWinFocus:
     """Event driven focus information from KWin; accept only KWin's D-Bus sender."""
-    XML = '<node><interface name="org.emulation.ControllerSession"><method name="Focus"><arg type="i" direction="in"/><arg type="s" direction="in"/><arg type="b" direction="in"/><arg type="s" direction="in"/></method></interface></node>'
+    XML = '<node><interface name="org.emulation.ControllerSession"><method name="Focus"><arg type="i" direction="in"/><arg type="s" direction="in"/><arg type="b" direction="in"/><arg type="s" direction="in"/></method><method name="Geometry"><arg type="i" direction="in"/><arg type="i" direction="in"/><arg type="i" direction="in"/><arg type="i" direction="in"/></method></interface></node>'
 
     def __init__(self, directory):
         from gi.repository import Gio, GLib
@@ -106,6 +246,7 @@ class KWinFocus:
             'org.freedesktop.DBus', 'GetNameOwner', GLib.Variant('(s)', ('org.kde.KWin',)),
             GLib.VariantType('(s)'), Gio.DBusCallFlags.NONE, 3000, None).unpack()[0]
         self.current = (0, '', False, '')
+        self.geometry = None
         self.fresh=threading.Event()
         self.refresh_count=0
         self.registration = self.connection.register_object('/org/emulation/ControllerSession',
@@ -124,8 +265,12 @@ class KWinFocus:
             ', "/org/emulation/ControllerSession", "org.emulation.ControllerSession", "Focus", '
             'w ? w.pid : 0, w ? String(w.internalId) : "", w ? Boolean(w.dialog) : false, '
             'w && w.output ? String(w.output.name) : ""); '
+            'var g=w ? (w.clientGeometry || w.frameGeometry) : null; '
+            'callDBus('+bus+', "/org/emulation/ControllerSession", "org.emulation.ControllerSession", "Geometry", '
+            'g?Math.round(g.x):0,g?Math.round(g.y):0,g?Math.round(g.width):0,g?Math.round(g.height):0); '
             'if (w && !watched[String(w.internalId)]) { watched[String(w.internalId)] = true; '
-            'w.outputChanged.connect(function(){ if(workspace.activeWindow === w) report(); }); } }); }\n'
+            'w.outputChanged.connect(function(){ if(workspace.activeWindow === w) report(); }); '
+            'w.frameGeometryChanged.connect(function(){ if(workspace.activeWindow === w) report(); }); } }); }\n'
             'workspace.windowActivated.connect(report); report(workspace.activeWindow);\n')
         try:
             self.script(self.name, script)
@@ -137,8 +282,11 @@ class KWinFocus:
         if sender != self.sender:
             invocation.return_dbus_error('org.emulation.NotKWin', 'Unexpected sender')
             return
-        self.current = values.unpack()
-        self.fresh.set()
+        if method == 'Geometry':
+            self.geometry = values.unpack()
+        else:
+            self.current = values.unpack()
+            self.fresh.set()
         invocation.return_value(None)
 
     def dbus(self, *args):
@@ -186,6 +334,22 @@ class KWinFocus:
         self.refresh_count+=1
         return self.fresh.wait(.5)
 
+    def restore_window(self, processes, target):
+        pid, window, _, _ = target
+        if not window or not processes.contains(pid):
+            return
+        path = self.directory / 'journey-return.js'
+        path.write_text('var current=workspace.activeWindow; '
+            'if (current && current.pid === ' + str(os.getpid()) + ') { '
+            'var windows=workspace.windowList(); for(var i=0;i<windows.length;i++) { '
+            'var w=windows[i]; if(w.pid === ' + str(pid) + ' && String(w.internalId) === ' +
+            json.dumps(window) + ') { workspace.activeWindow=w; break; } } }\n')
+        name = self.name + '-journey-return'
+        try:
+            self.script(name, path)
+        finally:
+            self.dbus('/Scripting', 'org.kde.kwin.Scripting.unloadScript', name)
+
     def close(self):
         try:
             self.dbus('/Scripting', 'org.kde.kwin.Scripting.unloadScript', self.name)
@@ -202,7 +366,7 @@ def input_inventory():
     for path in sorted(evdev.list_devices()):
         try:
             with closing(evdev.InputDevice(path)) as dev:
-                if dev.info.vendor == VID and dev.info.product in (*PRODUCTS, 0xE1FF):
+                if dev.info.vendor == VID and 0xE101 <= dev.info.product <= 0xE1FF:
                     continue
                 caps = dev.capabilities()
                 keys = caps.get(e.EV_KEY, [])
@@ -215,8 +379,12 @@ def input_inventory():
                 if keyboard and dev.info.vendor == 0x28DE:
                     continue  # Never interpret Steam's mouse/keyboard emulation as a physical keyboard.
                 kind = 'keyboard' if keyboard and not pad else ('deck_virtual' if virtual else 'deck' if deck else 'external')
+                identifier = f'{dev.info.vendor:04x}:{dev.info.product:04x}:{dev.uniq or dev.phys or path}'
                 rows.append({'path': path, 'name': dev.name, 'vendor': dev.info.vendor,
-                             'product': dev.info.product, 'kind': kind})
+                             'product': dev.info.product, 'kind': kind, 'bus': dev.info.bustype,
+                             'mobile': dev.info.vendor == VID and dev.info.product == 0xE201 and (dev.phys or '').startswith('emuatlas/mobile/'),
+                             'device_cookie': os.fstat(dev.fd).st_ino,
+                             'controller_id': hashlib.sha256(identifier.encode()).hexdigest()})
         except (OSError, PermissionError):
             continue
     # Steam may expose the built-in pad virtually. Only a single unambiguous
@@ -234,7 +402,7 @@ def dock_mode(output):
     return False
 
 
-def virtual_mappings():
+def virtual_mappings(products=PRODUCTS):
     """Read actual SDL GUIDs even before these new pads have a mapping."""
     import ctypes
     import ctypes.util
@@ -250,7 +418,7 @@ def virtual_mappings():
     result = []
     try:
         for i in range(sdl.SDL_NumJoysticks()):
-            if sdl.SDL_JoystickGetDeviceVendor(i) != VID or sdl.SDL_JoystickGetDeviceProduct(i) not in PRODUCTS:
+            if sdl.SDL_JoystickGetDeviceVendor(i) != VID or sdl.SDL_JoystickGetDeviceProduct(i) not in products:
                 continue
             value = ctypes.create_string_buffer(33)
             sdl.SDL_JoystickGetGUIDString(sdl.SDL_JoystickGetDeviceGUID(i), value, 33)
@@ -315,8 +483,11 @@ def diagnose(root):
             'kwin_available':bool(output),
             'backend': 'KWin + evdev/uinput, sessão somente', 'error': error,
             'exit': {'gamepad': 'Back/Select + Start', 'keyboard': 'Ctrl + Shift + F10', 'hold_seconds': 2},
-            'policy': {'handheld': 'Deck P1; externos P2-P4', 'dock': 'externos P1-P4; teclado sem externo',
-                       'hotplug': True, 'exclusive_grabs': False}, 'coverage': coverage(root),
+            'policy': {'handheld': 'Deck P1; externos nas portas seguintes', 'dock': 'externos por ordem; teclado sem externo',
+                       'player_capacity': player_capacity(root), 'mobile_controllers': 'QR Code de sessão, rede local',
+                       'hotplug': True, 'manual_player_order': True, 'occupied_target': 'swap',
+                       'manual_overrides_automatic': True, 'preference_file': str(ORDER_PATH),
+                       'exclusive_grabs': False}, 'coverage': coverage(root),
             'physical_gameplay_verified': False}
 
 
@@ -333,9 +504,15 @@ class Session:
         self.inputs, self.virtual, self.assigned = {}, [], []
         self.source_maps = {}
         self.source_signature = None
-        self.output_state = [{}, {}, {}, {}]
-        self.effects = [{}, {}, {}, {}]
-        self.forwarded_effects = [{}, {}, {}, {}]
+        self.preferences = {'schema': 1, 'revision': 0, 'slots': None, 'models': {}}
+        self.wait_for_release = set()
+        self.capacity = player_capacity(root)
+        self.products = tuple(0xE101+n for n in range(self.capacity))
+        self.output_state = [{} for _ in self.products]
+        self.effects = [{} for _ in self.products]
+        self.forwarded_effects = [{} for _ in self.products]
+        from mobile_controller import Client
+        self.mobile = Client(root)
         self.processes, self.exit_chords = OwnedProcesses(), {}
         self.last_scan = 0
         self.last_process_scan = 0
@@ -370,21 +547,22 @@ class Session:
             capabilities = {e.EV_KEY: self.buttons,
                 e.EV_FF: [e.FF_RUMBLE],
                 e.EV_ABS: [(code, evdev.AbsInfo(0 if bounds[0] < 0 else bounds[0], *bounds, 0, 0, 0)) for code, bounds in axes]}
-            for n, product in enumerate(PRODUCTS):
+            for n, product in enumerate(self.products):
                 self.virtual.append(evdev.UInput(capabilities, name=f'Emulation P{n+1}', vendor=VID,
                     product=product, version=1, bustype=e.BUS_USB, phys=f'emulation/player/{n+1}', max_effects=16))
             self.dialog_keyboard = evdev.UInput({e.EV_KEY:[e.KEY_ENTER,e.KEY_ESC,e.KEY_LEFT,e.KEY_RIGHT,e.KEY_UP,e.KEY_DOWN]},
                 name='Emulation Session Dialog',vendor=VID,product=0xE1FF,phys='emulation/dialog')
             self.env = os.environ.copy()
-            self.env['SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT'] = ','.join(f'0x{VID:04x}/0x{p:04x}' for p in PRODUCTS)
+            self.env['SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT'] = ','.join(f'0x{VID:04x}/0x{p:04x}' for p in self.products)
             self.env['SDL_JOYSTICK_HIDAPI'] = '0'
             self.env['EMULATION_ROUTED_CONTROLS'] = '1'
+            self.env['EMULATION_PLAYER_CAPACITY'] = str(self.capacity)
             # Linux evdev button order is A,B,X,Y,LB,RB,Back,Start,Guide,LS,RS.
             from emulator_controls import gamepads
             deadline = time.monotonic()+4
             while True:
-                mappings = virtual_mappings()
-                if len(mappings) == 4 or time.monotonic() >= deadline: break
+                mappings = virtual_mappings(self.products)
+                if len(mappings) == self.capacity or time.monotonic() >= deadline: break
                 time.sleep(.1)
             self.env['SDL_GAMECONTROLLERCONFIG'] = '\n'.join(filter(None, [self.env.get('SDL_GAMECONTROLLERCONFIG', ''), *mappings]))
             keys = ['SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT', 'SDL_GAMECONTROLLERCONFIG', 'SDL_JOYSTICK_HIDAPI']
@@ -394,16 +572,28 @@ class Session:
                 deadline = time.monotonic()+4
                 while True:
                     pads = gamepads()
-                    if len(pads) == 4 or time.monotonic() >= deadline:
+                    if len(pads) == self.capacity or time.monotonic() >= deadline:
                         break
                     time.sleep(.1)
             finally:
                 for key,value in old.items():
                     if value is None: os.environ.pop(key,None)
                     else: os.environ[key] = value
-            if len(pads) != 4 or any(p['vendor'] != VID for p in pads):
-                raise RuntimeError('As quatro portas SDL da sessão não foram enumeradas com isolamento.')
+            if len(pads) != self.capacity or any(p['vendor'] != VID for p in pads):
+                raise RuntimeError('As portas SDL da sessão não foram enumeradas com isolamento.')
             self.manifest.update(status='ready', ports=[{'name': p['name'], 'guid': p['guid']} for p in pads])
+            self.feedback = None
+            try:
+                path = root / 'frontend/RetroFE/Tools/launchers/retrofe/session-feedback.py'
+                spec = importlib.util.spec_from_file_location('emulation_session_feedback', path)
+                feedback = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(feedback)
+                self.feedback = feedback.SessionFeedback(game=True, root=root,
+                    on_assign=self.reassign, on_identify=self.identify, on_add=self.mobile.pairing)
+                self.manifest['feedback'] = 'ready'
+            except Exception as exc:
+                self.manifest['feedback_error'] = str(exc)
+                print('[CONTROLE] Avisos visuais indisponíveis: ' + str(exc), flush=True)
             self.save()
         except BaseException:
             self.close('preparation_failed')
@@ -412,6 +602,27 @@ class Session:
     def save(self):
         import romtool
         romtool.write_manifest(self.manifest)
+
+    def controller_rows(self):
+        mobile = {r['controller_id']: r for r in getattr(getattr(self, 'mobile', None), 'clients', [])}
+        return [{**row, 'controller_id': device_key(row), 'routable': row['path'] in self.source_maps,
+                 'display_name': mobile.get(device_key(row), {}).get('name', row['name']),
+                 'online': mobile.get(device_key(row), {}).get('online', True),
+                 'model_override': self.preferences['models'].get(device_key(row))}
+                for row in self.rows.values() if row['kind'] in {'deck', 'external'}]
+
+    def reassign(self, source_id, player):
+        docked = self.manifest.get('docked', False)
+        self.scan(docked)
+        self.preferences = assign_player(self.root, self.controller_rows(), self.assigned,
+                                         source_id, player, self.preferences['revision'])
+        self.scan(docked)
+
+    def identify(self, source_id, model):
+        if source_id not in {device_key(row) for row in self.controller_rows()}:
+            raise ValueError('O controle foi desconectado.')
+        self.preferences = identify_controller(self.root, source_id, model, self.preferences['revision'])
+        self.scan(self.manifest.get('docked', False))
 
     def neutral(self, port):
         v = self.virtual[port]
@@ -480,8 +691,12 @@ class Session:
                     if self.deck_identity == (row['path'],os.stat(row['path']).st_ino):row['kind']='deck'
                 except OSError:pass
         available = {r['path']: r for r in rows}
+        previous_rows = getattr(self, 'rows', {})
+        replaced = set()
         for path in list(self.inputs):
-            if path not in available:
+            changed = path in available and previous_rows.get(path, {}).get('device_cookie') != available[path].get('device_cookie')
+            if path not in available or changed:
+                replaced.add(path)
                 self.inputs.pop(path).close()
                 self.keyboard_down.clear()
                 self.keyboard_state.pop(path, None)
@@ -491,17 +706,17 @@ class Session:
             if path not in self.inputs and row['kind'] in {'deck', 'external', 'keyboard'}:
                 try: self.inputs[path] = self.evdev.InputDevice(path)
                 except OSError: continue
-        signature=tuple((r['path'],r['kind']) for r in rows)
+        signature = tuple((r['path'], r['kind'], device_key(r), r.get('device_cookie')) for r in rows)
         if signature != self.source_signature:
             mappings=source_gamepads()
             self.source_signature=signature
             for row in rows:
                 if row['kind'] not in {'deck','external'} or row['path'] not in self.inputs:continue
-                matches=[p for p in mappings if p.get('path')==row['path']]
-                if not matches:
-                    matches=[p for p in mappings if (p['vendor'],p['product'])==(row['vendor'],row['product'])]
-                unique={json.dumps(p['mapping'],sort_keys=True):p['mapping'] for p in matches}
-                if len(unique)==1:self.source_maps[row['path']]=next(iter(unique.values()))
+                mapping = source_mapping(row, mappings)
+                if mapping:
+                    self.source_maps[row['path']] = mapping
+                else:
+                    self.source_maps.pop(row['path'], None)
             self.manifest['unmapped_controllers']=[r['name'] for r in rows if r['kind'] in {'deck','external'} and r['path'] not in self.source_maps]
             self.manifest['source_mappings']=[{'name':r['name'],'mapping':self.source_maps[r['path']]}
                 for r in rows if r['path'] in self.source_maps]
@@ -509,20 +724,37 @@ class Session:
             if self.manifest['unmapped_controllers']:
                 print('[CONTROLE] Há controle sem mapeamento SDL seguro; preservado para diagnóstico, teclado mantido.',flush=True)
             self.save()
-        new = slots([r for r in rows if r['path'] in self.inputs and r['path'] in self.source_maps], docked, self.assigned)
-        if new != self.assigned or docked != self.manifest.get('docked'):
+        try:
+            self.preferences = load_preferences(self.root)
+        except (ValueError, OSError) as exc:
+            message = str(exc)
+            if self.manifest.get('controller_order_error') != message:
+                self.manifest['controller_order_error'] = message
+                self.save()
+        new = slots([r for r in rows if r['path'] in self.inputs and r['path'] in self.source_maps],
+                    docked, self.assigned, self.preferences['slots'], getattr(self, 'capacity', DEFAULT_PLAYERS))
+        if new != self.assigned or docked != self.manifest.get('docked') or replaced.intersection(new):
             self.stop_effects()
-            for n in range(4): self.neutral(n)
+            for n in range(len(self.virtual)): self.neutral(n)
             self.assigned = new
+            self.wait_for_release = {path for path in new if path}
             self.keyboard_down.clear()
             self.keyboard_state.clear()
             self.exit_chords.clear()
             self.manifest['docked'] = docked
-            change = {'at': time.time(), 'players': [{'player': n+1, 'name': available[p]['name']} for n,p in enumerate(new)],
-                      'keyboard_fallback': not new, 'docked': docked}
+            change = {'at': time.time(), 'players': [{'player': n+1, 'name': available[p]['name']}
+                      for n,p in enumerate(new) if p], 'keyboard_fallback': not any(new), 'docked': docked,
+                      'order_revision': self.preferences['revision']}
             self.manifest['changes'].append(change)
             self.save()
+            for port, path in enumerate(new):
+                if path:
+                    self.forward(self.inputs[path], port)
         self.rows = available
+        if getattr(self, 'feedback', None):
+            self.feedback.set_devices(self.controller_rows(),
+                [device_key(available[p]) if p else None for p in self.assigned],
+                keyboard=not any(self.assigned))
 
     def forward(self, device, port):
         """Translate the whole current state after an event batch; writes are diffed."""
@@ -532,7 +764,9 @@ class Session:
         keys=sorted(k for k in caps.get(e.EV_KEY,[]) if k>=e.BTN_MISC)
         active=set(device.active_keys())
         buttons={n for n,key in enumerate(keys) if key in active}
-        raw_axes={key:info for key,info in caps.get(e.EV_ABS,[])}
+        # capabilities() retains the values read when the device was opened.
+        # EVIOCGABS supplies the live state for sticks, triggers and d-pad hats.
+        raw_axes={key:device.absinfo(key) for key,_ in caps.get(e.EV_ABS,[])}
         axes={}
         for n,(code,info) in enumerate((k,v) for k,v in sorted(raw_axes.items()) if not e.ABS_HAT0X<=k<=e.ABS_HAT3Y):
             axes[n]=2*(info.value-info.min)/(info.max-info.min)-1 if info.max>info.min else 0
@@ -542,6 +776,28 @@ class Session:
             y=raw_axes.get(e.ABS_HAT0Y+n*2)
             hats[n]=(1 if y and y.value<0 else 4 if y and y.value>0 else 0)|(8 if x and x.value<0 else 2 if x and x.value>0 else 0)
         def value(key):return binding_value(mapping.get(key,''),buttons,axes,hats)
+        waiting = getattr(self, 'wait_for_release', set())
+        if device.path in waiting:
+            held = any(value(key) > .5 for key in ('a', 'b', 'x', 'y', 'start', 'back',
+                'leftshoulder', 'rightshoulder', 'leftstick', 'rightstick',
+                'dpup', 'dpdown', 'dpleft', 'dpright'))
+            moved = any(abs(value(key)) > .35 for key in ('leftx', 'lefty', 'rightx', 'righty'))
+            triggers = any(value(key) > (-.8 if mapping.get(key, '').startswith('a') else .1)
+                           for key in ('lefttrigger', 'righttrigger') if key in mapping)
+            if not held and not moved and not triggers:
+                waiting.discard(device.path)
+                if getattr(self, 'journey_ui', None):
+                    self.journey_ui.controller(set(), player=port)
+            self.neutral(port)
+            return
+        journey_ui = getattr(self, 'journey_ui', None)
+        if journey_ui:
+            held = {key for key in ('a','b','x','y','back','start','dpup','dpdown','dpleft','dpright') if value(key) > .5}
+            if value('lefty') < -.6: held.add('dpup')
+            if value('lefty') > .6: held.add('dpdown')
+            if journey_ui.controller(held, player=port):
+                self.neutral(port)
+                return
         if getattr(self,'exit_pending',False) and self.dialog_armed:
             desired={key for binding,key in {'a':e.KEY_ENTER,'b':e.KEY_ESC,'dpleft':e.KEY_LEFT,
                 'dpright':e.KEY_RIGHT,'dpup':e.KEY_UP,'dpdown':e.KEY_DOWN}.items() if value(binding)>.5}
@@ -585,6 +841,12 @@ class Session:
             self.processes.refresh()
             self.last_process_scan = now
         focused = self.processes.contains(self.focus.current[0])
+        journey_ui = getattr(self, 'journey_ui', None)
+        ui_focus = bool(journey_ui and journey_ui.captures_input and self.focus.current[0] == os.getpid())
+        if focused:
+            self.journey_geometry = self.focus.geometry
+            self.journey_window = self.focus.current
+        focused = focused or ui_focus
         retry_key=self.focus.current[:2]
         if retry_key!=self.focus_retry_key:self.focus_retry_key=retry_key;self.focus_retries=0
         if (not focused and self.focus.current[1] and self.focus_retries<3
@@ -600,7 +862,7 @@ class Session:
         self.last_tick = now
         if not focused and self.last_focus:
             self.stop_effects()
-            for n in range(4): self.neutral(n)
+            for n in range(len(self.virtual)): self.neutral(n)
             self.keyboard_down.clear()
             self.keyboard_state.clear()
             self.dialog_down.clear()
@@ -613,7 +875,11 @@ class Session:
         if now-self.last_scan > 1:
             self.scan(dock_mode(self.focus.current[3]) if focused else self.manifest.get('docked', False))
             self.last_scan = now
-        ready, _, _ = select.select([*self.inputs.values(),*self.virtual], [], [], .04)
+        if getattr(self, 'mobile', None):
+            players = {device_key(self.rows[path]): n for n, path in enumerate(self.assigned)
+                       if path and path in self.rows}
+            self.mobile.sync(focused, players, self.reassign)
+        ready, _, _ = select.select([*self.inputs.values(),*self.virtual], [], [], .02)
         for dev in ready:
             if dev in self.virtual:
                 for event in dev.read():
@@ -642,15 +908,29 @@ class Session:
                 if event.type in {e.EV_KEY,e.EV_ABS}:forwarded=True
             if forwarded and dev.path in self.assigned:self.forward(dev,self.assigned.index(dev.path))
         pressed = self.keyboard_down
+        if journey_ui:
+            journey_ui.keyboard(pressed, e)
+            capturing = journey_ui.captures_input
+            if capturing != getattr(self, 'journey_was_capturing', False):
+                self.wait_for_release.update(path for path in self.assigned if path)
+                self.stop_effects()
+                self.journey_was_capturing = capturing
+            if capturing:
+                for port in range(len(self.virtual)):
+                    self.neutral(port)
         keyboard_exit = bool(pressed & {e.KEY_LEFTCTRL,e.KEY_RIGHTCTRL}) and bool(pressed & {e.KEY_LEFTSHIFT,e.KEY_RIGHTSHIFT}) and e.KEY_F10 in pressed
         chords = {'keyboard': keyboard_exit}
         for path in self.assigned:
+            if path is None:
+                continue
             state=self.output_state[self.assigned.index(path)]
             chords[path] = bool(state.get((e.EV_KEY,e.BTN_SELECT)) and state.get((e.EV_KEY,e.BTN_START)))
         for key, held in chords.items():
             if self.exit_chords.setdefault(key, HeldChord()).update(held, focused, now):
                 self.exit_pending = self.focus.close_window(self.processes)
                 self.manifest['exit_requested'] = bool(self.exit_pending)
+                self.manifest['exit_input'] = {'kind': 'keyboard' if key == 'keyboard' else 'gamepad',
+                    'player': None if key == 'keyboard' else self.assigned.index(key) + 1}
                 self.save()
         if self.exit_pending and not any(chords.values()): self.dialog_armed = True
         # Keyboard fallback through the same stable pad, only while our game
@@ -673,7 +953,7 @@ class Session:
                     name={'enter':'enter','rshift':'rightshift','shift':'leftshift','ctrl':'leftctrl','alt':'leftalt'}.get(name,name)
                     return getattr(e,'KEY_'+name.upper(),None)
                 self.ra_keyboard={name:keycode(configured.get(name,default)) for name,default in defaults.items()}
-        if focused and not self.assigned and self.keyboard_fallback:
+        if focused and not any(self.assigned) and self.keyboard_fallback and not (journey_ui and journey_ui.captures_input):
             mapping = {e.KEY_Z:e.BTN_SOUTH, e.KEY_X:e.BTN_EAST, e.KEY_A:e.BTN_WEST,
                 e.KEY_S:e.BTN_NORTH, e.KEY_Q:e.BTN_TL, e.KEY_E:e.BTN_TR,
                 e.KEY_BACKSPACE:e.BTN_SELECT, e.KEY_ENTER:e.BTN_START}
@@ -691,7 +971,38 @@ class Session:
             self.write(0,e.EV_ABS,e.ABS_RZ,255 if e.KEY_3 in pressed else 0)
             v.syn()
 
+        if getattr(self, 'feedback', None):
+            try:
+                geometry = getattr(self, 'journey_geometry', self.focus.geometry) if ui_focus else self.focus.geometry
+                self.feedback.update(focused, geometry, now)
+                if journey_ui:
+                    journey_ui.update(focused, geometry, now)
+            except Exception as exc:
+                # A failed status layer must preserve the running game/input.
+                if getattr(self, 'journey_ui', None):
+                    self.journey_ui.close()
+                    self.journey_ui = None
+                    self.journey.request('pause', False)
+                self.manifest['feedback_error'] = str(exc)
+                self.feedback.close()
+                self.feedback = None
+                self.save()
+
     def close(self, status='completed_with_validation_limits'):
+        if getattr(self, 'journey_ui', None):
+            self.journey_ui.close()
+            self.journey_ui = None
+        if getattr(self, 'journey', None):
+            try:
+                self.journey.close()
+            except Exception as exc:
+                self.manifest['save_journey_close_error'] = str(exc)
+            self.journey = None
+        if getattr(self, 'mobile', None):
+            self.mobile.close()
+        if getattr(self, 'feedback', None):
+            self.feedback.close()
+            self.feedback = None
         self.stop_effects()
         for dev in self.inputs.values(): dev.close()
         for v in self.virtual: v.close()
@@ -704,7 +1015,8 @@ class Session:
         import romtool
         romtool.append_event(self.operation_id, 'controller_session_closed', status=status,
             details={'system_id': self.system_id, 'physical_gameplay_verified': False})
-        romtool.rebuild_history_index()
+        # The durable manifest/journal are authoritative. Rebuilding the aggregate
+        # history cache belongs to maintenance, outside the input/exit lifecycle.
 
 
 def run(root, system_id, command, env, attach=None, remaining=None, owned_children=None):
@@ -723,7 +1035,32 @@ def run(root, system_id, command, env, attach=None, remaining=None, owned_childr
         helper = root / 'frontend/RetroFE/Tools/launchers/retrofe/steam-input.py'
         subprocess.run([os.sys.executable, str(helper), '--root', str(root/'frontend/RetroFE'),
             'controller-prepare', '--system-id', system_id, '--require-gamepad'], env=combined, check=True)
-        child = subprocess.Popen(command, env=combined)
+        journey = None
+        context = combined.get('EMUATLAS_RETROARCH_JOURNEY')
+        if context:
+            try:
+                from save_journey import RetroArchSession
+                journey = RetroArchSession(root, json.loads(context), session.directory)
+                command = journey.prepare(command)
+                session.journey = journey
+                session.manifest['save_journey'] = str(journey.store.directory.relative_to(root))
+            except (OSError, ValueError) as exc:
+                session.manifest['save_journey_error'] = str(exc)
+                print('[SAVES] Histórico indisponível: ' + str(exc), flush=True)
+                journey = None
+        io = {'stdin': subprocess.PIPE, 'stdout': subprocess.PIPE, 'stderr': subprocess.STDOUT, 'bufsize': 0} if journey else {}
+        child = subprocess.Popen(command, env=combined, **io)
+        if journey:
+            journey.attach(child)
+            if session.feedback:
+                try:
+                    from save_journey_ui import SaveShelf
+                    session.journey_ui = SaveShelf(session.feedback, journey,
+                        on_return=lambda: session.focus.restore_window(session.processes,
+                            getattr(session, 'journey_window', (0, '', False, ''))))
+                except Exception as exc:
+                    session.manifest['save_journey_ui_error'] = str(exc)
+        session.save()
         status='completed_with_validation_limits'
         session.processes.add(child.pid)
         if attach: attach(child.pid)

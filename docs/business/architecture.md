@@ -13,6 +13,7 @@ O repositório contém código, receitas e documentação. Uma instalação acre
 | frontend/RetroFE/UserData/ | Estado próprio do frontend | Não |
 | emulator/linux/, emulator/windows/ | Binários e dependências nativas por SO | Somente launchers revisados; binários fora da release |
 | emulator/data/ | Dados únicos de emuladores e recursos portáveis | Não |
+| frontend/pegasus-frontend/ | Runtime adquirido, launcher e dados portáteis em config/ | Código e receita, com jogos e mídia nas raízes compartilhadas |
 | frontend/ES-DE/ | Launcher e executável adquirido na origem | Código; não o executável |
 | frontend/RocketLauncher/ | Launcher alternativo de jogos, com módulos, plugins e configuração locais | Pacote local do usuário; fora do instalador/release |
 | roms/<system_id>/ | Conteúdo fornecido pelo cliente | Não |
@@ -37,6 +38,22 @@ Os comandos que baixam usam um lock, origem HTTPS restrita, versão/tamanho/hash
 A portabilidade da estrutura não torna Qt, Vulkan, Steam, drivers ou firmware independentes do host. Detectar essas dependências é parte do diagnóstico e da homologação. Não alterar perfis de controle durante o bootstrap.
 
 O RocketLauncher está cadastrado como alternativa ao launcher host dos frontends. A instalação local contém PE32 Windows e plugin RetroFE; os caminhos Windows antigos e a compatibilidade com o host Linux ainda exigem validação. ES-DE, Pegasus e Quiver não recebem suporte presumido pela presença do pacote. O cadastro protege suas referências sem trocar os perfis ativos, acrescentar componente ao instalador ou criar outra biblioteca. Quando o pacote local estiver instalado, seu README registra os detalhes e a proveniência; esse conteúdo não integra a exportação pública.
+
+## Entrada móvel de sessão
+
+O painel compartilhado usa o mapeamento visual `frontend/RetroFE/Config/controller-artwork.json`, com `player_capacity=8` como padrão. O arquivo único de preferências em UserData conserva a ordem e as escolhas visuais. A leitura amplia preferências antigas de quatro portas em memória.
+
+`tools/roms/mobile_controller.py` atende os três arquivos explícitos da página responsiva por HTTP na rede local. A ação Adicionar inicia um processo por raiz/sessão do usuário, com descritor e segredo administrativos privados em XDG_RUNTIME_DIR. O QR Code carrega um convite de dois minutos no fragmento do endereço. Cada navegador recebe um token independente. As mensagens contêm snapshots completos e sequenciados, e o host neutraliza a origem após 750 ms sem atualização.
+
+O processo cria origens evdev/uinput próprias. O roteador existente aplica a atribuição às portas virtuais estáveis. Frontend e jogo mantêm leases locais e informam foco, preservando o pareamento durante o lançamento. Solicitações de jogador vindas da página são confirmadas pelo consumidor focado através da mesma gravação durável usada pelo arraste. A ausência de consumidores encerra o serviço e remove os dispositivos. O backend de entrada atual usa Linux/KDE. O navegador do celular ou tablet consome apenas HTML, CSS e JavaScript locais.
+
+## Jornada de saves de sessão
+
+O launcher RetroArch transmite ao supervisor o contexto relativo da plataforma, ROM, conteúdo efetivamente lançado, core e configuração. `save_journey.py` acompanha apenas esse processo pelo stdin privado e pelo diretório nativo. O ciclo de vida integra o roteador existente. A UI `save_journey_ui.py` reutiliza a instância Tk do feedback de controles e o mesmo bloqueio de entrada enquanto a lista está aberta.
+
+`emulator/data/RetroArch/states/journey/<game_id>/` reúne SQLite, versões nativas por SHA-256, PNGs com metadados imutáveis e perfis efêmeros. A identidade normaliza a extensão de core entre SOs. Favoritos, tags, notas, sequência e relações são transacionais. A exportação CSV constitui uma projeção no histórico oficial da sessão.
+
+A retomada preserva o momento corrente, prepara uma cópia nativa em slot temporário alto e confirma a execução antes da transição visual. Um registro durável permite reconciliar cópias derivadas após interrupção. A comparação do core e do conteúdo protege a seleção. A compatibilidade efetiva segue dependente do core e da aceitação no host. O backend possui caminho Windows e o overlay atual usa Linux/KDE. O contrato detalha os limites de tempo observado, flush de SRAM, imagens e validação. [Jornada de saves](../../tools/roms/docs/save-journey.md)
 
 ## Reuso e dívida técnica
 

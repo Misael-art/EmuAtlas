@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tools.roms import romtool
+from tools.roms import romtool, esde_media
 
 
 class EsdeValidateContractTests(unittest.TestCase):
@@ -107,6 +107,70 @@ class EsdeAliasFlowTests(EsdeValidateContractTests):
         os.rename(self.root, moved)
         self.addCleanup(lambda: os.rename(moved, self.root) if moved.exists() else None)
         self.assertEqual((moved / "media/snes/3dboxes").resolve(), (moved / "media/snes/box").resolve())
+
+
+    def interrupted_creation(self):
+        _, plan = self.run_main("media", "esde", "aliases", "plan")
+        original = os.symlink
+        def interrupted(target, alias, **kwargs):
+            original(target, alias, **kwargs)
+            raise SystemExit("power cut after link")
+        with patch.object(esde_media.os, "symlink", side_effect=interrupted):
+            with self.assertRaises(SystemExit):
+                self.run_main("media", "esde", "aliases", "apply", "--operation-id", plan["operation_id"], "--apply")
+        return plan["operation_id"]
+
+    def test_apply_resumes_link_created_before_checkpoint(self):
+        opid = self.interrupted_creation()
+        manifest = json.loads((romtool.operation_dir(opid) / "manifest.json").read_text())
+        self.assertEqual(manifest["status"], "applying")
+        self.assertTrue(manifest["items"][0]["creation_intent"])
+        code, result = self.run_main("media", "esde", "aliases", "apply", "--operation-id", opid, "--apply")
+        self.assertEqual((code, result["status"]), (0, "verified"))
+
+    def test_verify_requires_the_creation_checkpoint(self):
+        opid = self.interrupted_creation()
+        code, result = self.run_main("media", "esde", "aliases", "verify", "--operation-id", opid)
+        self.assertEqual((code, result["status"]), (3, "failed"))
+        self.assertIn("snes/3dboxes", result["failed"])
+
+    def test_matching_foreign_link_without_intent_is_preserved(self):
+        _, plan = self.run_main("media", "esde", "aliases", "plan")
+        os.symlink("box", self.media / "snes/3dboxes")
+        code, _ = self.run_main("media", "esde", "aliases", "apply", "--operation-id", plan["operation_id"], "--apply")
+        self.assertEqual(code, 2)
+        self.assertEqual(os.readlink(self.media / "snes/3dboxes"), "box")
+
+    def test_directory_sync_failure_resumes_from_creation_intent(self):
+        _, plan = self.run_main("media", "esde", "aliases", "plan")
+        with patch.object(esde_media, "_sync_alias_directory", side_effect=OSError("fsync failed")):
+            code, _ = self.run_main("media", "esde", "aliases", "apply", "--operation-id", plan["operation_id"], "--apply")
+        self.assertEqual(code, 2)
+        code, result = self.run_main("media", "esde", "aliases", "apply", "--operation-id", plan["operation_id"], "--apply")
+        self.assertEqual((code, result["status"]), (0, "verified"))
+
+    def test_rollback_handles_creation_before_checkpoint(self):
+        opid = self.interrupted_creation()
+        code, result = self.run_main("media", "esde", "aliases", "rollback", "--operation-id", opid, "--rollback")
+        self.assertEqual((code, result["status"]), (0, "rolled_back"))
+        self.assertFalse(os.path.lexists(self.media / "snes/3dboxes"))
+
+    def test_rollback_resumes_after_unlink_before_checkpoint(self):
+        _, plan = self.run_main("media", "esde", "aliases", "plan")
+        opid = plan["operation_id"]
+        self.run_main("media", "esde", "aliases", "apply", "--operation-id", opid, "--apply")
+        original = Path.unlink
+        alias = self.media / "snes/3dboxes"
+        def interrupted(path, *args, **kwargs):
+            original(path, *args, **kwargs)
+            if path == alias:
+                raise SystemExit("power cut after unlink")
+        with patch.object(Path, "unlink", interrupted):
+            with self.assertRaises(SystemExit):
+                self.run_main("media", "esde", "aliases", "rollback", "--operation-id", opid, "--rollback")
+        code, result = self.run_main("media", "esde", "aliases", "rollback", "--operation-id", opid, "--rollback")
+        self.assertEqual((code, result["status"]), (0, "rolled_back"))
+        self.assertFalse(os.path.lexists(alias))
 
 
 if __name__ == "__main__":

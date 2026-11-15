@@ -13,6 +13,12 @@ import uuid
 from pathlib import Path
 from functools import lru_cache
 
+try:
+    from . import media_session, portable_emulator
+except ImportError:
+    import media_session
+    import portable_emulator
+
 
 REGISTRY_RELATIVE = Path("metadata/rom-variants.jsonl")
 RECORD_SCHEMA_VERSION = "1.0"
@@ -51,7 +57,7 @@ def _snapshot_matches(path: Path, expected: dict) -> bool:
     except OSError:
         return False
     return all(actual.get(key) == expected.get(key)
-               for key in ("device", "inode", "size_bytes", "mtime_ns", "is_symlink", "is_regular"))
+               for key in ("device", "inode", "size_bytes", "mtime_ns", "mode", "is_symlink", "is_regular"))
 
 
 def _extract_groups(name: str) -> tuple[list[dict], list[str]]:
@@ -472,6 +478,23 @@ def _registry_location_allowed(relative: Path, system_id: str) -> bool:
     return len(parts) >= 4 and parts[:3] == ("mods", "pending", system_id)
 
 
+def _managed_launch_alias(path: Path, project_root: Path, system_id: str) -> Path | None:
+    """Reuse the dispatcher's declared alias contract without creating a second payload record."""
+    profile = project_root / 'frontend/RetroFE/Config/profiles/host-linux.json'
+    if not profile.is_file() or profile.is_symlink():
+        return None
+    try:
+        data = json.loads(profile.read_text())
+        systems = [row for row in data.get('collections', {}).values() if row.get('rom_subdir') == system_id]
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+    contracts = {(row.get('runtime_id'), tuple(row.get('launch_inputs', []))) for row in systems}
+    if len(contracts) != 1:
+        return None
+    target, _ = portable_emulator.validate_managed_launch_alias(path, project_root / 'roms' / system_id, systems[0])
+    return target
+
+
 def _scan_review_origin(project_root: Path, system_id: str, extensions: set[str], policy: dict,
                         notes: dict, hash_files: bool, reusable_hashes: dict | None,
                         reuse_operation_id: str, candidate_rows: list[dict],
@@ -599,6 +622,7 @@ def scan_library(project_root: Path, *, hash_files: bool, policy: dict,
                     "name_safety_issue_count": 0, "structured_registry_present": True,
                     "review_origin_file_count": 0, "review_origin_name_candidates": 0,
                     "review_origin_status": "not_scanned",
+                    "managed_launch_alias_count": 0,
                     "scan_status": "pending", "excluded_reason": ""}
         if system.get("kind") != "platform":
             coverage.update(scan_status="excluded_non_platform", excluded_reason="catalog entry kind is not platform")
@@ -643,6 +667,15 @@ def scan_library(project_root: Path, *, hash_files: bool, policy: dict,
                 name_issues = portable_filename_issues(filename)
                 if path.is_symlink():
                     name_issues.append("symlink_file_not_followed")
+                    target = _managed_launch_alias(path, project_root, system_id)
+                    if target is not None:
+                        coverage['managed_launch_alias_count'] += 1
+                        filename_issue_rows.append({
+                            'system_id': system_id, 'path': rel_path, 'filename': filename,
+                            'issues': ['managed_relative_launch_alias'],
+                            'action': 'preserve launch relation; payload registry excludes the alias itself',
+                            'managed_alias_target': target.relative_to(project_root).as_posix()})
+                        continue
                 parsed = parse_variant_filename(filename, policy)
                 if parsed["malformed_delimiters"]:
                     name_issues.extend(parsed["malformed_delimiters"])
@@ -763,6 +796,7 @@ def scan_library(project_root: Path, *, hash_files: bool, policy: dict,
                "filename_issue_rows": len(filename_issue_rows),
                "variant_candidates_by_platform": sum(bool(row["variant_name_candidates"]) for row in coverage_rows),
                "review_origin_file_count": sum(row.get("review_origin_file_count", 0) for row in coverage_rows),
+               "managed_launch_alias_count": sum(row.get('managed_launch_alias_count', 0) for row in coverage_rows),
                "review_origin_name_candidates": sum(row.get("review_origin_name_candidates", 0) for row in coverage_rows)}
     return candidate_rows, coverage_rows, filename_issue_rows, summary
 
@@ -788,27 +822,11 @@ def _write_csv(path: Path, rows: list[dict]) -> None:
 
 
 def _write_bytes_atomic(path: Path, data: bytes, mode: int = 0o644) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_name(path.name + f".{uuid.uuid4().hex}.tmp")
-    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
     try:
-        with os.fdopen(fd, "wb") as stream:
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.chmod(temp, mode)
-        os.replace(temp, path)
-        dir_fd = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(dir_fd)
-        finally:
-            os.close(dir_fd)
-    except Exception:
-        try:
-            temp.unlink()
-        except OSError:
-            pass
-        raise
+        from .romtool import atomic_write_bytes
+    except ImportError:
+        from romtool import atomic_write_bytes
+    atomic_write_bytes(path, data, mode=mode)
 
 
 def _validate_registry_bytes(data: bytes) -> list[dict]:
@@ -909,6 +927,7 @@ def command_inventory(args, api: dict) -> dict:
         "hash_requested": bool(hash_complete), "hash_mode": hash_mode,
         "hash_source_operation_id": reuse_operation_id or None, "summary": summary,
         "limits": ["Name markers are candidates, not proof of applied patches or game identity.",
+                   "Declared and validated relative launch aliases are reported in coverage; the alias itself is excluded from payload candidates.",
                    "No archives were extracted; file hashes cover stored file bytes.",
                    "Save files and documentation with variant-like names appear in the inventory but are excluded from the ROM variant registry.",
                    "Runtime launch behavior is not tested by this inventory."],
@@ -1263,13 +1282,18 @@ def _safe_registry_path(path: Path, project_root: Path) -> None:
 
 
 def command_apply(args, api: dict) -> dict:
+    with media_session.write_lock(api):
+        return _apply_registry(args, api)
+
+
+def _apply_registry(args, api: dict) -> dict:
     if not args.apply:
         raise ValueError("Gravação do registry exige --apply explícito")
     project_root = Path(api["PROJECT_ROOT"])
     change_dir = Path(api["operation_dir"](args.operation_id))
     manifest_path = change_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("kind") != "rom_variant_registry" or manifest.get("status") != "prepared":
+    if manifest.get("kind") != "rom_variant_registry" or manifest.get("status") not in {'prepared', 'applying'}:
         raise ValueError("Operação não está preparada para gravar o registry")
     registry_path = Path(manifest["registry_path"])
     _safe_registry_path(registry_path, project_root)
@@ -1280,9 +1304,14 @@ def command_apply(args, api: dict) -> dict:
         if registry_path.is_symlink() or not registry_path.is_file():
             raise ValueError("Registry atual não é arquivo regular")
         actual_before = sha256_file(registry_path)
-        if actual_before != expected_before:
+        allowed = {expected_before}
+        if manifest['status'] == 'applying' and manifest.get('publication_intent') == manifest['registry_after_sha256']:
+            allowed.add(manifest['registry_after_sha256'])
+        if actual_before not in allowed:
             raise ValueError("Registry mudou depois do plano; gere novo plano antes de aplicar")
-        before_mode = stat.S_IMODE(registry_path.stat().st_mode)
+        before_mode = int(manifest.get('applied_mode', stat.S_IMODE(registry_path.stat().st_mode)))
+        if stat.S_IMODE(registry_path.stat().st_mode) != before_mode:
+            raise ValueError('Permissões do registry mudaram durante a publicação')
     else:
         if expected_before is not None:
             raise ValueError("Registry desapareceu depois do plano")
@@ -1305,19 +1334,13 @@ def command_apply(args, api: dict) -> dict:
     if expected_before is not None:
         if not backup_path.is_file() or sha256_file(backup_path) != expected_before:
             raise ValueError("Backup de rollback não confere com a pré-condição do registry")
-    try:
-        _write_bytes_atomic(registry_path, proposed, before_mode)
-        actual_after = sha256_file(registry_path)
-        if actual_after != manifest["registry_after_sha256"]:
-            raise RuntimeError("SHA-256 do registry gravado diverge")
-        _validate_registry_bytes(registry_path.read_bytes())
-    except Exception:
-        if expected_before is not None and backup_path.is_file():
-            _write_bytes_atomic(registry_path, backup_path.read_bytes(), before_mode)
-        elif registry_path.exists():
-            preserved = rollback_dir / "registry-after-failed-apply.jsonl"
-            os.replace(registry_path, preserved)
-        raise
+    manifest.update(status='applying', publication_intent=manifest['registry_after_sha256'], applied_mode=before_mode)
+    api['atomic_json'](manifest_path, manifest)
+    _write_bytes_atomic(registry_path, proposed, before_mode)
+    actual_after = sha256_file(registry_path)
+    if actual_after != manifest["registry_after_sha256"]:
+        raise RuntimeError("SHA-256 do registry gravado diverge")
+    _validate_registry_bytes(registry_path.read_bytes())
     manifest.update(status="completed_verified", completed_at=api["now"](),
                     registry_after_sha256=actual_after, applied_mode=before_mode)
     api["atomic_json"](manifest_path, manifest)
@@ -1364,10 +1387,18 @@ def command_cancel(args, api: dict) -> dict:
 
 
 def command_verify(args, api: dict) -> dict:
+    with media_session.write_lock(api):
+        return _verify_registry(args, api)
+
+
+def _verify_registry(args, api: dict) -> dict:
     project_root = Path(api["PROJECT_ROOT"])
     change_dir = Path(api["operation_dir"](args.operation_id))
     manifest_path = change_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if (manifest.get('kind') != 'rom_variant_registry' or
+            manifest.get('status') not in {'completed_verified', 'rolled_back_verified'}):
+        raise ValueError('Retome a aplicação ou reversão antes de verificar o registry')
     registry_path = Path(manifest["registry_path"])
     _safe_registry_path(registry_path, project_root)
     if manifest.get("status") == "rolled_back_verified" and not manifest.get("registry_before_exists"):
@@ -1415,22 +1446,46 @@ def command_verify(args, api: dict) -> dict:
 
 
 def command_rollback(args, api: dict) -> dict:
+    with media_session.write_lock(api):
+        return _rollback_registry(args, api)
+
+
+def _rollback_registry(args, api: dict) -> dict:
     if not args.rollback:
         raise ValueError("Restauração do registry exige --rollback explícito")
     project_root = Path(api["PROJECT_ROOT"])
     change_dir = Path(api["operation_dir"](args.operation_id))
     manifest_path = change_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("kind") != "rom_variant_registry" or manifest.get("status") != "completed_verified":
+    if (manifest.get("kind") != "rom_variant_registry" or
+            manifest.get("status") not in {'completed_verified', 'applying', 'rolling_back'}):
         raise ValueError("Rollback permitido somente para registry aplicado e verificado")
     registry_path = Path(manifest["registry_path"])
     _safe_registry_path(registry_path, project_root)
-    if not registry_path.is_file() or registry_path.is_symlink():
+    preserved = change_dir / 'rollback/registry-created-by-operation.jsonl'
+    already_preserved = (manifest['status'] == 'rolling_back' and not manifest['registry_before_exists']
+                         and not os.path.lexists(registry_path) and preserved.is_file() and not preserved.is_symlink())
+    if (not already_preserved and not registry_path.is_file()) or registry_path.is_symlink():
         raise ValueError("Registry mudou; rollback não pode sobrescrever estado ausente/simbólico")
-    current_sha = sha256_file(registry_path)
-    if current_sha != manifest["registry_after_sha256"]:
+    current_sha = sha256_file(preserved if already_preserved else registry_path)
+    allowed = {manifest['registry_after_sha256']}
+    if (manifest['status'] == 'applying' and manifest.get('publication_intent') == manifest['registry_after_sha256']
+            or manifest['status'] == 'rolling_back' and manifest.get('rollback_intent') == manifest['registry_before_sha256']):
+        allowed.add(manifest.get('registry_before_sha256'))
+    if current_sha not in allowed:
         raise ValueError("Registry foi alterado após a operação; rollback automático bloqueado")
     rollback_dir = change_dir / "rollback"
+    if not already_preserved and stat.S_IMODE(registry_path.stat().st_mode) != int(manifest.get('applied_mode', 0o644)):
+        raise ValueError('Permissões do registry mudaram; rollback recusado')
+    if not manifest['registry_before_exists'] and os.path.lexists(preserved):
+        if (manifest.get('preservation_intent') != manifest['registry_after_sha256'] or
+                preserved.is_symlink() or not preserved.is_file() or sha256_file(preserved) != current_sha):
+            raise ValueError('Preservação de rollback ocupada ou divergente')
+    manifest['status'] = 'rolling_back'
+    manifest['rollback_intent'] = manifest['registry_before_sha256']
+    if not manifest['registry_before_exists']:
+        manifest['preservation_intent'] = manifest['registry_after_sha256']
+    api['atomic_json'](manifest_path, manifest)
     if manifest["registry_before_exists"]:
         backup = rollback_dir / "registry-before.jsonl"
         before = backup.read_bytes()
@@ -1440,10 +1495,19 @@ def command_rollback(args, api: dict) -> dict:
         _write_bytes_atomic(registry_path, before, int(manifest.get("applied_mode", 0o644)))
         restored_sha = sha256_file(registry_path)
     else:
-        preserved = rollback_dir / "registry-created-by-operation.jsonl"
-        if preserved.exists():
-            raise FileExistsError(f"Arquivo de preservação de rollback já existe: {preserved}")
-        os.replace(registry_path, preserved)
+        if not already_preserved:
+            # Keep an interrupted publication's sole created registry as recovery evidence.
+            if not preserved.exists():
+                from_registry = registry_path.read_bytes()
+                _write_bytes_atomic(preserved, from_registry, int(manifest.get('applied_mode', 0o644)))
+            if sha256_file(registry_path) != current_sha:
+                raise ValueError('Registry mudou durante a preservação de rollback')
+            registry_path.unlink()
+        directory_fd = os.open(registry_path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
         restored_sha = None
     manifest.update(status="rolled_back_verified", rolled_back_at=api["now"](),
                     rollback_registry_sha256=restored_sha)

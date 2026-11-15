@@ -4,11 +4,16 @@ from __future__ import annotations
 import csv
 import datetime as dt
 import hashlib
+import io
 import json
-import os
 import re
 import uuid
 from pathlib import Path
+
+try:
+    from . import media_session
+except ImportError:
+    import media_session
 
 
 def _sha_file(path: Path) -> str:
@@ -93,6 +98,10 @@ def plan(api, source_operation_id: str) -> dict:
         raise ValueError("Manifesto de origem divergente")
     evidence = _evidence(project, source_manifest)
     lists = _lists(api)
+    for path in lists.values():
+        api['reject_symlink_components'](path)
+        if path.exists() and not path.is_file():
+            raise ValueError('Registro não é arquivo regular: ' + str(path))
     digests = {name: _sha_file(path) if path.is_file() and not path.is_symlink() else "" for name, path in lists.items()}
     matched = 0
     if lists["catalog"].is_file():
@@ -108,6 +117,7 @@ def plan(api, source_operation_id: str) -> dict:
         "schema_version": 1, "operation_id": operation_id, "kind": "catalog_projection",
         "created_at": api["now"](), "status": "prepared",
         "source_operation_id": source_operation_id,
+        "source_manifest_sha256": _sha_file(source_path),
         "journal_rewritten": False, "permanent_deletion": False,
         "list_sha256_before": digests, "evidence": evidence,
         "summary": {"items": len(evidence), "project": sum(item["action"] == "project" for item in evidence),
@@ -206,57 +216,135 @@ def _apply_pending(rows: list[dict], evidence: list[dict], source_operation_id: 
     return rows, updated
 
 
+def _check_destinations(manifest: dict, api) -> None:
+    source = Path(api["operation_dir"](manifest["source_operation_id"])) / 'manifest.json'
+    expected = manifest.get('source_manifest_sha256')
+    if expected and _sha_file(source) != expected:
+        raise ValueError('Diário de origem mudou desde o plano')
+    for item in manifest['evidence']:
+        if item['action'] != 'project':
+            continue
+        destination = Path(item['destination'])
+        api['reject_symlink_components'](destination)
+        if (not destination.is_file() or destination.stat().st_size != item['expected_size_bytes']
+                or _sha_file(destination) != item['expected_sha256']):
+            raise ValueError('Destino divergiu do plano: ' + item['item_id'])
+
+
+def _csv_bytes(rows: list[dict], fields: list[str]) -> bytes:
+    stream = io.StringIO(newline='')
+    writer = csv.DictWriter(stream, fieldnames=fields, extrasaction='ignore')
+    writer.writeheader()
+    writer.writerows(rows)
+    return stream.getvalue().encode('utf-8-sig')
+
+
+def _prepare_publication(manifest: dict, lists: dict[str, Path], api) -> None:
+    _check_preconditions(manifest, lists)
+    operation = Path(api['operation_dir'](manifest['operation_id']))
+    before = {}
+    modes = {}
+    for name, path in lists.items():
+        if not path.exists():
+            continue
+        before[name] = path.read_bytes()
+        if _sha_bytes(before[name]) != manifest['list_sha256_before'][name]:
+            raise ValueError('Lista mudou durante a preparação: ' + name)
+        modes[name] = path.stat().st_mode & 0o777
+        snapshot = operation / 'rollback' / path.name
+        api['reject_symlink_components'](snapshot)
+        if snapshot.exists():
+            if _sha_file(snapshot) != manifest['list_sha256_before'][name]:
+                raise ValueError('Preimagem divergente: ' + name)
+        else:
+            api['atomic_write_bytes'](snapshot, before[name], mode=modes[name])
+    proposals = dict(before)
+    catalog_updated = catalog_appended = pending_updated = 0
+    if 'catalog' in before:
+        fields, rows = _read_csv(lists['catalog'])
+        rows, catalog_updated, catalog_appended = _apply_catalog(
+            rows, fields, manifest['evidence'], manifest['source_operation_id'], Path(api['PROJECT_ROOT']))
+        proposals['catalog'] = _csv_bytes(rows, fields)
+    if 'pending' in before:
+        fields, rows = _read_csv(lists['pending'])
+        rows, pending_updated = _apply_pending(rows, manifest['evidence'], manifest['source_operation_id'])
+        proposals['pending'] = _csv_bytes(rows, fields)
+    if 'state' in before:
+        state = json.loads(before['state'])
+        state['catalog_projection'] = {
+            'as_of': api['now'](), 'operation_id': manifest['operation_id'],
+            'source_operation_id': manifest['source_operation_id'],
+            'catalog_rows_updated': catalog_updated, 'catalog_rows_appended': catalog_appended,
+            'pending_rows_marked': pending_updated, 'journal_rewritten': False, 'freed_bytes': 0}
+        proposals['state'] = (json.dumps(state, ensure_ascii=False, indent=2) + '\n').encode()
+    after = dict(manifest['list_sha256_before'])
+    for name, data in proposals.items():
+        snapshot = operation / 'proposed' / lists[name].name
+        api['reject_symlink_components'](snapshot)
+        api['atomic_write_bytes'](snapshot, data, mode=modes[name])
+        after[name] = _sha_bytes(data)
+    _check_preconditions(manifest, lists)
+    manifest.update(list_sha256_after=after, list_modes=modes, publication_prepared=True,
+                    summary={**manifest['summary'], 'catalog_rows_updated': catalog_updated,
+                             'catalog_rows_appended': catalog_appended, 'pending_rows_marked': pending_updated})
+    _save(api, manifest)
+
+
+def _publish(manifest: dict, lists: dict[str, Path], api, *, restore: bool) -> None:
+    operation = Path(api['operation_dir'](manifest['operation_id']))
+    hashes = manifest['list_sha256_before' if restore else 'list_sha256_after']
+    snapshots = operation / ('rollback' if restore else 'proposed')
+    # Validate the entire metadata batch before publishing its first file.
+    for name, path in lists.items():
+        api['reject_symlink_components'](path)
+        current = _sha_file(path) if path.is_file() else ''
+        if current not in {manifest['list_sha256_before'][name], manifest['list_sha256_after'][name]}:
+            raise ValueError('Lista mudou durante a projeção: ' + name)
+        mode = manifest.get('list_modes', {}).get(name)
+        if mode is not None and path.stat().st_mode & 0o777 != mode:
+            raise ValueError('Permissões da lista mudaram: ' + name)
+        if hashes[name]:
+            snapshot = snapshots / path.name
+            api['reject_symlink_components'](snapshot)
+            if _sha_file(snapshot) != hashes[name]:
+                raise ValueError('Snapshot divergente: ' + name)
+    manifest['status'] = 'rolling_back' if restore else 'applying'
+    _save(api, manifest)
+    for name, path in lists.items():
+        if not hashes[name] or _sha_file(path) == hashes[name]:
+            continue
+        manifest['publication_intent'] = {'list': name, 'sha256': hashes[name], 'restore': restore}
+        _save(api, manifest)
+        mode = manifest.get('list_modes', {}).get(name, path.stat().st_mode & 0o777)
+        api['atomic_write_bytes'](path, (snapshots / path.name).read_bytes(), mode=mode)
+        manifest.setdefault('publication_checkpoints', {})[name] = {'sha256': hashes[name], 'restore': restore}
+        _save(api, manifest)
+    manifest['status'] = 'rolled_back' if restore else 'completed_verified'
+    manifest['completed_at'] = api['now']()
+    _save(api, manifest)
+
+
 def apply(operation_id: str, confirmed: bool, api) -> dict:
+    with media_session.write_lock(api):
+        return _apply(operation_id, confirmed, api)
+
+
+def _apply(operation_id: str, confirmed: bool, api) -> dict:
     if not confirmed:
         raise ValueError("Aplicação exige --apply")
     manifest = _load(api, operation_id)
-    if manifest["status"] != "prepared":
+    if manifest["status"] not in {'prepared', 'applying'}:
         raise ValueError(f"Plano não aplicável: {manifest['status']}")
     lists = _lists(api)
-    _check_preconditions(manifest, lists)
-    for item in manifest["evidence"]:
-        if item["action"] != "project":
-            continue
-        destination = Path(item["destination"])
-        if (destination.is_symlink() or not destination.is_file()
-                or destination.stat().st_size != item["expected_size_bytes"]
-                or _sha_file(destination) != item["expected_sha256"]):
-            raise ValueError(f"Destino divergiu do plano: {item['item_id']}")
+    _check_destinations(manifest, api)
     operation = Path(api["operation_dir"](operation_id))
-    rollback = operation / "rollback"
-    rollback.mkdir(parents=True, exist_ok=True)
-    for name, path in lists.items():
-        if path.is_file() and not path.is_symlink():
-            target = rollback / path.name
-            if path.stat().st_dev == rollback.stat().st_dev:
-                os.link(path, target)
-            else:
-                target.write_bytes(path.read_bytes())
-    catalog_updated = catalog_appended = pending_updated = 0
-    if lists["catalog"].is_file():
-        fields, rows = _read_csv(lists["catalog"])
-        rows, catalog_updated, catalog_appended = _apply_catalog(
-            rows, fields, manifest["evidence"], manifest["source_operation_id"], Path(api["PROJECT_ROOT"]))
-        api["write_csv_atomic"](lists["catalog"], rows, fields)
-    if lists["pending"].is_file():
-        fields, rows = _read_csv(lists["pending"])
-        rows, pending_updated = _apply_pending(rows, manifest["evidence"], manifest["source_operation_id"])
-        api["write_csv_atomic"](lists["pending"], rows, fields)
-    if lists["state"].is_file():
-        state = json.loads(lists["state"].read_text(encoding="utf-8"))
-        state["catalog_projection"] = {
-            "as_of": api["now"](), "operation_id": operation_id,
-            "source_operation_id": manifest["source_operation_id"],
-            "catalog_rows_updated": catalog_updated, "catalog_rows_appended": catalog_appended,
-            "pending_rows_marked": pending_updated, "journal_rewritten": False,
-            "freed_bytes": 0,
-        }
-        api["atomic_json"](lists["state"], state)
-    after = {name: _sha_file(path) if path.is_file() else "" for name, path in lists.items()}
-    manifest.update(status="completed_verified", completed_at=api["now"](), list_sha256_after=after,
-                    summary={**manifest["summary"], "catalog_rows_updated": catalog_updated,
-                             "catalog_rows_appended": catalog_appended, "pending_rows_marked": pending_updated})
-    _save(api, manifest)
+    if not manifest.get('publication_prepared'):
+        if manifest['status'] != 'prepared':
+            raise ValueError('Publicação sem staging durável; reconciliar operação')
+        for path in lists.values():
+            api['reject_symlink_components'](path)
+        _prepare_publication(manifest, lists, api)
+    _publish(manifest, lists, api, restore=False)
     api["append_event"](operation_id, "catalog_projection_applied", action="catalog_projection_apply",
                         status="completed_verified", details={"summary": manifest["summary"]})
     api["rebuild_history_index"]()
@@ -265,41 +353,48 @@ def apply(operation_id: str, confirmed: bool, api) -> dict:
 
 
 def verify(operation_id: str, api) -> dict:
+    with media_session.write_lock(api):
+        return _verify(operation_id, api)
+
+
+def _verify(operation_id: str, api) -> dict:
     manifest = _load(api, operation_id)
     lists = _lists(api)
+    for path in lists.values():
+        api['reject_symlink_components'](path)
     failed = [name for name, path in lists.items()
               if (_sha_file(path) if path.is_file() else "") != manifest.get("list_sha256_after", {}).get(name, "")]
-    project = Path(api["PROJECT_ROOT"])
     bad = []
     for item in manifest["evidence"]:
         if item["action"] != "project":
             continue
         destination = Path(item["destination"])
+        api['reject_symlink_components'](destination)
         if not destination.is_file() or destination.is_symlink() or _sha_file(destination) != item["expected_sha256"]:
             bad.append(item["item_id"])
-    status = "verified" if not failed and not bad else "verify_failed"
+    source = Path(api['operation_dir'](manifest['source_operation_id'])) / 'manifest.json'
+    journal_changed = bool(manifest.get('source_manifest_sha256') and
+                           _sha_file(source) != manifest['source_manifest_sha256'])
+    status = ("verified" if manifest['status'] == 'completed_verified' and not failed and not bad
+              and not journal_changed else "verify_failed")
     return {"operation_id": operation_id, "kind": "catalog_projection", "status": status,
-            "list_mismatches": failed, "destination_mismatches": bad[:20]}
+            "list_mismatches": failed, "destination_mismatches": bad[:20], "source_journal_changed": journal_changed}
 
 
 def rollback(operation_id: str, confirmed: bool, api) -> dict:
+    with media_session.write_lock(api):
+        return _rollback(operation_id, confirmed, api)
+
+
+def _rollback(operation_id: str, confirmed: bool, api) -> dict:
     if not confirmed:
         raise ValueError("Rollback exige --rollback")
     manifest = _load(api, operation_id)
-    if manifest.get("status") != "completed_verified":
+    if manifest.get("status") not in {'completed_verified', 'applying', 'rolling_back'}:
         raise ValueError("Rollback exige operação aplicada")
     lists = _lists(api)
-    for name, path in lists.items():
-        current = _sha_file(path) if path.is_file() else ""
-        if current != manifest.get("list_sha256_after", {}).get(name, ""):
-            raise ValueError(f"Lista mudou após a projeção; rollback recusado: {name}")
-    operation = Path(api["operation_dir"](operation_id))
-    for name, path in lists.items():
-        preimage = operation / "rollback" / path.name
-        if preimage.is_file():
-            os.replace(preimage, path)
-    manifest["status"] = "rolled_back"
-    _save(api, manifest)
+    _check_destinations(manifest, api)
+    _publish(manifest, lists, api, restore=True)
     api["append_event"](operation_id, "catalog_projection_rolled_back", action="catalog_projection_rollback",
                         status="rolled_back", details={"journal_rewritten": False})
     api["rebuild_history_index"]()

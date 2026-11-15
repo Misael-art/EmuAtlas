@@ -76,6 +76,63 @@ class PromotionTests(unittest.TestCase):
             media_stray.apply(result["operation_id"], True, self.api)
         self.assertTrue((self.p / "roms/media/nes/screenshot/Absent Game.png").is_file())
 
+    def test_apply_resumes_a_rename_before_its_item_checkpoint(self):
+        result = media_stray.plan(self.api, promote=True)
+        original = os.rename
+        interrupted = []
+
+        def cut(source, destination):
+            original(source, destination)
+            if not interrupted:
+                interrupted.append(True)
+                raise OSError("simulated cut after rename")
+
+        with patch.object(media_stray.os, "rename", side_effect=cut):
+            with self.assertRaisesRegex(OSError, "simulated cut"):
+                media_stray.apply(result["operation_id"], True, self.api)
+        applied = media_stray.apply(result["operation_id"], True, self.api)
+        self.assertEqual(applied["status"], "completed_verified")
+        self.assertEqual(media_stray.verify(result["operation_id"], self.api)["status"], "verified")
+
+    def test_rollback_resumes_a_rename_before_its_item_checkpoint(self):
+        result = media_stray.plan(self.api, promote=True)
+        media_stray.apply(result["operation_id"], True, self.api)
+        original = os.rename
+        interrupted = []
+
+        def cut(source, destination):
+            original(source, destination)
+            if not interrupted:
+                interrupted.append(True)
+                raise OSError("simulated rollback cut")
+
+        with patch.object(media_stray.os, "rename", side_effect=cut):
+            with self.assertRaisesRegex(OSError, "simulated rollback cut"):
+                media_stray.rollback(result["operation_id"], True, self.api)
+        self.assertEqual(media_stray.rollback(result["operation_id"], True, self.api)["status"], "rolled_back")
+        self.assertTrue((self.p / "roms/media/nes/screenshot/Absent Game.png").is_file())
+
+    def test_final_verification_failure_keeps_operation_recoverable(self):
+        result = media_stray.plan(self.api, promote=True)
+        with patch.object(media_stray, "verify", return_value={"status": "verify_failed", "failed": ["fixture"]}):
+            with self.assertRaisesRegex(ValueError, "Verificação final"):
+                media_stray.apply(result["operation_id"], True, self.api)
+        manifest = json.loads(Path(result["manifest"]).read_text())
+        self.assertEqual(manifest["status"], "applying")
+        self.assertEqual(media_stray.apply(result["operation_id"], True, self.api)["status"], "completed_verified")
+
+    def test_later_global_metadata_blocks_rollback_before_payload_moves(self):
+        state = self.p / "outputs/estado-final-verificacao.json"
+        state.parent.mkdir(exist_ok=True)
+        state.write_text('{}')
+        result = media_stray.plan(self.api, promote=True)
+        media_stray.apply(result["operation_id"], True, self.api)
+        state.write_text('{"later": true}')
+        with self.assertRaisesRegex(ValueError, "Metadados posteriores"):
+            media_stray.rollback(result["operation_id"], True, self.api)
+        self.assertTrue((self.p / "media/nes/screenshot/Absent Game.png").is_file())
+        self.assertEqual(state.read_text(), '{"later": true}')
+
     def test_saves_and_artwork_do_not_become_additional_rom_candidates(self):
         (self.p / "roms/nes/Absent Game.sav").write_bytes(b"protected save")
         png(self.p / "roms/nes/art/Absent Game.png", "blue")
@@ -159,15 +216,35 @@ class PromotionTests(unittest.TestCase):
         state.write_text('{"existing": true}')
         originals = {p: p.read_bytes() for p in [catalog, pending, state]}
         result = media_stray.plan(self.api, promote=True)
+        original_save = media_stray._save
+        interrupted = []
+
+        def cut_completion(api, manifest):
+            if manifest["status"] == "completed_verified" and not interrupted:
+                interrupted.append(True)
+                raise OSError("simulated metadata completion cut")
+            original_save(api, manifest)
+
+        with patch.object(media_stray, "_save", side_effect=cut_completion):
+            with self.assertRaisesRegex(OSError, "metadata completion cut"):
+                media_stray.apply(result["operation_id"], True, self.api)
         media_stray.apply(result["operation_id"], True, self.api)
         with catalog.open(encoding="utf-8-sig", newline="") as stream:
             rows = list(csv.DictReader(stream))
         self.assertTrue(any(r["current_absolute_path"] == str(self.p / "media/nes/screenshot/Absent Game.png") for r in rows))
+        count = len(rows)
+        current = json.loads(Path(result["manifest"]).read_text())
+        media_stray._update_lists(self.api, current)
+        with catalog.open(encoding="utf-8-sig", newline="") as stream:
+            self.assertEqual(len(list(csv.DictReader(stream))), count)
         with pending.open(encoding="utf-8-sig", newline="") as stream:
             rows = list(csv.DictReader(stream))
         self.assertEqual(next(r for r in rows if r["case_source_relative"] == relative)["status"], "resolvido: promoted")
         media_stray.rollback(result["operation_id"], True, self.api)
         self.assertEqual({p: p.read_bytes() for p in originals}, originals)
+        state.write_text('{"later": true}')
+        preimage = Path(result["manifest"]).parent / "rollback/estado-final-verificacao.json"
+        self.assertEqual(preimage.read_bytes(), originals[state])
 
     def test_nested_variant_is_flattened_only_with_rom_in_that_variant(self):
         (self.p / "roms/nes/translation-pt-br").mkdir()
@@ -187,6 +264,129 @@ class PromotionTests(unittest.TestCase):
         self.assertTrue((self.p / "media/nes/screenshot/Jogo (Traduzido).png").is_file())
         self.assertTrue((self.p / "roms/media/nes/screenshot/hack/Absent Game.png").is_file())
         self.assertEqual(media_stray.verify(nested["operation_id"], self.api)["status"], "verified")
+
+
+
+    def test_partial_apply_can_restore_checkpointed_items_before_metadata_publication(self):
+        state = self.p / "outputs/estado-final-verificacao.json"
+        state.parent.mkdir(exist_ok=True)
+        state.write_text('{}')
+        result = media_stray.plan(self.api, promote=True)
+        original = media_stray._durable_move
+        count = []
+        def fail_second(*args, **kwargs):
+            count.append(True)
+            if len(count) == 2:
+                raise OSError("stop before second move")
+            return original(*args, **kwargs)
+        with patch.object(media_stray, "_durable_move", side_effect=fail_second):
+            with self.assertRaises(OSError):
+                media_stray.apply(result["operation_id"], True, self.api)
+        restored = media_stray.rollback(result["operation_id"], True, self.api)
+        self.assertEqual(restored["status"], "rolled_back")
+        self.assertTrue((self.p / "roms/media/nes/screenshot/Absent Game.png").is_file())
+        self.assertEqual(state.read_text(), '{}')
+
+    def test_flattened_sources_have_distinct_reversible_quarantine_paths(self):
+        source = self.p / "roms/media/nes/screenshot/Dup Game.png"
+        nested = source.parent / "a" / source.name
+        nested.parent.mkdir()
+        shutil.copyfile(source, nested)
+        shutil.copyfile(source, self.p / "media/nes/screenshot/Dup Game.png")
+        (self.p / "roms/nes/a/Dup Game.zip").write_bytes(b"rom")
+        result = media_stray.plan(self.api, promote=True, nested_game_paths=True)
+        manifest = json.loads(Path(result["manifest"]).read_text())
+        selected = [i for i in manifest["items"] if i["action"] == media_stray.QUARANTINE_ACTION and Path(i["project_relative"]).name == source.name]
+        self.assertEqual(len(selected), 2)
+        destinations = [media_stray._quarantine_destination(self.p / "outputs/ops" / result["operation_id"], manifest, i) for i in selected]
+        self.assertEqual(len(set(destinations)), 2)
+        media_stray.apply(result["operation_id"], True, self.api)
+        self.assertTrue(all(p.is_file() for p in destinations))
+        media_stray.rollback(result["operation_id"], True, self.api)
+        self.assertTrue(source.is_file())
+        self.assertTrue(nested.is_file())
+
+
+class RecordReconciliationTests(unittest.TestCase):
+    def setUp(self):
+        from tools.roms import romtool
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.output = self.root / 'outputs'
+        self.output.mkdir()
+        self.api = {'PROJECT_ROOT': self.root, 'OUTPUT_ROOT': self.output,
+                    'write_csv_atomic': romtool.write_csv_atomic, 'atomic_json': romtool.atomic_json,
+                    'now': lambda: 'fixture'}
+        self.fields = ['source', 'path', 'status', 'next_step', 'case_sha256', 'case_source_relative']
+        self.catalog_fields = ['system_id', 'source', 'absolute_path', 'current_absolute_path', 'current_sha256',
+                               'current_path_status', 'current_size_bytes', 'current_operation_id']
+        self.sha = 'a' * 64
+        self.item = {'project_relative': 'roms/media/nes/background/translation-pt-br/Game.png',
+                     'relative_path': 'nes/background/Game.png', 'sha256': self.sha, 'size_bytes': 10,
+                     'system_id': 'nes', 'category': 'background', 'action': 'promoted',
+                     'destination_relative': 'media/nes/background/Game.png',
+                     'source_operation_id': 'original-move'}
+        self.manifest = {'operation_id': 'current-reconciliation', 'items': [self.item]}
+        self.write('catalogo-arquivos.csv', [], self.catalog_fields)
+        self.write('pendencias-integridade-dependencias.csv', [], self.fields)
+        (self.output / 'estado-final-verificacao.json').write_text('{"latest":true}')
+
+    def write(self, name, rows, fields):
+        self.api['write_csv_atomic'](self.output / name, rows, fields)
+
+    def rows(self, name):
+        with (self.output / name).open(encoding='utf-8-sig', newline='') as stream:
+            return list(csv.DictReader(stream))
+
+    def test_old_flat_case_requires_matching_hash_and_keeps_original_operation(self):
+        source = 'roms/media/nes/background/Game.png'
+        self.write('pendencias-integridade-dependencias.csv', [
+            {'source': 'roms-media-stray', 'path': source, 'case_source_relative': source,
+             'case_sha256': sha, 'status': 'pending'} for sha in [self.sha, 'b'*64, '']], self.fields)
+        media_stray._update_lists(self.api, self.manifest, update_state=False)
+        rows = self.rows('pendencias-integridade-dependencias.csv')
+        self.assertEqual([row['status'] for row in rows], ['resolvido: promoted', 'pending', 'pending'])
+        self.assertIn('original-move', rows[0]['next_step'])
+        self.assertEqual((self.output / 'estado-final-verificacao.json').read_text(), '{"latest":true}')
+
+    def test_existing_target_from_another_operation_is_reused_and_repeat_is_idempotent(self):
+        target = str(self.root / self.item['destination_relative'])
+        self.write('catalogo-arquivos.csv', [{'current_absolute_path': target,
+                   'current_sha256': self.sha, 'current_operation_id': 'newer-operation'}], self.catalog_fields)
+        for _ in range(2):
+            media_stray._update_lists(self.api, self.manifest, update_state=False)
+        rows = self.rows('catalogo-arquivos.csv')
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['current_operation_id'], 'newer-operation')
+
+    def test_two_historical_sources_share_one_catalog_target(self):
+        second = {**self.item, 'project_relative': 'roms/media/nes/background/hack/Game.png'}
+        self.manifest['items'].append(second)
+        media_stray._update_lists(self.api, self.manifest, update_state=False)
+        media_stray._update_lists(self.api, self.manifest, update_state=False)
+        self.assertEqual(len(self.rows('catalogo-arquivos.csv')), 1)
+
+    def test_exact_source_case_with_other_bytes_stays_pending(self):
+        source = self.item['project_relative']
+        self.write('pendencias-integridade-dependencias.csv', [{'source': 'roms-media-stray',
+                   'path': source, 'case_source_relative': source, 'case_sha256': 'b'*64,
+                   'status': 'pending'}], self.fields)
+        media_stray._update_lists(self.api, self.manifest, update_state=False)
+        self.assertEqual(self.rows('pendencias-integridade-dependencias.csv')[0]['status'], 'pending')
+
+    def test_historical_catalog_source_with_different_bytes_keeps_its_provenance(self):
+        source = str(self.root / self.item['project_relative'])
+        self.write('catalogo-arquivos.csv', [{'absolute_path': source, 'current_absolute_path': source,
+                   'current_sha256': 'b'*64, 'current_operation_id': 'older-content'}], self.catalog_fields)
+        media_stray._update_lists(self.api, self.manifest, update_state=False)
+        rows = self.rows('catalogo-arquivos.csv')
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]['current_sha256'], 'b'*64)
+        self.assertEqual(rows[0]['current_absolute_path'], source)
+        self.assertEqual(rows[0]['current_operation_id'], 'older-content')
+        self.assertEqual(rows[1]['current_sha256'], self.sha)
+        self.assertEqual(rows[1]['current_absolute_path'], str(self.root / self.item['destination_relative']))
 
 
 if __name__ == "__main__":

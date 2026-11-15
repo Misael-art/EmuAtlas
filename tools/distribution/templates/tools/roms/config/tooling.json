@@ -1,0 +1,238 @@
+{
+  "schema_version": "1.0",
+  "media_optimization": {
+    "schema_version": "1.0",
+    "minimum_savings_percent": 1.0,
+    "minimum_image_ssim": 0.995,
+    "minimum_vmaf": 97.0,
+    "maximum_duration_delta_seconds": 0.05,
+    "minimum_free_bytes": 67108864,
+    "profiles": [
+      {
+        "id": "png-lossless-repack",
+        "source_extensions": [
+          ".png"
+        ],
+        "target_extension": "same",
+        "lossy": false,
+        "tools": [
+          "magick"
+        ],
+        "validation": [
+          "full image decode",
+          "same frame count and dimensions",
+          "decoded-pixel AE equals zero",
+          "decoded 8-bit RGBA SHA-256 equal including transparent pixels"
+        ],
+        "reason": "Recomprime PNG nativo sem mudar a extensão, dimensões ou RGBA; compatível com a descoberta de mídia do ES-DE e RetroFE, sem depender de WebP."
+      },
+      {
+        "id": "jpeg-lossless-repack",
+        "source_extensions": [
+          ".jpg",
+          ".jpeg"
+        ],
+        "target_extension": "same",
+        "lossy": false,
+        "tools": [
+          "jpegtran",
+          "magick"
+        ],
+        "validation": [
+          "full image decode",
+          "same frame count and dimensions",
+          "decoded-pixel AE equals zero"
+        ],
+        "reason": "Reorganiza a codificação JPEG sem nova quantização; metadados são copiados e só é aplicado se cumprir a economia mínima."
+      },
+      {
+        "id": "jpeg-webp-lossy",
+        "source_extensions": [
+          ".jpg",
+          ".jpeg"
+        ],
+        "target_extension": ".webp",
+        "lossy": true,
+        "quality": 92,
+        "tools": [
+          "cwebp",
+          "magick",
+          "ldd"
+        ],
+        "runtime": {
+          "kind": "sdl_image",
+          "feature": "WEBP"
+        },
+        "validation": [
+          "full image decode",
+          "same frame count and dimensions",
+          "decoded SSIM at least configured threshold"
+        ],
+        "reason": "Redução perceptual controlada para fotografias; exige revisão de qualidade e mantém um alias relativo com a extensão antiga."
+      },
+      {
+        "id": "png-webp-lossless",
+        "source_extensions": [
+          ".png"
+        ],
+        "target_extension": ".webp",
+        "lossy": false,
+        "tools": [
+          "cwebp",
+          "magick",
+          "ldd"
+        ],
+        "runtime": {
+          "kind": "sdl_image",
+          "feature": "WEBP"
+        },
+        "validation": [
+          "full image decode",
+          "same frame count and dimensions",
+          "decoded-pixel AE equals zero"
+        ],
+        "reason": "Codifica PNG como WebP lossless com alpha e pixels transparentes exatos; só aplica se menor e aceito pelo SDL_image ativo."
+      },
+      {
+        "id": "wav-flac-lossless",
+        "source_extensions": [
+          ".wav"
+        ],
+        "target_extension": ".flac",
+        "lossy": false,
+        "compression_level": 12,
+        "tools": [
+          "ffmpeg",
+          "ffprobe",
+          "gst-inspect-1.0"
+        ],
+        "runtime": {
+          "kind": "gstreamer",
+          "elements": [
+            "flacdec"
+          ]
+        },
+        "ffmpeg_encoder": "flac",
+        "validation": [
+          "full source and output decode",
+          "one integer PCM stream",
+          "decoded PCM SHA-256 equal at source precision"
+        ],
+        "reason": "Transcodifica somente WAV PCM inteiro para FLAC lossless, preserva taxa/canais/amostras e mantém caminho legado por symlink relativo."
+      },
+      {
+        "id": "avi-matroska-h264-flac",
+        "source_extensions": [
+          ".avi"
+        ],
+        "target_extension": ".mkv",
+        "lossy": true,
+        "preset": "slow",
+        "crf": 18,
+        "flac_level": 12,
+        "minimum_free_multiplier": 1.25,
+        "tools": [
+          "ffmpeg",
+          "ffprobe",
+          "gst-inspect-1.0"
+        ],
+        "runtime": {
+          "kind": "gstreamer",
+          "elements": [
+            "matroskademux",
+            "avdec_h264",
+            "flacdec"
+          ]
+        },
+        "ffmpeg_encoder": "libx264",
+        "ffmpeg_filter": "libvmaf",
+        "validation": [
+          "full source and output decode",
+          "same resolution and frame count",
+          "VMAF at least configured threshold",
+          "decoded PCM SHA-256 equal"
+        ],
+        "reason": "Perfil restrito a AVI MJPEG/PCM simples; recodifica vídeo H.264 e áudio FLAC sem perda, sem escala e mantendo o caminho antigo por symlink relativo."
+      },
+      {
+        "id": "mp4-av1-hq",
+        "source_extensions": [
+          ".mp4"
+        ],
+        "target_extension": "same",
+        "lossy": true,
+        "preset": 6,
+        "crf": 26,
+        "minimum_free_multiplier": 1.25,
+        "tools": [
+          "ffmpeg",
+          "ffprobe",
+          "gst-inspect-1.0"
+        ],
+        "runtime": {
+          "kind": "gstreamer",
+          "elements": [
+            "qtdemux",
+            "av1parse",
+            "av1dec"
+          ]
+        },
+        "ffmpeg_encoder": "libsvtav1",
+        "ffmpeg_filter": "libvmaf",
+        "validation": [
+          "full source and output decode",
+          "same resolution and frame count",
+          "VMAF at least configured threshold",
+          "decoded PCM SHA-256 equal"
+        ],
+        "reason": "Perfil opcional para MP4 H.264 SDR 8-bit simples; copia áudio AAC/MP3, preserva resolução e depende de decoder AV1 no runtime."
+      },
+      {
+        "id": "pdf-qpdf-lossless",
+        "source_extensions": [
+          ".pdf"
+        ],
+        "target_extension": "same",
+        "media_types": [
+          "manual",
+          "booklet",
+          "map"
+        ],
+        "lossy": false,
+        "tools": [
+          "qpdf",
+          "pdfinfo",
+          "pdftotext",
+          "pdftoppm",
+          "magick"
+        ],
+        "validation": [
+          "qpdf --check",
+          "same page count",
+          "same extracted-text SHA-256",
+          "pixel-identical render of every page"
+        ],
+        "reason": "Recompressão estrutural sem reamostrar imagens nem alterar páginas; só aplica se as páginas renderizadas forem idênticas e houver ganho."
+      }
+    ],
+    "preserve_extensions_without_profile": [
+      ".mp3",
+      ".mo3",
+      ".flac",
+      ".webp",
+      ".avif",
+      ".gif",
+      ".svg"
+    ],
+    "policy": {
+      "canonical_root": "media",
+      "select_one_item_id_per_apply": true,
+      "lossy_requires_allow_lossy": true,
+      "preserve_legacy_path_with_relative_symlink": true,
+      "retain_original_in_operation_rollback": true,
+      "permanent_deletion": false,
+      "skip_symlinks": true,
+      "no_overwrite": true
+    }
+  }
+}
