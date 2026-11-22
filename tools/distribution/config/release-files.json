@@ -783,6 +783,10 @@
     {
       "source": "tools/roms/tests/test_cd_compaction.py",
       "target": "tools/roms/tests/test_cd_compaction.py"
+    },
+    {
+      "source": "tools/roms/tests/test_media_covers.py",
+      "target": "tools/roms/tests/test_media_covers.py"
     }
   ]
 }

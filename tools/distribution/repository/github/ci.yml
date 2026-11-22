@@ -58,6 +58,7 @@ jobs:
           tools.roms.tests.test_media_stray_promotion
           tools.roms.tests.test_media_session.PdfCompatibilityReviewTests
           tools.roms.tests.test_launch_subjects
+          tools.roms.tests.test_media_covers
           tools.roms.tests.test_disc_sets
           tools.roms.tests.test_cd_compaction
           tools.roms.tests.test_launch_entries_projection

@@ -143,7 +143,9 @@ Quando o perfil Linux declara formatos e suporte a diretórios para a plataforma
 
 Uma revisão oficial `media covers review` pode vincular `classification=not-cover` e `target_media_type=background` ao SHA-256 de uma ilustração. O plano selecionado da ação existente `media_rekey_link` declara `source_media_type=cover`, `media_type=background` e `semantic_review_operation_id`. A revisão identifica a entrada única do jogo ou a plataforma representada na arte padrão. A decodificação integral acompanha a evidência do item.
 
-O planejador fixa o hash do manifesto de revisão e da imagem, e a aplicação os reconfere com os frontends fechados. O destino conserva os bytes e recebe o sufixo Alt quando já existir outra ilustração diferente. O caminho legado permanece acessível por alias relativo. A verificação e a reversão usam o fluxo existente de mídia. Este perfil atende a mudança selecionada entre `cover` e `background`.
+O planejador fixa o hash do manifesto de revisão e da imagem, e a aplicação os reconfere com os frontends fechados. O destino conserva os bytes e recebe o sufixo Alt quando já existir outra ilustração diferente. O caminho legado permanece acessível por alias relativo. A verificação e a reversão usam o fluxo existente de mídia. Os pares selecionados de origem e destino são `cover` para `background`, `physicalmedia` para `cabinet` e `cover-back` para `flyer-back`. A revisão identifica a função de destino em `target_media_type`. Gabinetes e versos de flyers usam as categorias já documentadas no mapa de mídia, com os caminhos de consumo anteriores preservados por aliases.
+
+Uma frente PNG de alta profundidade já confirmada visualmente por SHA pode ser auditada com a decodificação nativa integral, conservando seus bytes e sua profundidade. A auditoria registra essa prova de leitura e confere a estabilidade do arquivo, incluindo ctime. O recorte continua exigindo o perfil de pixels próprio. Falhas de decodificação e imagens sem revisão correspondente permanecem explícitas no diagnóstico.
 
 ## Origens achatadas e reversão parcial
 

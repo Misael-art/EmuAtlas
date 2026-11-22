@@ -118,6 +118,7 @@ MEDIA_TYPES = {
     "cover-spine", "cart-front", "screentitle", "screenshot", "video", "music",
     "manual", "booklet", "story", "map", "banner", "marquee", "loadingscreen", "numberplayers", "color", "patch",
     "physicalmedia", "miximage", "cover-full",
+    "cabinet", "flyer-back",
 }
 ESDE_MEDIA_TYPE_MAP = esde_media.MEDIA_TYPE_MAP if esde_media is not None else {}
 ESDE_MEDIA_TYPE_ALIASES = esde_media.MEDIA_TYPE_ALIASES if esde_media is not None else {}
@@ -2155,11 +2156,12 @@ def media_title_key(value: str) -> str:
 
 
 def media_semantic_rekey_proof(source: Path, details: dict, source_sha256: str) -> dict:
-    """Bind selected legacy cover illustrations to a reviewed background role."""
+    """Bind selected legacy images to their reviewed semantic roles."""
     previous_type = details.get("source_media_type", details["media_type"])
     if previous_type == details["media_type"]:
         return {}
-    if (previous_type, details["media_type"]) != ("cover", "background"):
+    approved_pairs = {("cover", "background"), ("physicalmedia", "cabinet"), ("cover-back", "flyer-back")}
+    if (previous_type, details["media_type"]) not in approved_pairs:
         raise ValueError("Mudança semântica de mídia sem perfil aprovado")
     operation_id = details.get("semantic_review_operation_id", "")
     if not re.fullmatch(r"media-cover-review-[A-Za-z0-9._-]+", operation_id):
@@ -2178,8 +2180,8 @@ def media_semantic_rekey_proof(source: Path, details: dict, source_sha256: str) 
     entries = [entry for entry in review.get("items", []) if entry.get("source") == relative]
     if (len(entries) != 1 or entries[0].get("sha256") != source_sha256
             or entries[0].get("classification") != "not-cover"
-            or entries[0].get("target_media_type") != "background"):
-        raise ValueError("Revisão não comprova a função background deste conteúdo")
+            or entries[0].get("target_media_type") != details["media_type"]):
+        raise ValueError("Revisão não comprova a função " + details["media_type"] + " deste conteúdo")
     return {"source_media_type": previous_type, "semantic_review_operation_id": operation_id,
             "semantic_review_sha256": review_sha256}
 

@@ -298,6 +298,29 @@ class SemanticMediaRekeyTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     romtool.media_semantic_rekey_proof(self.source, details, romtool.sha256_file(self.source))
 
+    def test_selected_arcade_roles_preserve_the_same_media_action_contract(self):
+        for old_type, new_type in (("physicalmedia", "cabinet"), ("cover-back", "flyer-back")):
+            with self.subTest(old_type=old_type, new_type=new_type):
+                source = self.root / "media/test" / old_type / "Arcade.png"
+                target = self.root / "media/test" / new_type / "Arcade.png"
+                source.parent.mkdir(parents=True, exist_ok=True)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                source.write_bytes(b"selected arcade illustration")
+                self.review["items"] = [{"source": source.relative_to(self.root / "media").as_posix(),
+                                         "sha256": romtool.sha256_file(source), "classification": "not-cover",
+                                         "target_media_type": new_type}]
+                self.review_path.write_text(json.dumps(self.review))
+                self.action.update(source=str(source), destination=str(target), game_title_hint="Arcade",
+                                   source_media_type=old_type, media_type=new_type)
+                manifest = self.plan()
+                item = manifest["items"][0]
+                romtool.apply_media_action(item, manifest["operation_id"])
+                self.assertTrue(source.is_symlink())
+                self.assertEqual(target.read_bytes(), b"selected arcade illustration")
+                romtool.rollback_media_action(item, manifest["operation_id"])
+                self.assertFalse(source.is_symlink())
+                self.assertEqual(source.read_bytes(), b"selected arcade illustration")
+
     def test_active_frontend_blocks_selected_role_change(self):
         manifest = self.plan()
         with patch.object(romtool, "frontend_processes_running", return_value={"esde": [123]}):

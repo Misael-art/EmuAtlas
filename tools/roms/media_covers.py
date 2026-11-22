@@ -19,7 +19,7 @@ import statistics
 import uuid
 import warnings
 
-TYPES = {"cover", "cover-front", "cover-back", "cover-spine", "cover-full"}
+TYPES = {"cover", "cover-front", "cover-back", "cover-spine", "cover-full", "physicalmedia"}
 EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff"}
 MAX_PIXELS = 32_000_000
 SOURCE = Path(__file__).resolve()
@@ -178,6 +178,7 @@ def _known_reviews(api):
 
 def audit(args, api):
     rows, systems = [], set(args.system_id or [])
+    reviewed = _known_reviews(api)
     for system in sorted(api["MEDIA_DEST_ROOT"].iterdir()):
         if not system.is_dir() or system.is_symlink() or systems and system.name not in systems:
             continue
@@ -197,15 +198,33 @@ def audit(args, api):
                                target=str(target.relative_to(api["PROJECT_ROOT"])) if target.is_relative_to(api["PROJECT_ROOT"]) else "outside_project")
                 else:
                     try:
+                        before_ctime_ns = path.stat().st_ctime_ns
                         before = api["path_snapshot"](path)
                         row.update(sha256=before["sha256"],size_bytes=before["size_bytes"],precondition=before)
-                        with _pixels(path) as (image, metadata):
-                            # Transparent margins must not disguise a landscape payload in a square canvas.
-                            bbox = _content_bbox(image)
-                            row.update({k:v for k,v in metadata.items() if k != "icc_profile"})
-                            row.update(content_bbox=list(bbox), ratio=round((bbox[2]-bbox[0])/(bbox[3]-bbox[1]), 5))
+                        decision = reviewed.get((system.name, before["sha256"]), {})
+                        with path.open("rb") as stream:
+                            header = stream.read(25)
+                        high_depth_front = (decision.get("classification") == "front-cover"
+                                            and header.startswith(b"\x89PNG\r\n\x1a\n")
+                                            and len(header) == 25 and header[12:16] == b"IHDR" and header[24] > 8)
+                        if high_depth_front:
+                            pixels = int.from_bytes(header[16:20], "big") * int.from_bytes(header[20:24], "big")
+                            if pixels > MAX_PIXELS:
+                                raise ValueError("Imagem excede limite de 32 megapixels; preservada para revisão")
+                            validation = api["media_session"]._validate(path, api)
+                            if validation["frame_count"] != 1:
+                                raise ValueError("Frente de alta profundidade exige imagem estática única")
+                            row.update(native_high_depth_validation=validation, stored_bit_depth=header[24],
+                                       pixel_profile="native_read_only_semantic_review")
+                        else:
+                            with _pixels(path) as (image, metadata):
+                                # Transparent margins must not disguise a landscape payload in a square canvas.
+                                bbox = _content_bbox(image)
+                                row.update({k:v for k,v in metadata.items() if k != "icc_profile"})
+                                row.update(content_bbox=list(bbox), ratio=round((bbox[2]-bbox[0])/(bbox[3]-bbox[1]), 5))
                         after = api["path_snapshot"](path, include_hash=False)
-                        if any(before[k] != after[k] for k in ("size_bytes", "mtime_ns", "inode", "device")):
+                        if (any(before[k] != after[k] for k in ("size_bytes", "mtime_ns", "inode", "device"))
+                                or path.stat().st_ctime_ns != before_ctime_ns):
                             raise ValueError("Arquivo mudou durante diagnóstico")
                         row.update(sha256=before["sha256"], size_bytes=before["size_bytes"], precondition=before)
                         row.update(classification="single_panel_compatible", reason="Geometria compatível; orientação não comprova função")
@@ -236,7 +255,6 @@ def audit(args, api):
         elif row["ratio"] >= 1.1 and not (median and .75 <= factor <= 1.25):
             row.update(classification="landscape_front_needs_review", needs_review=True,
                        reason="Frente horizontal pode ser legítima; não mover nem impor orientação vertical")
-    reviewed=_known_reviews(api)
     for row in rows:
         decision=reviewed.get((row["system_id"],row.get("sha256")))
         if not decision or row["status"] == "blocked_preserved":continue
