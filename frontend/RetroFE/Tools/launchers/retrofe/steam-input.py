@@ -907,6 +907,10 @@ def ensure_recovery_guard(root: Path) -> None:
         if changed and active:
             result = run([systemd, "--user", "restart", "retrofe-input-recovery.service"], timeout=15)
             if result.returncode: raise RuntimeError(result.stderr)
+        # `reenable --now` só faz try-restart (systemctl(1)): numa unidade parada, nada inicia.
+        if run([systemd, "--user", "is-active", "retrofe-input-recovery.service"], timeout=5).returncode:
+            result = run([systemd, "--user", "start", "retrofe-input-recovery.service"], timeout=15)
+            if result.returncode: raise RuntimeError(result.stderr)
         if run([systemd, "--user", "is-active", "retrofe-input-recovery.service"], timeout=5).returncode:
             raise RuntimeError("Guardião independente não ficou ativo; Desktop não será suspenso.")
         activated = not active

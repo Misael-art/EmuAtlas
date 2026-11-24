@@ -32,8 +32,10 @@ class FakeSystemd:
         self.calls.append(args[1:])
         if args[1:3]==["--user","is-active"]:
             return subprocess.CompletedProcess(args,0 if self.active.get(args[3]) else 3,"","")
-        if "--now" in args:
-            self.active["retrofe-input-recovery.service"]=True
+        # systemctl(1): `enable --now` e `start` iniciam; `reenable --now` só faz try-restart,
+        # então uma unidade parada continua parada.
+        if args[2]=="start" or (args[2]=="enable" and "--now" in args):
+            self.active[args[-1]]=True
         return subprocess.CompletedProcess(args,0,"","")
 
 
@@ -67,6 +69,13 @@ class InputRecoveryUnitTests(unittest.TestCase):
         self.assertIn("WantedBy=graphical-session.target\n",unit)
         self.assertNotIn("default.target",unit)
         self.assertIn(["--user","reenable","--now","retrofe-input-recovery.service"],systemd.calls)
+
+    def test_new_unit_is_started_because_reenable_now_only_restarts(self):
+        # Host real (24/11/2026): instalação nova deixava o guardião habilitado e parado.
+        systemd=FakeSystemd()
+        self.ensure(systemd)
+        self.assertIn(["--user","start","retrofe-input-recovery.service"],systemd.calls)
+        self.assertTrue(systemd.active["retrofe-input-recovery.service"])
 
     def test_unchanged_unit_keeps_enable_without_relinking(self):
         self.ensure(FakeSystemd())
