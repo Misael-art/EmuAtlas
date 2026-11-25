@@ -21,6 +21,7 @@ import os
 import posixpath
 import re
 import shutil
+import stat
 import sys
 import unicodedata
 import zlib
@@ -1589,7 +1590,25 @@ def rollback_main_artwork_operation(manifest_path: Path) -> dict[str, Any]:
     return manifest
 
 
+def _audit_target_cookie(path: Path) -> tuple[int, ...]:
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode):
+        raise FileNotFoundError(f"Destino canônico ausente ou não regular: {relative(path)}")
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
 def audit_catalog(catalog: dict[str, Any], *, allow_staged_main_intake: bool = False) -> dict[str, Any]:
+    verified_targets = set()
+
+    def check_current_target(path: Path, expected_hash: str, expected_size: int) -> None:
+        before = _audit_target_cookie(path)
+        key = (before, expected_hash, expected_size)
+        if key not in verified_targets:
+            check_target(path, expected_hash, expected_size)
+            if _audit_target_cookie(path) != before:
+                raise ValueError(f"Payload mudou durante a auditoria: {relative(path)}")
+            verified_targets.add(key)
+
     expected_assets = {item["path"]: item for item in catalog.get("canonical_assets", [])}
     if len(expected_assets) != len(catalog.get("canonical_assets", [])):
         raise ValueError("Catálogo possui caminhos canônicos repetidos")
@@ -1610,7 +1629,7 @@ def audit_catalog(catalog: dict[str, Any], *, allow_staged_main_intake: bool = F
     if actual_shared_links:
         raise ValueError(f"Symlink não catalogado dentro de Assets/shared: {sorted(actual_shared_links)[:5]}")
     for relative_path, item in expected_assets.items():
-        check_target(ROOT / relative_path, item["sha256"], item["size_bytes"])
+        check_current_target(ROOT / relative_path, item["sha256"], item["size_bytes"])
 
     expected_aliases = {item["path"]: item for item in catalog.get("layout_aliases", [])}
     if len(expected_aliases) != len(catalog.get("layout_aliases", [])):
@@ -1649,7 +1668,7 @@ def audit_catalog(catalog: dict[str, Any], *, allow_staged_main_intake: bool = F
             resolved = path.resolve(strict=True)
             if not inside_root(resolved) or resolved != target.resolve(strict=True):
                 raise ValueError(f"Alias sai do projeto ou aponta para outro destino: {alias_path}")
-            check_target(resolved, item["sha256"], item["size_bytes"])
+            check_current_target(resolved, item["sha256"], item["size_bytes"])
         root_images = [p for p in STATIC_ROOT.iterdir() if p.is_file() and not p.is_symlink()]
         if root_images:
             raise ValueError(f"Imagens sem subcategoria em Assets/shared/images/: {[p.name for p in root_images[:5]]}")
@@ -1684,7 +1703,7 @@ def audit_catalog(catalog: dict[str, Any], *, allow_staged_main_intake: bool = F
         resolved = path.resolve(strict=True)
         if not inside_root(resolved) or resolved != target.resolve(strict=True):
             raise ValueError(f"Alias estático sai do projeto ou aponta para outro destino: {alias_path}")
-        check_target(resolved, item["sha256"], item["size_bytes"])
+        check_current_target(resolved, item["sha256"], item["size_bytes"])
     layout_media_duplicate_groups: set[str] = set()
     layout_shared_collisions: list[str] = []
     if catalog.get("static_layout_assets_migrated"):
@@ -1728,7 +1747,7 @@ def audit_catalog(catalog: dict[str, Any], *, allow_staged_main_intake: bool = F
             extra = sorted(set(actual_source_assets) - set(expected_source_assets))
             raise ValueError(f"Assets/source-artwork diverge do catálogo; ausentes={missing[:5]}, extras={extra[:5]}")
         for source_path, item in expected_source_assets.items():
-            check_target(ROOT / source_path, item["sha256"], item["size_bytes"])
+            check_current_target(ROOT / source_path, item["sha256"], item["size_bytes"])
     else:
         actual_source_assets = {}
     actual_main_aliases: set[str] = set()
@@ -1797,7 +1816,7 @@ def audit_catalog(catalog: dict[str, Any], *, allow_staged_main_intake: bool = F
             resolved = path.resolve(strict=True)
             if not inside_root(resolved) or resolved != target.resolve(strict=True):
                 raise ValueError(f"Alias Main sai do projeto ou aponta para outro destino: {alias_path}")
-            check_target(resolved, item["sha256"], item["size_bytes"])
+            check_current_target(resolved, item["sha256"], item["size_bytes"])
         expected_targets = set(expected_assets) | set(expected_source_assets)
         for alias_path, item in expected_source_aliases.items():
             path = ROOT / alias_path
@@ -1815,7 +1834,7 @@ def audit_catalog(catalog: dict[str, Any], *, allow_staged_main_intake: bool = F
             resolved = path.resolve(strict=True)
             if not inside_root(resolved) or resolved != target.resolve(strict=True):
                 raise ValueError(f"Alias de arte-fonte sai do projeto ou aponta para outro destino: {alias_path}")
-            check_target(resolved, item["sha256"], item["size_bytes"])
+            check_current_target(resolved, item["sha256"], item["size_bytes"])
     else:
         regular_main_files = []
         duplicate_main_groups = set()

@@ -2,15 +2,24 @@
 from __future__ import annotations
 
 import datetime as dt
+import ctypes
+import hashlib
 import json
 import multiprocessing
 import os
 import re
+import stat
 import time
 import unicodedata
 import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path, PurePosixPath
+
+try:
+    from . import media_session
+except ImportError:
+    import media_session
 
 
 SOFTWARE_GENRES = {
@@ -45,6 +54,292 @@ AUTO_CLOUD_PROFILE_ROOTS = {
 
 def timestamp() -> str:
     return dt.datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def registered_save_paths(state: dict, project_root: Path):
+    """Rebase project-owned registry paths while retaining external host paths."""
+    origin = Path(state.get("canonical_project_root") or project_root)
+    project_root = project_root.absolute()
+
+    def rebase(value):
+        if not value:
+            raise ValueError("Registro de save Steam sem caminho")
+        path = Path(value)
+        if ".." in path.parts:
+            raise ValueError("Registro de save Steam com caminho ascendente")
+        if not path.is_absolute():
+            return project_root / path
+        if path.is_relative_to(origin):
+            return project_root / path.relative_to(origin)
+        return path
+
+    games = state.get("steam_centralization", {}).get("games", {})
+    for appid, game in games.items():
+        for row in game.get("saves", {}).values():
+            if row.get("status") == "centralized":
+                yield str(appid), row, rebase(row.get("source_path")), rebase(row.get("canonical_path"))
+
+
+def save_link_target(source: Path, destination: Path, project_root: Path) -> str:
+    root = project_root.absolute()
+    if source.absolute().is_relative_to(root) and destination.absolute().is_relative_to(root):
+        return os.path.relpath(destination, source.parent)
+    return str(destination)
+
+
+def save_link_matches(source: Path, destination: Path, project_root: Path) -> bool:
+    if not source.is_symlink():
+        return False
+    literal = os.readlink(source)
+    allowed = {str(destination), save_link_target(source, destination, project_root)}
+    return literal in allowed and source.resolve(strict=True) == destination.resolve(strict=True)
+
+
+def _save_links_path(root: Path, relative: str, prefix: str) -> Path:
+    path = Path(relative)
+    if path.is_absolute() or ".." in path.parts or not path.is_relative_to(prefix):
+        raise ValueError(f"Caminho fora do escopo de saves Steam: {relative}")
+    result = root / path
+    for parent in (result.parent, *result.parent.parents):
+        if parent.is_symlink():
+            raise ValueError(f"Diretório simbólico recusado: {parent}")
+        if parent == root:
+            break
+    return result
+
+
+def _save_link_snapshot(path: Path) -> dict | None:
+    if not os.path.lexists(path):
+        return None
+    info = path.lstat()
+    if not stat.S_ISLNK(info.st_mode):
+        raise ValueError(f"Esperado link de save Steam: {path}")
+    return {"device": info.st_dev, "inode": info.st_ino, "mtime_ns": info.st_mtime_ns,
+            "target": os.readlink(path)}
+
+
+def _save_links_payload(path: Path) -> dict:
+    before = path.lstat()
+    if not stat.S_ISREG(before.st_mode):
+        raise ValueError(f"Save canônico deve ser arquivo regular: {path}")
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        opened = os.fstat(stream.fileno())
+        if (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino):
+            raise ValueError(f"Save mudou durante a abertura: {path}")
+        while block := stream.read(1024 * 1024):
+            digest.update(block)
+    after = path.lstat()
+    fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+    if any(getattr(before, key) != getattr(after, key) for key in fields):
+        raise ValueError(f"Save mudou durante a leitura: {path}")
+    return {"sha256": digest.hexdigest(), "size_bytes": after.st_size}
+
+
+def _save_links_registered(api, source, target, appid):
+    state = json.loads((api["OUTPUT_ROOT"] / "estado-final-verificacao.json").read_text(encoding="utf-8"))
+    return any(ident == appid and left == source and right == target
+               for ident, _, left, right in registered_save_paths(state, api["PROJECT_ROOT"]))
+
+
+def _save_links_save(manifest, api):
+    api["atomic_json"](api["operation_dir"](manifest["operation_id"]) / "manifest.json", manifest)
+
+
+def save_links_plan(args, api):
+    root = api["PROJECT_ROOT"].absolute()
+    state = json.loads((api["OUTPUT_ROOT"] / "estado-final-verificacao.json").read_text(encoding="utf-8"))
+    registry = list(registered_save_paths(state, root))
+    selected = [Path(value).absolute() for value in args.source]
+    if len(set(selected)) != len(selected):
+        raise ValueError("Seleção de saves Steam contém caminhos repetidos")
+    items = []
+    with media_session.write_lock(api):
+        for source in selected:
+            matches = [(appid, row, target) for appid, row, left, target in registry if left == source]
+            if len(matches) != 1:
+                raise ValueError(f"Save precisa de um único registro centralizado: {source}")
+            appid, row, target = matches[0]
+            source = _save_links_path(root, source.relative_to(root).as_posix(), "roms/steam")
+            target = _save_links_path(root, target.relative_to(root).as_posix(), "saves/steam")
+            if not save_link_matches(source, target, root):
+                raise ValueError(f"Link de save não corresponde ao registro: {source}")
+            items.append({"item_id": len(items) + 1, "appid": appid,
+                          "source": source.relative_to(root).as_posix(),
+                          "destination": target.relative_to(root).as_posix(),
+                          "before": _save_link_snapshot(source),
+                          "relative_target": save_link_target(source, target, root),
+                          "initial_payload": _save_links_payload(target),
+                          "centralization_operation_id": row.get("operation_id", "")})
+        if not items:
+            raise ValueError("Selecione pelo menos um save Steam")
+        operation_id = f"steam-save-links-{dt.datetime.now().strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:8]}"
+        directory = api["operation_dir"](operation_id)
+        directory.mkdir(parents=True, mode=0o700)
+        (directory / "links").mkdir(mode=0o700)
+        manifest = {"schema_version": 1, "operation_id": operation_id, "kind": "steam_save_relative_links",
+                    "status": "prepared", "created_at": api["now"](), "origin_project_root": str(root),
+                    "items": items, "payload_writes": False, "history_index_deferred": True}
+        _save_links_save(manifest, api)
+        api["append_event"](operation_id, "steam_save_links_prepared", status="prepared",
+                            details={"selected_links": len(items), "payload_writes": False})
+    return manifest
+
+
+def _save_links_load(args, api):
+    directory = api["operation_dir"](args.operation_id)
+    root = api["PROJECT_ROOT"].absolute()
+    path = _save_links_path(root, (directory / "manifest.json").relative_to(root).as_posix(), "outputs")
+    if path.is_symlink():
+        raise ValueError("Manifesto simbólico recusado")
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if (manifest.get("kind") != "steam_save_relative_links" or manifest.get("schema_version") != 1
+            or manifest.get("operation_id") != args.operation_id or not manifest.get("items")):
+        raise ValueError("Manifesto de links de saves Steam inválido")
+    sources = set()
+    for index, item in enumerate(manifest["items"], 1):
+        source = _save_links_path(root, item["source"], "roms/steam")
+        target = _save_links_path(root, item["destination"], "saves/steam")
+        if (item["item_id"] != index or source in sources
+                or item["relative_target"] != save_link_target(source, target, root)
+                or not _save_links_registered(api, source, target, item["appid"])):
+            raise ValueError("Item do plano divergiu do registro de saves Steam")
+        sources.add(source)
+        _save_links_payload(target)
+        stage = directory / "links" / f"{index:04d}.link"
+        _save_links_path(root, stage.relative_to(root).as_posix(), "outputs")
+    return manifest
+
+
+def _save_links_exchange(left: Path, right: Path):
+    """Exchange two existing entries without discarding either object."""
+    libc = ctypes.CDLL(None, use_errno=True)
+    rename = getattr(libc, "renameat2", None)
+    if rename is None:
+        raise RuntimeError("Troca atômica de links exige renameat2 no Linux")
+    rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    rename.restype = ctypes.c_int
+    if rename(-100, os.fsencode(left), -100, os.fsencode(right), 2) != 0:
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code), str(left))
+
+
+def _save_links_layout(item, source, stage):
+    current, stored = _save_link_snapshot(source), _save_link_snapshot(stage)
+    if current == item["before"] and stored == item.get("after"):
+        return "before"
+    if item.get("after") and current == item["after"] and stored == item["before"]:
+        return "after"
+    raise ValueError(f"Links mudaram fora da operação, objetos preservados: {source}, {stage}")
+
+
+def save_links_execute(args, api, *, rollback=False):
+    if not getattr(args, "rollback" if rollback else "apply", False):
+        raise ValueError("Confirme a aplicação ou reversão explicitamente")
+    with media_session.write_lock(api):
+        if steam_processes_running():
+            raise RuntimeError("Feche Steam e jogos antes de alterar links de saves")
+        manifest = _save_links_load(args, api)
+        allowed = {"applying", "completed_verified", "prepared"}
+        if rollback:
+            allowed = {"applying", "completed_verified", "rolling_back", "rolled_back_verified"}
+        if manifest["status"] not in allowed:
+            raise ValueError(f"Estado da operação incompatível: {manifest['status']}")
+        root = api["PROJECT_ROOT"].absolute()
+        directory = api["operation_dir"](args.operation_id)
+        items = list(reversed(manifest["items"])) if rollback else manifest["items"]
+        # Preflight the complete selection before exchanging its first link.
+        for item in items:
+            source = root / item["source"]
+            stage = directory / "links" / f"{item['item_id']:04d}.link"
+            if item["before"]["target"] == item["relative_target"]:
+                if _save_link_snapshot(source) != item["before"]:
+                    raise ValueError(f"Link relativo já existente mudou: {source}")
+                continue
+            if rollback and Path(item["before"]["target"]).is_absolute() and str(root) != manifest["origin_project_root"]:
+                raise ValueError("Rollback do link absoluto exige a raiz original para preservar sua validade")
+            if item.get("stage_intent") and not item.get("after") and os.path.lexists(stage):
+                staged = _save_link_snapshot(stage)
+                if staged["target"] != item["relative_target"]:
+                    raise ValueError(f"Staging de link divergiu: {stage}")
+                item["after"] = staged
+                _save_links_save(manifest, api)
+            _save_links_layout(item, source, stage)
+        manifest["status"] = "rolling_back" if rollback else "applying"
+        _save_links_save(manifest, api)
+        for item in items:
+            source = root / item["source"]
+            target = root / item["destination"]
+            stage = directory / "links" / f"{item['item_id']:04d}.link"
+            if item["before"]["target"] == item["relative_target"]:
+                continue
+            if not item.get("after") and not rollback:
+                item["stage_intent"] = True
+                _save_links_save(manifest, api)
+                os.symlink(item["relative_target"], stage)
+                item["after"] = _save_link_snapshot(stage)
+                api["sync_directory_chain"](stage.parent)
+                _save_links_save(manifest, api)
+            layout = _save_links_layout(item, source, stage)
+            desired = "before" if rollback else "after"
+            if layout != desired:
+                if steam_processes_running():
+                    raise RuntimeError("Steam ou jogo aberto durante a operação")
+                item["exchange_intent"] = desired
+                _save_links_save(manifest, api)
+                _save_links_exchange(source, stage)
+                if _save_links_layout(item, source, stage) != desired:
+                    raise ValueError("Troca concorrente detectada, ambos os objetos foram preservados")
+            api["sync_directory_chain"](source.parent)
+            api["sync_directory_chain"](stage.parent)
+            item["current_payload"] = _save_links_payload(target)
+            if source.resolve(strict=True) != target.resolve(strict=True):
+                raise ValueError(f"Link não resolve ao save registrado: {source}")
+            item["status"] = "rolled_back" if rollback else "verified_relative_link"
+            _save_links_save(manifest, api)
+        manifest["status"] = "rolled_back_verified" if rollback else "completed_verified"
+        manifest["updated_at"] = api["now"]()
+        _save_links_save(manifest, api)
+        api["append_event"](args.operation_id, "steam_save_links_rollback" if rollback else "steam_save_links_applied",
+                            status=manifest["status"], details={"selected_links": len(items), "payload_writes": False})
+        return manifest
+
+
+def save_links_verify(args, api):
+    with media_session.write_lock(api):
+        manifest = _save_links_load(args, api)
+        if manifest["status"] != "completed_verified":
+            raise ValueError("Verificação exige aplicação concluída")
+        root = api["PROJECT_ROOT"].absolute()
+        for item in manifest["items"]:
+            source, target = root / item["source"], root / item["destination"]
+            if item["before"]["target"] != item["relative_target"]:
+                stage = api["operation_dir"](args.operation_id) / "links" / f"{item['item_id']:04d}.link"
+                if _save_links_layout(item, source, stage) != "after":
+                    raise ValueError(f"Link relativo aplicado divergiu: {source}")
+            elif _save_link_snapshot(source) != item["before"]:
+                raise ValueError(f"Link relativo já existente divergiu: {source}")
+            if os.readlink(source) != item["relative_target"] or source.resolve(strict=True) != target:
+                raise ValueError(f"Link relativo não aponta ao save registrado: {source}")
+            item["verified_payload"] = _save_links_payload(target)
+        manifest["verified_at"] = api["now"]()
+        _save_links_save(manifest, api)
+        return manifest
+
+
+def add_save_links_parser(commands):
+    links = commands.add_parser("links", help="torna relativos links internos de saves Steam selecionados")
+    actions = links.add_subparsers(dest="steam_save_links_command", required=True)
+    plan = actions.add_parser("plan", help="prepara troca revisável dos links registrados")
+    plan.add_argument("--source", action="append", required=True)
+    apply = actions.add_parser("apply", help="aplica ou retoma troca atômica")
+    apply.add_argument("--operation-id", required=True)
+    apply.add_argument("--apply", action="store_true")
+    verify = actions.add_parser("verify", help="verifica os links relativos e o conteúdo atual")
+    verify.add_argument("--operation-id", required=True)
+    rollback = actions.add_parser("rollback", help="reverte somente os links e preserva saves posteriores")
+    rollback.add_argument("--operation-id", required=True)
+    rollback.add_argument("--rollback", action="store_true")
 
 
 def _casefold_get(data: dict, key: str, default=None):

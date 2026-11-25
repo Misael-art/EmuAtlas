@@ -158,7 +158,7 @@ resolve_project_path() {
 
 RETROFE_ROM_ROOT="$(resolve_project_path "${RETROFE_ROM_ROOT:-$ROOT/../../roms}")"
 RETROFE_BIOS_ROOT="$(resolve_project_path "${RETROFE_BIOS_ROOT:-$ROOT/../../bios}")"
-RETROFE_RETROARCH_CORE_ROOT="$(resolve_project_path "${RETROFE_RETROARCH_CORE_ROOT:-${HOME:-}/.var/app/org.libretro.RetroArch/config/retroarch/cores}")"
+RETROFE_RETROARCH_CORE_ROOT="$(resolve_project_path "${RETROFE_RETROARCH_CORE_ROOT:-$ROOT/../../emulator/linux/retroarch-cores}")"
 RETROFE_MAME="${RETROFE_MAME:-$(command -v mame 2>/dev/null || printf 'mame')}"
 if [[ "$RETROFE_MAME" == */* && "$RETROFE_MAME" != /* ]]; then
     RETROFE_MAME="$(resolve_project_path "$RETROFE_MAME")"
@@ -1171,6 +1171,13 @@ if ! validate_host; then
     exit 1
 fi
 
+if ! RETROFE_INPUT_BACKEND="$(python3 "$STEAM_INPUT_TOOL" --root "$ROOT" input-backend 2>&1)"; then
+    show_error "$RETROFE_INPUT_BACKEND"
+    exit 1
+fi
+export RETROFE_INPUT_BACKEND
+report "[CONTROLE] Entrada selecionada: $RETROFE_INPUT_BACKEND."
+
 if [[ "$MODE" == 'check' ]]; then
     python3 "$MEDIA_PATH_TOOL" check-runtime || exit 1
     exit 0
@@ -1204,36 +1211,38 @@ fi
 
 install_kde_shortcuts || true
 
-if ! RECOVERY_SETUP_OUTPUT="$(python3 "$STEAM_INPUT_TOOL" --root "$ROOT" session-recovery-ensure 2>&1)"; then
-    show_error "Não consegui preparar a recuperação independente do Desktop. O perfil não será suspenso.\n\n$RECOVERY_SETUP_OUTPUT"
-    exit 1
-fi
-report "$RECOVERY_SETUP_OUTPUT"
+if [[ "$RETROFE_INPUT_BACKEND" == 'steam' ]]; then
+    if ! RECOVERY_SETUP_OUTPUT="$(python3 "$STEAM_INPUT_TOOL" --root "$ROOT" session-recovery-ensure 2>&1)"; then
+        show_error "Não consegui preparar a recuperação independente do Desktop. O perfil não será suspenso.\n\n$RECOVERY_SETUP_OUTPUT"
+        exit 1
+    fi
+    report "$RECOVERY_SETUP_OUTPUT"
 
-if [[ ! -r "$STEAM_INPUT_TOOL" ]] || ! command -v python3 >/dev/null 2>&1; then
-    show_error "O assistente portátil de Steam Input está ausente ou Python 3 não está disponível:\n\n$STEAM_INPUT_TOOL"
-    exit 1
-fi
-STEAM_SETUP_OUTPUT=''
-if ! STEAM_RECOVERY_OUTPUT="$(python3 "$STEAM_INPUT_TOOL" --root "$ROOT" session-recover 2>&1)"; then
-    show_error "Há um perfil Desktop aguardando restauração. Confira Steam/controle antes de abrir o RetroFE.\n\n$STEAM_RECOVERY_OUTPUT"
-    exit 1
-fi
-[[ -n "$STEAM_RECOVERY_OUTPUT" ]] && report "$STEAM_RECOVERY_OUTPUT"
-if ! STEAM_SETUP_OUTPUT="$(python3 "$STEAM_INPUT_TOOL" --root "$ROOT" ensure 2>&1)"; then
-    [[ -n "$STEAM_SETUP_OUTPUT" ]] && report "[STEAM] $STEAM_SETUP_OUTPUT"
-    show_error "O Steam Input do perfil Desktop ainda não está pronto. Siga a ação indicada no diagnóstico abaixo e tente abrir o RetroFE novamente.\n\n$STEAM_SETUP_OUTPUT"
-    exit 1
-fi
-while IFS= read -r line; do
-    [[ -n "$line" ]] && report "[STEAM] $line"
-done <<< "$STEAM_SETUP_OUTPUT"
+    if [[ ! -r "$STEAM_INPUT_TOOL" ]] || ! command -v python3 >/dev/null 2>&1; then
+        show_error "O assistente portátil de Steam Input está ausente ou Python 3 não está disponível:\n\n$STEAM_INPUT_TOOL"
+        exit 1
+    fi
+    STEAM_SETUP_OUTPUT=''
+    if ! STEAM_RECOVERY_OUTPUT="$(python3 "$STEAM_INPUT_TOOL" --root "$ROOT" session-recover 2>&1)"; then
+        show_error "Há um perfil Desktop aguardando restauração. Confira Steam/controle antes de abrir o RetroFE.\n\n$STEAM_RECOVERY_OUTPUT"
+        exit 1
+    fi
+    [[ -n "$STEAM_RECOVERY_OUTPUT" ]] && report "$STEAM_RECOVERY_OUTPUT"
+    if ! STEAM_SETUP_OUTPUT="$(python3 "$STEAM_INPUT_TOOL" --root "$ROOT" ensure 2>&1)"; then
+        [[ -n "$STEAM_SETUP_OUTPUT" ]] && report "[STEAM] $STEAM_SETUP_OUTPUT"
+        show_error "O Steam Input do perfil Desktop ainda não está pronto. Siga a ação indicada no diagnóstico abaixo e tente abrir o RetroFE novamente.\n\n$STEAM_SETUP_OUTPUT"
+        exit 1
+    fi
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && report "[STEAM] $line"
+    done <<< "$STEAM_SETUP_OUTPUT"
 
-if ! STEAM_SESSION_PREPARE="$(python3 "$STEAM_INPUT_TOOL" --root "$ROOT" session-prepare 2>&1)"; then
-    show_error "A preparação do perfil de controle ainda não está pronta.\n\n$STEAM_SESSION_PREPARE"
-    exit 1
+    if ! STEAM_SESSION_PREPARE="$(python3 "$STEAM_INPUT_TOOL" --root "$ROOT" session-prepare 2>&1)"; then
+        show_error "A preparação do perfil de controle ainda não está pronta.\n\n$STEAM_SESSION_PREPARE"
+        exit 1
+    fi
+    [[ -n "$STEAM_SESSION_PREPARE" ]] && report "$STEAM_SESSION_PREPARE"
 fi
-[[ -n "$STEAM_SESSION_PREPARE" ]] && report "$STEAM_SESSION_PREPARE"
 
 if [[ -f "$ROOT/Tools/materializers/materialize-aeon-nox-navigation.py" ]] && command -v python3 >/dev/null 2>&1; then
     if ! python3 "$ROOT/Tools/materializers/materialize-aeon-nox-navigation.py" --root "$ROOT" --favorites-only --apply --quiet; then
@@ -1251,8 +1260,16 @@ trap cleanup_children EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
-acquire_steam_gamepad_session || exit 1
-inspect_input_session
+if [[ "$RETROFE_INPUT_BACKEND" == 'steam' ]]; then
+    acquire_steam_gamepad_session || exit 1
+    inspect_input_session
+else
+    INPUT_SHORTCUT_POLICY='preserve'
+fi
+if ! python3 "$NAVIGATION_PANEL_TOOL" --root "$ROOT" --prepare-controls; then
+    show_error 'Não consegui preparar os controles SDL e reservar Start. As configurações e seus backups foram preservados.'
+    exit 1
+fi
 start_background_music
 while :; do
     APP_LOG_MTIME_BEFORE="$(stat -c '%y' "$ROOT/log.txt" 2>/dev/null || true)"

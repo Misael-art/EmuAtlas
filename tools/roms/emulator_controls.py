@@ -80,6 +80,16 @@ def digest(data):
     return hashlib.sha256(data).hexdigest() if data is not None else None
 
 
+def routed_players(pads):
+    expected = int(os.environ.get('EMULATION_PLAYER_CAPACITY', '4'))
+    selected = [p for p in pads if p['name'].startswith('Emulation P')]
+    by_name = {p['name']: p for p in selected}
+    names = [f'Emulation P{n+1}' for n in range(expected)]
+    if len(selected) != expected or len(by_name) != expected or any(name not in by_name for name in names):
+        raise RuntimeError('Portas virtuais da sessão indisponíveis durante a preparação')
+    return [by_name[name] for name in names]
+
+
 def target(root, relative):
     # Host profiles express shared paths relative to frontend/RetroFE. Normalize
     # only this declared prefix; arbitrary traversal remains forbidden.
@@ -372,6 +382,69 @@ def esde_projection(root, profile):
     return project(root, profile)
 
 
+def supermodel_input(index, binding, direction=0):
+    """Translate the observed SDL joystick mapping into upstream input names."""
+    prefix = f'JOY{index + 1}_'
+    if re.fullmatch(r'b\d+', binding):
+        return prefix + 'BUTTON' + str(int(binding[1:]) + 1)
+    hat = re.fullmatch(r'h(\d+)\.([1248])', binding)
+    if hat:
+        return prefix + 'POV' + str(int(hat[1]) + 1) + '_' + {'1': 'UP', '2': 'RIGHT', '4': 'DOWN', '8': 'LEFT'}[hat[2]]
+    axis = re.fullmatch(r'a([0-5])(~?)', binding)
+    if axis:
+        name = prefix + ['X', 'Y', 'Z', 'RX', 'RY', 'RZ'][int(axis[1])] + 'AXIS'
+        if direction:
+            sign = -direction if axis[2] else direction
+            return name + ('_POS' if sign > 0 else '_NEG')
+        return name + ('_INV' if axis[2] else '')
+    raise ValueError('Mapping SDL incompatível com Supermodel: ' + str(binding))
+
+
+def supermodel_controls(data, pads):
+    """Route two native ports for the local gun/analog-stick games."""
+    config = configparser.ConfigParser(interpolation=None)
+    config.optionxform = str
+    config.read_string(data.decode('utf-8-sig'))
+    values = {}
+
+    def assign(key, bindings, fallback='NONE'):
+        original = config.get('Global', key, fallback=fallback).strip().strip('"')
+        preserved = [value.strip() for value in original.split(',')
+                     if value.strip() != 'NONE' and not re.search(r'JOY\d*_', value, re.IGNORECASE)]
+        values[key] = json.dumps(','.join(dict.fromkeys(preserved + bindings)))
+
+    for number, pad in enumerate(pads[:2], 1):
+        mapping = pad['mapping']
+        def control(name, direction=0):
+            return supermodel_input(pad['index'], mapping.get(name, ''), direction)
+
+        suffix = '' if number == 1 else '2'
+        assign('InputStart' + str(number), [control('start')], 'KEY_1' if number == 1 else 'KEY_2')
+        assign('InputCoin' + str(number), [control('back')], 'KEY_3' if number == 1 else 'KEY_4')
+        for name, axis, sign in [('Up', 'lefty', -1), ('Down', 'lefty', 1),
+                                 ('Left', 'leftx', -1), ('Right', 'leftx', 1)]:
+            bindings = [control('dp' + name.lower()), control(axis, sign)]
+            for group in ['InputJoy', 'InputGun', 'InputAnalogGun']:
+                assign(group + name + suffix, bindings, 'KEY_' + name.upper() if number == 1 else 'NONE')
+        for group in ['InputGun', 'InputAnalogGun']:
+            for axis, source in [('X', 'leftx'), ('Y', 'lefty')]:
+                assign(group + axis + suffix, [control(source)], 'MOUSE_' + axis + 'AXIS' if number == 1 else 'NONE')
+        for key, source, fallback in [('InputTrigger', 'a', 'KEY_A,MOUSE_LEFT_BUTTON'),
+                                      ('InputOffscreen', 'b', 'KEY_S,MOUSE_RIGHT_BUTTON'),
+                                      ('InputAnalogTriggerLeft', 'a', 'KEY_A,MOUSE_LEFT_BUTTON'),
+                                      ('InputAnalogTriggerRight', 'b', 'KEY_S,MOUSE_RIGHT_BUTTON')]:
+            assign(key + suffix, [control(source)], fallback if number == 1 else 'NONE')
+        if number == 1:
+            for axis, source in [('X', 'leftx'), ('Y', 'lefty')]:
+                assign('InputAnalogJoy' + axis, [control(source)], 'MOUSE_' + axis + 'AXIS')
+            for key, source, fallback in [('InputAnalogJoyTrigger', 'a', 'KEY_A,MOUSE_LEFT_BUTTON'),
+                                          ('InputAnalogJoyEvent', 'b', 'KEY_S,MOUSE_RIGHT_BUTTON'),
+                                          ('InputAnalogJoyTrigger2', 'x', 'KEY_D'),
+                                          ('InputAnalogJoyEvent2', 'y', 'NONE')]:
+                assign(key, [control(source)], fallback)
+    return ini_update(data, {'Global': values})
+
+
 def proposals(root, *, pad=None, system_id=None, frontends=True, pads=None, routed=False):
     """Return bytes and reasons. A missing runtime is reported, never guessed."""
     profile = json.loads((root / PROFILE).read_text())
@@ -389,6 +462,14 @@ def proposals(root, *, pad=None, system_id=None, frontends=True, pads=None, rout
         p = target(root, relative)
         if p.is_file():
             add(relative, ini_update(p.read_bytes(), settings, **options), reason)
+
+    if system_id == 'model3' and routed:
+        relative = Path('emulator/data/Supermodel/Config/Supermodel.ini')
+        path = target(root, relative)
+        if not path.is_file():
+            raise ValueError('Prepare a configuração Supermodel antes de rotear os controles')
+        add(relative, supermodel_controls(path.read_bytes(), pads),
+            'Associar duas portas Supermodel aos índices SDL da sessão, preservando teclado e mouse')
 
     if system_id in (None, "psx", "ps2"):
         for sid, relative in [("psx", "../../emulator/data/DuckStation/config/duckstation/settings.ini"),
@@ -424,7 +505,8 @@ def proposals(root, *, pad=None, system_id=None, frontends=True, pads=None, rout
         values.update({f"input_player1_{key}_axis": f'"{value}"' for key, value in RA_AXES.items()})
         if routed:
             values["input_menu_toggle_gamepad_combo"] = '"0"'
-            for n, player in enumerate(pads[:4], 1):
+            values['input_max_users'] = json.dumps(str(len(pads)))
+            for n, player in enumerate(pads, 1):
                 values[f"input_player{n}_joypad_index"] = json.dumps(str(player["index"]))
                 values[f"input_player{n}_reserved_device"] = json.dumps(player['name'])
                 values[f"input_player{n}_device_reservation_type"] = '"2"'
@@ -455,7 +537,7 @@ def proposals(root, *, pad=None, system_id=None, frontends=True, pads=None, rout
             if not p.exists() or p.read_bytes() in {data, prior_bytes(root, p)}:
                 add(relative, data, "Autoconfig SDL2 pelo nome e VID/PID observados para reconhecer o controle no RetroArch")
             if routed:
-                for n,player in enumerate(pads[1:4],2):
+                for n,player in enumerate(pads[1:],2):
                     settings.update(input_device=player['name'], input_vendor_id=str(player['vendor']),input_product_id=str(player['product']))
                     data = ''.join(f'{key} = {json.dumps(value)}\n' for key,value in settings.items()).encode()
                     relative = userdata / f'autoconfig/sdl2/emulation-player{n}.cfg'
@@ -575,7 +657,7 @@ def proposals(root, *, pad=None, system_id=None, frontends=True, pads=None, rout
         if routed:
             data = before or b""
             settings = data.decode('utf-8-sig')
-            for n, player in enumerate(pads[:4], 1):
+            for n, player in enumerate(pads[:7], 1):
                 heading = f"Player {n} Input:"
                 block = re.search(r"(?m)^"+re.escape(heading)+r"\s*\n((?:[ \t]+[^\n]*\n|\n)*)", settings)
                 if block:
@@ -587,7 +669,7 @@ def proposals(root, *, pad=None, system_id=None, frontends=True, pads=None, rout
                 else:
                     settings += '\n'+heading+'\n  Handler: SDL\n  Device: '+json.dumps(player['name']+' 1')+'\n'
             results[:] = [r for r in results if r['path'] != str(relative)]
-            add(relative, settings.encode(), "Associar quatro portas SDL RPCS3 estáveis, preservando os demais campos")
+            add(relative, settings.encode(), "Associar portas SDL RPCS3 estáveis, preservando os demais campos")
     if system_id in (None, 'xbox') and pad:
         relative = HOST / '../../emulator/data/xemu/xemu.toml'
         p = target(root, relative)
@@ -616,7 +698,7 @@ def proposals(root, *, pad=None, system_id=None, frontends=True, pads=None, rout
             config.optionxform=str
             config.read_string(original.decode('utf-8-sig'))
             values={}
-            for n,player in enumerate(pads[:4]):
+            for n,player in enumerate(pads[:8]):
                 prefix=f'player_{n}_'
                 # Eden/Eglantine GetGUID explicitly clears SDL's controller
                 # name CRC (bytes 2..3). A full SDL GUID silently never matches.
@@ -726,23 +808,120 @@ def coverage(root):
     return rows
 
 
-def plan(root, *, system_id=None, frontends=True):
+def retrofe_controls(data, pads, *, capacity=8):
+    """Project logical SDL controls while preserving keyboard and custom actions."""
+    actions = {'up': [('dpup', 0), ('lefty', -1)], 'down': [('dpdown', 0), ('lefty', 1)],
+               'left': [('dpleft', 0), ('leftx', -1)], 'right': [('dpright', 0), ('leftx', 1)],
+               'select': [('a', 0)], 'back': [('b', 0)], 'collectionDown': [('y', 0)],
+               'togglePlaylist': [('x', 0)], 'favPlaylist': [('back', 0)],
+               'pageUp': [('leftstick', 0)], 'pageDown': [('rightstick', 0)],
+               'letterDown': [('leftshoulder', 0)], 'letterUp': [('rightshoulder', 0)]}
+    def raw_token(index, raw, direction):
+        prefix = f'joy{index}'
+        if re.fullmatch(r'b\d+', raw):
+            return prefix + 'Button' + raw[1:]
+        match = re.fullmatch(r'h(\d+)\.([1248])', raw)
+        if match:
+            return prefix + 'Hat' + match[1] + {'1':'Up','2':'Right','4':'Down','8':'Left'}[match[2]]
+        match = re.fullmatch(r'([+-]?)a(\d+)(~?)', raw)
+        if match:
+            sign = direction or (-1 if match[1] == '-' else 1)
+            if match[3]: sign = -sign
+            return prefix + 'Axis' + match[2] + ('-' if sign < 0 else '+')
+        return None
+    projected = {key: [] for key in actions}
+    for pad in pads:
+        mapping = pad.get('mapping', {})
+        if not mapping:
+            continue
+        for action, bindings in actions.items():
+            for key, direction in bindings:
+                token = raw_token(pad['index'], mapping.get(key, ''), direction)
+                if token and token not in projected[action]: projected[action].append(token)
+    lines = []
+    seen = set()
+    text = data.decode('utf-8-sig').replace(
+        '# Start (joyButton7) e F10 são reservados ao navigation-panel.py: Options global.',
+        '# Start lógico SDL e F10 são reservados ao navigation-panel.py: Options global.')
+    for line in text.splitlines(keepends=True):
+        match = re.match(r'^(\s*)(\w+)(\s*=\s*)([^#\r\n]*)(.*)$', line.rstrip('\r\n'))
+        if not match or match[2] not in actions:
+            lines.append(line)
+            continue
+        action = match[2]
+        if action in seen:
+            raise ValueError('Ação duplicada em controls.conf: ' + action)
+        seen.add(action)
+        tokens = [v.strip() for v in match[4].split(',') if v.strip()]
+        preserved = [v for v in tokens if not v.startswith('joy')]
+        # Unknown controllers retain their existing raw bindings.
+        # New mobile sources follow devices already enumerated by SDL.
+        existing_slots = max((p['index'] + 1 for p in pads), default=0)
+        unmapped = set(range(existing_slots + capacity)) - {p['index'] for p in pads if p.get('mapping')}
+        for token in tokens:
+            index = re.match(r'joy(\d+)', token)
+            if index and int(index[1]) in unmapped and not token.endswith('Button7'):
+                preserved.append(token)
+            elif token.startswith('joy') and not index:
+                if not token.endswith('Button7'):
+                    preserved.extend(f'joy{n}' + token[3:] for n in sorted(unmapped))
+        values = list(dict.fromkeys([*preserved, *projected[action]]))
+        newline = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
+        lines.append(match[1] + action + match[3] + ','.join(values) + match[5] + newline)
+    for action in projected:
+        if action not in seen and projected[action]:
+            if lines and not lines[-1].endswith('\n'): lines[-1] += '\n'
+            lines.append(action + ' = ' + ','.join(projected[action]) + '\n')
+    reserved = set()
+    for pad in pads:
+        token = raw_token(pad['index'], pad.get('mapping', {}).get('start', ''), 0)
+        if token:
+            reserved.update((token, re.sub(r'^joy\d+', 'joy', token)))
+    for line in lines:
+        key, separator, values = line.split('#', 1)[0].partition('=')
+        if separator and reserved.intersection(v.strip() for v in values.split(',')):
+            raise ValueError('Start SDL conflita com a ação preservada ' + key.strip())
+    return (b'\xef\xbb\xbf' if data.startswith(b'\xef\xbb\xbf') else b'') + ''.join(lines).encode('utf-8')
+
+
+def prepare_retrofe(root):
+    """Prepare only the closed frontend's native controls through its plan log."""
+    from controller_session import player_capacity
+    pads = gamepads()
+    path = target(root, HOST / 'controls.conf')
+    if retrofe_controls(path.read_bytes(), pads, capacity=player_capacity(root)) == path.read_bytes():
+        return {'status':'configuration_verified', 'items':0}
+    manifest = plan(root, retrofe_only=True)
+    return execute(root, manifest['operation_id'], 'apply', runtime=True, frontend_startup=True)
+
+
+def plan(root, *, system_id=None, frontends=True, retrofe_only=False):
     pads = runtime_gamepads(root,system_id)
     routed = os.environ.get('EMULATION_ROUTED_CONTROLS') == '1'
     if routed:
-        pads = sorted((p for p in pads if p['name'].startswith('Emulation P')), key=lambda p:p['name'])
-        if len(pads) != 4:
-            raise RuntimeError('Roteamento exige quatro portas virtuais confirmadas')
+        pads = routed_players(pads)
     pad = pads[0] if pads and (routed or len(pads) == 1) else None
-    items = proposals(root, pad=pad, pads=pads, routed=routed, system_id=system_id, frontends=frontends)
+    if retrofe_only:
+        from controller_session import player_capacity
+        path = target(root, HOST / 'controls.conf')
+        before = path.read_bytes()
+        after = retrofe_controls(before, pads, capacity=player_capacity(root))
+        items = [] if before == after else [{'path':str(HOST / 'controls.conf'), 'before':before,
+            'after':after, 'reason':'Start reservado e ações lógicas pelo mapping SDL observado'}]
+    else:
+        items = proposals(root, pad=pad, pads=pads, routed=routed, system_id=system_id, frontends=frontends)
     operation_id = f"emulator-controls-{romtool.dt.datetime.now():%Y%m%dT%H%M%S}-{uuid.uuid4().hex[:8]}"
     directory = romtool.operation_dir(operation_id)
     directory.mkdir(mode=0o700)
     manifest = {"schema_version": "1.0", "kind": "emulator_controls", "operation_id": operation_id,
                 "created_at": romtool.now(), "status": "prepared", "physical_gameplay_verified": False,
                 "system_id": system_id, "frontends": frontends,
-                "coverage": coverage(root) if frontends else [],
+                "retrofe_only": retrofe_only,
+                "coverage": coverage(root) if frontends and not retrofe_only else [],
                 "controllers": [{"index": p["index"], "name": p["name"]} for p in pads], "items": []}
+    if retrofe_only:
+        manifest['frontend_sdl_mappings'] = [
+            {'index': p['index'], 'name': p['name'], 'mapping': p['mapping']} for p in pads]
     for index, item in enumerate(items):
         row = {k: v for k, v in item.items() if k not in {"before", "after"}}
         row.update(sha256_before=digest(item["before"]), sha256_after=digest(item["after"]),
@@ -751,17 +930,16 @@ def plan(root, *, system_id=None, frontends=True):
             if item[field] is not None:
                 path = directory / folder / str(index)
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(item[field])
-                path.chmod(0o600)
+                romtool.atomic_write_bytes(path, item[field], mode=0o600)
                 row[field + "_snapshot"] = str(path.relative_to(root))
         manifest["items"].append(row)
     romtool.write_manifest(manifest)
     romtool.append_event(operation_id, "controller_plan_prepared", status="prepared", details={"items": len(items)})
-    romtool.rebuild_history_index()
+    if not retrofe_only: romtool.rebuild_history_index()
     return manifest
 
 
-def execute(root, operation_id, action, *, runtime=False):
+def execute(root, operation_id, action, *, runtime=False, frontend_startup=False):
     manifest_path = romtool.operation_dir(operation_id) / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
     if manifest.get("kind") != "emulator_controls":
@@ -776,7 +954,11 @@ def execute(root, operation_id, action, *, runtime=False):
                 "diverged": mismatches, "physical_gameplay_verified": False}
     with (nullcontext() if runtime else romtool.media_session.write_lock(vars(romtool))), configuration_lock():
         if runtime:
-            if manifest.get("frontends") or not manifest.get("system_id"):
+            if frontend_startup:
+                if not manifest.get('retrofe_only') or any(row['path'] != str(HOST / 'controls.conf') for row in manifest['items']):
+                    raise ValueError('Preparação RetroFE restrita ao arquivo de controles')
+                assert_closed()
+            elif manifest.get("frontends") or not manifest.get("system_id"):
                 raise ValueError("Configuração de frontend exige aplicação fora da sessão")
         else:
             assert_closed()
@@ -821,7 +1003,7 @@ def execute(root, operation_id, action, *, runtime=False):
                                  sha256_before=digest(current), sha256_after=desired)
         manifest["status"] = "rolled_back" if rollback else "completed_verified"
         romtool.write_manifest(manifest)
-        romtool.rebuild_history_index()
+        if not manifest.get('retrofe_only'): romtool.rebuild_history_index()
     return {"operation_id": operation_id, "status": manifest["status"], "items": len(rows), "physical_gameplay_verified": False}
 
 
@@ -841,9 +1023,7 @@ def prepare_runtime(root, system_id, *, require_gamepad=False):
         print("[CONTROLE] Vários controles disponíveis; seleção existente de jogador preservada.")
         return
     if routed:
-        pads = sorted((p for p in pads if p['name'].startswith('Emulation P')), key=lambda p:p['name'])
-        if len(pads) != 4:
-            raise RuntimeError('Portas virtuais indisponíveis durante a preparação')
+        pads = routed_players(pads)
     changes = proposals(root, pad=pads[0], pads=pads, routed=routed, system_id=system_id, frontends=False)
     if changes:
         profile = json.loads((root / PROFILE).read_text())

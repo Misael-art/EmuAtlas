@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="420" viewBox="0 0 1040 420" role="img" aria-labelledby="title description">
+  <title id="title">Controles e jogadores no EmuAtlas</title>
+  <desc id="description">Um celular com botões virtuais conecta pela rede local ao painel de atribuição de jogadores. O usuário pode escolher P1 a P8 e reorganizar controles pelo mouse.</desc>
+  <defs>
+    <linearGradient id="surface" x2="1" y2="1"><stop stop-color="#23232b"/><stop offset="1" stop-color="#121318"/></linearGradient>
+    <linearGradient id="button" x2="1" y2="1"><stop stop-color="#3b3b46"/><stop offset="1" stop-color="#212229"/></linearGradient>
+  </defs>
+  <rect width="1040" height="420" rx="24" fill="#101116"/>
+  <rect x=".5" y=".5" width="1039" height="419" rx="24" fill="none" stroke="#484035"/>
+  <g font-family="Inter,DejaVu Sans,Arial,sans-serif">
+    <text x="40" y="54" fill="#cfb68c" font-size="12" letter-spacing="2">CONTROLES E JOGADORES</text>
+    <text x="40" y="96" fill="#f5f0e7" font-size="31" font-weight="600">Gamepads, arcades e telas de toque.</text>
+    <text x="40" y="127" fill="#b6b3b0" font-size="15">Entrada nativa · QR Code · ordem persistente</text>
+    <g transform="translate(40 162)">
+      <rect width="358" height="210" rx="22" fill="#08090c" stroke="#55505a"/>
+      <rect x="10" y="10" width="338" height="190" rx="16" fill="url(#surface)"/>
+      <rect x="26" y="28" width="306" height="1" fill="#cfb68c" opacity=".6"/>
+      <text x="28" y="52" fill="#cfb68c" font-size="12">EmuAtlas</text><text x="289" y="52" fill="#c0d6ad" font-size="11">P2</text>
+      <rect x="30" y="68" width="62" height="24" rx="8" fill="url(#button)" stroke="#504b48"/>
+      <rect x="266" y="68" width="62" height="24" rx="8" fill="url(#button)" stroke="#504b48"/>
+      <path d="M49 107h24v24h24v24H73v24H49v-24H25v-24h24z" fill="url(#button)" stroke="#55515b"/>
+      <circle cx="124" cy="153" r="24" fill="#101116" stroke="#4b4750"/><circle cx="124" cy="153" r="15" fill="url(#button)"/>
+      <circle cx="235" cy="153" r="24" fill="#101116" stroke="#4b4750"/><circle cx="235" cy="153" r="15" fill="url(#button)"/>
+      <g fill="url(#button)" stroke="#55515b"><circle cx="293" cy="110" r="15"/><circle cx="268" cy="135" r="15"/><circle cx="318" cy="135" r="15"/><circle cx="293" cy="160" r="15"/></g>
+      <g font-size="13" text-anchor="middle"><text x="293" y="115" fill="#e9ce86">Y</text><text x="268" y="140" fill="#9bc9ed">X</text><text x="318" y="140" fill="#ed9c97">B</text><text x="293" y="165" fill="#aed2a6">A</text></g>
+      <rect x="164" y="112" width="30" height="13" rx="6" fill="#4b4236"/>
+      <text x="179" y="191" fill="#8d8987" text-anchor="middle" font-size="9">SELECT + START · sair do jogo</text>
+    </g>
+    <path d="M426 267h72m-12-10 12 10-12 10" fill="none" stroke="#cfb68c" stroke-width="2"/>
+    <text x="462" y="242" text-anchor="middle" fill="#b6b3b0" font-size="12">Rede local</text>
+    <g transform="translate(530 163)">
+      <rect width="470" height="209" rx="15" fill="#191b21" stroke="#3b3630"/>
+      <text x="22" y="32" fill="#f5f0e7" font-size="18" font-weight="600">Jogadores</text>
+      <text x="22" y="58" fill="#b6b3b0" font-size="12">Arraste para mudar a ordem</text>
+      <g font-size="12">
+        <rect x="19" y="77" width="208" height="46" rx="8" fill="#242127" stroke="#4b4235"/>
+        <rect x="243" y="77" width="208" height="46" rx="8" fill="#28231d" stroke="#cfb68c"/>
+        <rect x="19" y="136" width="208" height="46" rx="8" fill="#242127" stroke="#3b3a42"/>
+        <rect x="243" y="136" width="208" height="46" rx="8" fill="#242127" stroke="#3b3a42"/>
+        <g fill="#cfb68c" font-weight="600"><text x="32" y="105">P1</text><text x="256" y="105">P2</text><text x="32" y="164">P3</text><text x="256" y="164">P4–P8</text></g>
+        <g fill="#f5f0e7"><text x="69" y="105">Gamepad</text><text x="293" y="105">Celular ou tablet</text><text x="69" y="164">Arcade</text><text x="312" y="164">Disponíveis</text></g>
+      </g>
+    </g>
+    <text x="40" y="400" fill="#85858d" font-size="11">Ilustração do fluxo · capacidade padrão de oito jogadores, ajustável ao ambiente</text>
+  </g>
+</svg>

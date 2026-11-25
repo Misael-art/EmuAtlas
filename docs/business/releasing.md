@@ -15,6 +15,22 @@ A allowlist `tools/distribution/config/release-files.json` relaciona origem e de
 
 `verify` exige o conteúdo exato da release e deve rodar antes de inicializar a biblioteca; arquivos gerados pelo usuário depois da instalação são deliberadamente externos a esse manifesto. O manifesto acompanha o pacote: sua autenticidade depende do canal privado ou de assinatura futura. Ele detecta divergências, não substitui assinatura de distribuição.
 
+## Atualização de fontes em staging
+
+O fluxo de atualização usa a seleção de fontes e templates de uma release extraída. `update-plan` confere o pacote de entrada, o manifesto instalado e todos os arquivos gerenciados. Fontes personalizadas bloqueiam a aplicação e preservam seu conteúdo. O plano simples permite revisar o escopo. `--prepare` cria propostas em `work/installation/updates/<id>/staging/` e preimagens, checkpoints e manifesto em `outputs/installation/updates/<id>/`. Esses diretórios guardam o trabalho temporário e o histórico da atualização de código.
+
+```sh
+python3 tools/distribution/release.py update-plan --incoming work/release-input
+python3 tools/distribution/release.py update-plan --incoming work/release-input --prepare
+python3 tools/distribution/release.py update-apply --operation-id source-update-ID --apply
+python3 tools/distribution/release.py update-verify --operation-id source-update-ID
+python3 tools/distribution/release.py update-rollback --operation-id source-update-ID --apply
+```
+
+Execute aplicação e reversão com a ferramenta revisada da release, usando `--root` para selecionar a instalação. Encerre frontends e runtimes normalmente antes da aplicação. O fluxo compartilha os locks da instalação, confere as precondições do lote inteiro e publica cada arquivo com o escritor durável existente. Fontes retiradas da seleção vão para `rollback/removed/`. Uma retomada aceita apenas preimagens ou propostas exatas. A reversão preserva fontes novas em `rollback/applied-files/` e recusa alterações posteriores. `update-verify` confere a seleção inteira, permitindo os dados adicionais da instalação.
+
+O escopo abrange código, documentação e templates gerenciados. As configurações pessoais continuam nos fluxos especializados de configuração. Runtimes e núcleos usam os instaladores de componentes com seus recibos próprios. A matriz comercial exige ainda o ensaio de instalação e atualização no host contratado. O manifesto de distribuição depende da confiança no canal de aquisição e de sua revisão.
+
 ## Repositório GitHub
 
 O projeto usa o nome **EmuAtlas** e o repositório [Misael-art/EmuAtlas](https://github.com/Misael-art/EmuAtlas), branch `main`. A publicação inicial contém README, banner vetorial próprio e guias. A atualização de portabilidade apresenta as fontes e os templates pela allowlist revisada em uma pull request; abrir a PR não incorpora a mudança à `main` nem publica executáveis ou uma release para download.

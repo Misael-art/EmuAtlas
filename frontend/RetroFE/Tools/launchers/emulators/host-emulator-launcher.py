@@ -276,6 +276,13 @@ def resolve_collection_for_item(
 
 # "profile" keeps each profile's own arguments; the Preview may request an explicit mode.
 DISPLAY_MODE = "profile"
+# Folder of a file the user opened directly from the desktop (rom_associations.py open), outside
+# the canonical library. Only that folder is added, read-only, to the emulator sandbox.
+EXTERNAL_FOLDER: Path | None = None
+
+
+def external_filesystem() -> list[str]:
+    return [f"--filesystem={EXTERNAL_FOLDER}:ro"] if EXTERNAL_FOLDER is not None else []
 FULLSCREEN_FLAGS = {"-fullscreen", "--fullscreen", "-full-screen"}
 
 
@@ -610,6 +617,7 @@ def launch_retroarch(profile: dict, system: dict, item: Path) -> int:
             f"--filesystem={profile['bios_root']}:ro",
             f"--filesystem={core_root}:ro",
             f"--filesystem={writable}:rw",
+            *external_filesystem(),
         ]
         if temp_dir is not None:
             command.append(f"--filesystem={cache_root}:ro")
@@ -622,7 +630,18 @@ def launch_retroarch(profile: dict, system: dict, item: Path) -> int:
         if native:
             command = [str(native), '--config', str(config_path.resolve()), '-L', str(core),
                        *([] if DISPLAY_MODE == 'windowed' else ['--fullscreen']), str(launched_item)]
-        return run_with_music_paused(command, cwd=ROOT, system_id=system["rom_subdir"])
+        project = ROOT.parent.parent
+        journey = None
+        try:
+            journey = {"system_id": system["rom_subdir"], "rom": item.relative_to(project).as_posix(),
+                       "core": core.relative_to(project).as_posix(),
+                       "content": launched_item.relative_to(project).as_posix(),
+                       "config": config_path.resolve().relative_to(project).as_posix()}
+        except ValueError:
+            print("[SAVES] Histórico indisponível para caminhos externos à instalação.", flush=True)
+        launch_env = dict(os.environ, APPIMAGELAUNCHER_DISABLE="1") if native and str(native).endswith(".AppImage") else None
+        return run_with_music_paused(command, cwd=ROOT, env=launch_env,
+                                     system_id=system["rom_subdir"], journey=journey)
 
 
 def launch_flatpak(profile: dict, system: dict, item: Path) -> int:
@@ -755,6 +774,7 @@ def launch_flatpak(profile: dict, system: dict, item: Path) -> int:
             flatpak, "run",
             f"--filesystem={rom_root}:ro",
             f"--filesystem={bios_root}:ro",
+            *external_filesystem(),
         ]
         if userdata:
             command.append(f"--filesystem={userdata}:rw")
@@ -824,7 +844,8 @@ def launch_command(profile: dict, system: dict, item: Path) -> int:
 
     rom_root = Path(profile["rom_root"]).resolve() / str(system.get("rom_subdir", ""))
     rom_root = rom_root.resolve()
-    if not item.resolve().is_relative_to(rom_root):
+    external = EXTERNAL_FOLDER is not None and item.resolve().parent == EXTERNAL_FOLDER
+    if not item.resolve().is_relative_to(rom_root) and not external:
         notify(f"O item precisa permanecer na pasta da plataforma: {rom_root}")
         return 2
     if item.is_dir() and not system.get("accepts_directories"):
@@ -841,6 +862,7 @@ def launch_command(profile: dict, system: dict, item: Path) -> int:
         "item": str(item.resolve()),
         "rom_root": str(rom_root),
         "bios_root": str(bios_root),
+        "program_dir": str(Path(executable).resolve().parent),
     }
     model2_native = (os.name == 'nt' and system.get('native_runtime_id') == 'model2'
                      and system.get('rom_subdir') == 'model2')
@@ -871,8 +893,10 @@ def launch_command(profile: dict, system: dict, item: Path) -> int:
     has_item = any("{item}" in value for value in arguments)
     has_eboot = any("{eboot}" in value for value in arguments)
     has_game_dir=any('{game_dir}' in value for value in arguments)
-    if not has_item and not ((has_eboot or has_game_dir) and eboot is not None) and not (model2_native and arguments == ['{item_stem}']):
-        notify("O perfil command precisa encaminhar {item}, {eboot} ou {game_dir} validado ao emulador.")
+    has_vita_id = (system.get('rom_subdir') == 'psvita' and runtime_id == 'vita3k'
+                   and title_id and eboot is not None and '{title_id}' in arguments)
+    if not has_item and not ((has_eboot or has_game_dir) and eboot is not None) and not has_vita_id and not (model2_native and arguments == ['{item_stem}']):
+        notify("O perfil command precisa encaminhar uma entrada de jogo validada ao emulador.")
         return 2
     try:
         command = [executable, *apply_display_mode([value.format_map(args_map) for value in arguments])]
@@ -1026,6 +1050,15 @@ def _runtime_item_identity(system: dict, item: Path) -> tuple[str, Path | None, 
 
 
 def resolve_runtime_choice(system: dict, item: Path, *, forced_runtime=None):
+    if system.get('rom_subdir') == 'psvita' and system.get('runtime_id') == 'vita3k':
+        if forced_runtime and forced_runtime != 'vita3k':
+            return 'Runtime explícito não declarado para esta plataforma.'
+        try:
+            from portable_emulator import vita3k_launch_identity
+            identity = vita3k_launch_identity(ROOT.parents[1], item)
+        except (OSError, ValueError, UnicodeError, RuntimeError) as error:
+            return str(error)
+        return system, 'vita3k', identity['title_id'], identity['eboot']
     options = system.get("runtime_options", {})
     if not options:
         return system, "", "", None
@@ -1103,52 +1136,10 @@ def resolve_runtime_choice(system: dict, item: Path, *, forced_runtime=None):
     return selected, selected_id, title_id, eboot
 
 
-MANAGED_LAUNCH_ALIASES = {
-    # runtime_id -> (alias suffix, required leaf name of the target). F04: only these leaf aliases are
-    # followed; every other symlink in a collection item stays rejected.
-    "eden-nx2": (".exefs", "main"),
-}
-
-
 def validate_managed_launch_alias(raw_item: Path, platform_root: Path, system: dict) -> tuple[Path | None, str]:
-    """Return the vetted target of a managed relative launch alias, or an explicit refusal."""
-    contract = MANAGED_LAUNCH_ALIASES.get(str(system.get("runtime_id", "")))
-    if not contract or contract[0].lstrip(".") not in system.get("launch_inputs", []):
-        return None, "O perfil desta plataforma não declara aliases de lançamento gerenciados."
-    suffix, leaf = contract
-    if raw_item.suffix != suffix or raw_item.parent != platform_root:
-        return None, f"Alias gerenciado precisa ser {suffix} diretamente em {platform_root}."
-    if platform_root.is_symlink() or any(parent.is_symlink() for parent in platform_root.parents):
-        return None, "A raiz da plataforma ou um ancestral é symlink; alias recusado."
-    literal = os.readlink(raw_item)
-    literal_path = Path(literal)
-    if literal_path.is_absolute() or ".." in literal_path.parts or not literal_path.parts:
-        return None, f"Alias precisa ser relativo e interno à plataforma: {literal}"
-    component = platform_root
-    for part in literal_path.parts:
-        component = component / part
-        if component.is_symlink():
-            return None, f"Alvo do alias contém outro symlink (loop/redirecionamento recusado): {component}"
-    try:
-        target = (platform_root / literal_path).resolve(strict=True)
-    except (OSError, RuntimeError):
-        return None, f"Alvo do alias ausente ou em loop: {literal}"
-    if not target.is_relative_to(platform_root.resolve()) or target.name != leaf or not target.is_file():
-        return None, f"Alvo do alias precisa ser {leaf} regular dentro da plataforma: {target}"
-    try:
-        with target.open("rb") as stream:
-            magic = stream.read(4)
-        npdm = (target.parent / "main.npdm").read_bytes()
-    except OSError as exc:
-        return None, f"ExeFS ilegível: {exc}"
-    if magic != b"NSO0":
-        return None, "main do alias não é NSO0."
-    if len(npdm) < 0x80 or npdm[:4] != b"META":
-        return None, "main.npdm ausente ou sem META."
-    offset = int.from_bytes(npdm[0x70:0x74], "little")
-    if offset + 24 > len(npdm) or npdm[offset:offset + 4] != b"ACI0":
-        return None, "main.npdm sem ACI0 válido."
-    return target, ""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[5] / 'tools/roms'))
+    from portable_emulator import validate_managed_launch_alias as validate
+    return validate(raw_item, platform_root, system)
 
 
 def main() -> int:
@@ -1158,10 +1149,12 @@ def main() -> int:
     parser.add_argument('--runtime',help='alternativa declarada no perfil; não altera jogos nem a preferência persistente')
     parser.add_argument("--display", choices=["profile", "fullscreen", "windowed"], default="profile",
                         help="profile mantém os argumentos do perfil (padrão do RetroFE)")
+    parser.add_argument("--external", action="store_true",
+                        help="arquivo aberto pelo usuário fora da biblioteca; a coleção precisa ser explícita")
     args = parser.parse_args()
     global RUNTIME_OVERRIDE
     RUNTIME_OVERRIDE=args.runtime
-    global DISPLAY_MODE
+    global DISPLAY_MODE, EXTERNAL_FOLDER
     DISPLAY_MODE = args.display
     profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
     sys.path.insert(0, str(ROOT.parent.parent / 'tools/roms'))
@@ -1189,11 +1182,29 @@ def main() -> int:
         notify(f"O item da coleção precisa ser arquivo regular ou diretório de jogo: {raw_item}")
         return 2
     item = raw_item.resolve(strict=True)
-    source_collection, system, resolution_error = resolve_collection_for_item(
-        profile,
-        args.collection,
-        item,
-    )
+    platform_root = None
+    if args.external:
+        # The user chose this exact file (e.g. a double-click in Dolphin); the frontend guards against
+        # symlinks redirecting library items do not apply, but the file itself must be a plain file.
+        system = profile.get("collections", {}).get(args.collection)
+        if not isinstance(system, dict):
+            notify(f"A coleção {args.collection!r} não está no perfil host-linux.")
+            return 2
+        if managed_alias or not stat.S_ISREG(item_stat.st_mode):
+            notify(f"Abrir pelo desktop aceita só um arquivo comum, sem link simbólico: {raw_item}")
+            return 2
+        platform_root = Path(os.path.abspath(Path(profile["rom_root"]) / str(system.get("rom_subdir", ""))))
+        if raw_item.is_relative_to(platform_root):
+            args.external = False  # Already in the library: the normal checks below apply.
+        elif system.get("adapter") in {"mame", "mame_named"}:
+            notify("Jogos de arcade (MAME) precisam estar na biblioteca do EmuAtlas para abrir.")
+            return 2
+        else:
+            EXTERNAL_FOLDER = item.parent
+            print(f"Arquivo externo à biblioteca: {item} ({args.collection}).", flush=True)
+    source_collection, system, resolution_error = (
+        (args.collection, system, None) if args.external else
+        resolve_collection_for_item(profile, args.collection, item))
     if resolution_error or not system or not source_collection:
         notify(resolution_error or f"A coleção {args.collection!r} não está no perfil host-linux.")
         return 2
@@ -1208,7 +1219,7 @@ def main() -> int:
     # cannot redirect a launch outside the canonical ROM tree.
     platform_root = Path(os.path.abspath(Path(profile["rom_root"]) / str(system.get("rom_subdir", ""))))
     try:
-        relative_item = raw_item.relative_to(platform_root)
+        relative_item = Path(raw_item.name) if args.external else raw_item.relative_to(platform_root)
     except ValueError:
         notify(f"O item precisa permanecer na pasta canônica da plataforma: {platform_root}")
         return 2
@@ -1224,7 +1235,7 @@ def main() -> int:
         item = target
         relative_item = Path(raw_item.name)
     component = platform_root
-    for part in ([] if managed_alias else relative_item.parts):
+    for part in ([] if managed_alias or args.external else relative_item.parts):
         component = component / part
         if component.is_symlink():
             notify(f"O caminho do item contém symlink e não será seguido: {component}")

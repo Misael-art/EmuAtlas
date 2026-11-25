@@ -133,6 +133,21 @@ def matching_files(directory: Path, extensions: set[str]) -> tuple[int, list[str
     return count, nested_directories, by_extension, stem_sources
 
 
+def subset_match_status(lines: list[str], resolved: list[set[str]], rom_subdir: str) -> str:
+    """Report filename matches in the configured root separately from other roots."""
+    exact_matches = sum(bool(matches) for matches in resolved)
+    if not rom_subdir:
+        return "expected_source_not_configured"
+    expected_matches = sum(rom_subdir.casefold() in matches for matches in resolved) if rom_subdir else 0
+    if expected_matches < len(lines) and exact_matches:
+        return "entries_missing_from_expected_source"
+    if exact_matches == len(lines):
+        return "all_entries_match_by_filename"
+    if exact_matches:
+        return "partially_matches_by_filename"
+    return "no_exact_filename_match"
+
+
 def profile_mapping_status(
     collection: str | None,
     system: dict | None,
@@ -461,12 +476,8 @@ def build_reports(rom_root: Path) -> tuple[str, str, str, dict[str, int]]:
             state = "profile_alias_settings_missing"
         elif rom_subdir and dominant_source and dominant_source.casefold() != rom_subdir.casefold() and dominant_count > expected_matches:
             state = "subset_source_may_differ_from_parent"
-        elif exact_matches == len(lines):
-            state = "all_entries_match_by_filename"
-        elif exact_matches:
-            state = "partially_matches_by_filename"
         else:
-            state = "no_exact_filename_match"
+            state = subset_match_status(lines, resolved, rom_subdir)
 
         row = {
             "sub_path": subset_path.relative_to(ROOT).as_posix(),

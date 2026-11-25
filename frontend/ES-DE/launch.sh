@@ -281,6 +281,7 @@ if ! theme_output="$(python3 "$FRONTEND_STRUCTURER" --prepare-theme 2>&1)"; then
     exit 1
 fi
 export APPIMAGELAUNCHER_DISABLE=1
+# Shared input routing defaults to native keyboard/gamepads; Steam is opt-in.
 exec python3 "$SCRIPT_DIR/../RetroFE/Tools/launchers/retrofe/steam-input.py" \
     --root "$SCRIPT_DIR/../RetroFE" session-run -- \
     python3 "$SCRIPT_DIR/../../tools/roms/romtool.py" media session run --client esde -- \
