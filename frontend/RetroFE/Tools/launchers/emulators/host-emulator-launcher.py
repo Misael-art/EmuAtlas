@@ -276,6 +276,13 @@ def resolve_collection_for_item(
 
 # "profile" keeps each profile's own arguments; the Preview may request an explicit mode.
 DISPLAY_MODE = "profile"
+# Folder of a file the user opened directly from the desktop (rom_associations.py open), outside
+# the canonical library. Only that folder is added, read-only, to the emulator sandbox.
+EXTERNAL_FOLDER: Path | None = None
+
+
+def external_filesystem() -> list[str]:
+    return [f"--filesystem={EXTERNAL_FOLDER}:ro"] if EXTERNAL_FOLDER is not None else []
 FULLSCREEN_FLAGS = {"-fullscreen", "--fullscreen", "-full-screen"}
 
 
@@ -610,6 +617,7 @@ def launch_retroarch(profile: dict, system: dict, item: Path) -> int:
             f"--filesystem={profile['bios_root']}:ro",
             f"--filesystem={core_root}:ro",
             f"--filesystem={writable}:rw",
+            *external_filesystem(),
         ]
         if temp_dir is not None:
             command.append(f"--filesystem={cache_root}:ro")
@@ -766,6 +774,7 @@ def launch_flatpak(profile: dict, system: dict, item: Path) -> int:
             flatpak, "run",
             f"--filesystem={rom_root}:ro",
             f"--filesystem={bios_root}:ro",
+            *external_filesystem(),
         ]
         if userdata:
             command.append(f"--filesystem={userdata}:rw")
@@ -835,7 +844,8 @@ def launch_command(profile: dict, system: dict, item: Path) -> int:
 
     rom_root = Path(profile["rom_root"]).resolve() / str(system.get("rom_subdir", ""))
     rom_root = rom_root.resolve()
-    if not item.resolve().is_relative_to(rom_root):
+    external = EXTERNAL_FOLDER is not None and item.resolve().parent == EXTERNAL_FOLDER
+    if not item.resolve().is_relative_to(rom_root) and not external:
         notify(f"O item precisa permanecer na pasta da plataforma: {rom_root}")
         return 2
     if item.is_dir() and not system.get("accepts_directories"):
@@ -1139,10 +1149,12 @@ def main() -> int:
     parser.add_argument('--runtime',help='alternativa declarada no perfil; não altera jogos nem a preferência persistente')
     parser.add_argument("--display", choices=["profile", "fullscreen", "windowed"], default="profile",
                         help="profile mantém os argumentos do perfil (padrão do RetroFE)")
+    parser.add_argument("--external", action="store_true",
+                        help="arquivo aberto pelo usuário fora da biblioteca; a coleção precisa ser explícita")
     args = parser.parse_args()
     global RUNTIME_OVERRIDE
     RUNTIME_OVERRIDE=args.runtime
-    global DISPLAY_MODE
+    global DISPLAY_MODE, EXTERNAL_FOLDER
     DISPLAY_MODE = args.display
     profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
     sys.path.insert(0, str(ROOT.parent.parent / 'tools/roms'))
@@ -1170,11 +1182,29 @@ def main() -> int:
         notify(f"O item da coleção precisa ser arquivo regular ou diretório de jogo: {raw_item}")
         return 2
     item = raw_item.resolve(strict=True)
-    source_collection, system, resolution_error = resolve_collection_for_item(
-        profile,
-        args.collection,
-        item,
-    )
+    platform_root = None
+    if args.external:
+        # The user chose this exact file (e.g. a double-click in Dolphin); the frontend guards against
+        # symlinks redirecting library items do not apply, but the file itself must be a plain file.
+        system = profile.get("collections", {}).get(args.collection)
+        if not isinstance(system, dict):
+            notify(f"A coleção {args.collection!r} não está no perfil host-linux.")
+            return 2
+        if managed_alias or not stat.S_ISREG(item_stat.st_mode):
+            notify(f"Abrir pelo desktop aceita só um arquivo comum, sem link simbólico: {raw_item}")
+            return 2
+        platform_root = Path(os.path.abspath(Path(profile["rom_root"]) / str(system.get("rom_subdir", ""))))
+        if raw_item.is_relative_to(platform_root):
+            args.external = False  # Already in the library: the normal checks below apply.
+        elif system.get("adapter") in {"mame", "mame_named"}:
+            notify("Jogos de arcade (MAME) precisam estar na biblioteca do EmuAtlas para abrir.")
+            return 2
+        else:
+            EXTERNAL_FOLDER = item.parent
+            print(f"Arquivo externo à biblioteca: {item} ({args.collection}).", flush=True)
+    source_collection, system, resolution_error = (
+        (args.collection, system, None) if args.external else
+        resolve_collection_for_item(profile, args.collection, item))
     if resolution_error or not system or not source_collection:
         notify(resolution_error or f"A coleção {args.collection!r} não está no perfil host-linux.")
         return 2
@@ -1189,7 +1219,7 @@ def main() -> int:
     # cannot redirect a launch outside the canonical ROM tree.
     platform_root = Path(os.path.abspath(Path(profile["rom_root"]) / str(system.get("rom_subdir", ""))))
     try:
-        relative_item = raw_item.relative_to(platform_root)
+        relative_item = Path(raw_item.name) if args.external else raw_item.relative_to(platform_root)
     except ValueError:
         notify(f"O item precisa permanecer na pasta canônica da plataforma: {platform_root}")
         return 2
@@ -1205,7 +1235,7 @@ def main() -> int:
         item = target
         relative_item = Path(raw_item.name)
     component = platform_root
-    for part in ([] if managed_alias else relative_item.parts):
+    for part in ([] if managed_alias or args.external else relative_item.parts):
         component = component / part
         if component.is_symlink():
             notify(f"O caminho do item contém symlink e não será seguido: {component}")

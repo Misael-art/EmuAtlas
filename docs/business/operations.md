@@ -25,6 +25,10 @@ Depois do bootstrap, as receitas materializadas estão em `tools/roms/config/por
 
 RetroFE é compilado automaticamente da fonte pinada no perfil completo. Temas, fontes e sons não são copiados da instalação pessoal para a release. Incluir esses recursos exige entradas de origem/licença e uma receita reprodutível. Até isso existir, o adaptador fica disponível como ferramenta e a experiência completa fica pendente.
 
+### Abrir ROMs pelo desktop
+
+O componente `desktop-shortcuts` executa `tools/roms/rom_associations.py apply`: dois cliques numa ROM no Dolphin abrem o emulador da plataforma pelo mesmo `host-emulator-launcher.py` dos frontends, que roda o jogo dentro de `steam-input.py session-run --system-id` (controle compartilhado durante o jogo e Desktop restaurado ao sair). As fontes são o `platform-catalog.json`, o perfil `host-linux.json` e `source_extensions_by_system` dos perfis de compressão; não há catálogo paralelo. Só tipos que nomeiam um formato de jogo viram padrão; contêineres (`zip`, `7z`, `iso`, `img`, `cue`, `m3u`, `nrg`, `wad`) aparecem em "Abrir com"; `.desktop`, certificados, executáveis e texto não são tocados. Dentro de `roms/<id>/` a pasta decide a plataforma; fora, a extensão nativa, sem pergunta para variantes regionais no mesmo núcleo. Um arquivo fora da biblioteca usa `--external`: somente a pasta dele entra no sandbox, como leitura, e nada é copiado para `roms/`. `rom_associations.py remove` restaura os padrões anteriores.
+
 ## Aquisição e organização de mídia
 
 A infraestrutura de download aceita um lock de origem por cliente com `workspace.py fetch --component <id> --source-lock <arquivo.json>`. Use o [exemplo](../../tools/distribution/examples/media-source-lock.json): substituir URL, licença, página de origem, tamanho e SHA-256 por evidências reais, revisar `approved_for_download` e só então aplicar. O exemplo é deliberadamente bloqueado. Não há endpoint genérico que procure imagens sem atribuição.

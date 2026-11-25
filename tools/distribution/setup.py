@@ -795,7 +795,10 @@ class Installer:
             self.run(['bash', str(self.root / 'frontend/RetroFE/Tools/launchers/retrofe/launch-retrofe.sh'), '--install-shortcuts'], timeout=60)
             self.run(['bash', str(self.root / 'frontend/ES-DE/launch.sh'), '--install-shortcuts'], timeout=60)
             self.run([sys.executable, str(self.root / 'frontend/QuiverLauncher/structure-frontend.py'), '--prepare-shortcuts'], timeout=60)
-            return {'status': 'configured', 'desktop_and_application_menu': True, 'gui_started': False}
+            # Double-clicking a ROM opens its platform emulator with the shared controller session.
+            self.run([sys.executable, str(self.root / 'tools/roms/rom_associations.py'), 'apply'], timeout=600)
+            return {'status': 'configured', 'desktop_and_application_menu': True, 'rom_associations': True,
+                    'gui_started': False}
         if kind == 'experimental':
             return {'status': 'blocked', 'reason': item['reason']}
         raise ValueError('Tipo de componente não suportado: ' + kind)
