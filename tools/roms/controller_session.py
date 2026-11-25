@@ -144,13 +144,16 @@ def slots(devices, docked, previous=(), preferred=None, capacity=DEFAULT_PLAYERS
     """Use explicit ports when present, preserving holes and surviving identities.
 
     Automatic handheld order starts with Deck. Automatic dock order uses external
-    pads. An explicit preference can place the built-in pad in either mode.
+    pads; with none connected, the built-in pad is player one instead of leaving the
+    game on the keyboard (a docked Deck played with its own controls). A pad plugged
+    in later takes over at the next scan. An explicit preference can place the
+    built-in pad in either mode.
     """
     external = [d for d in devices if d['kind'] == 'external']
     order = {key: i for i, key in enumerate(previous)}
     external.sort(key=lambda d: (order.get(d['path'], 999), d['path']))
     builtins = [d for d in devices if d['kind'] == 'deck']
-    chosen = external if docked else builtins[:1] + external
+    chosen = (external or builtins[:1]) if docked else builtins[:1] + external
     if preferred is not None:
         available = {device_key(d): d['path'] for d in devices if d['kind'] in {'deck', 'external'}}
         selected = [available.get(key) for key in preferred] + [None] * (capacity-len(preferred))
@@ -357,6 +360,32 @@ class KWinFocus:
             self.connection.unregister_object(self.registration)
             self.loop.quit()
             self.thread.join(timeout=2)
+
+
+def deck_emulation_devices():
+    """Keyboard/mouse that the Deck firmware emulates in lizard mode (hid_steam, no Steam client).
+
+    They duplicate the pad as keys: B sends Esc (RetroArch's exit key) and A sends Enter. Only
+    the hardware controller (28de:1205) qualifies; the pad itself, motion sensors, Steam's
+    virtual devices and physical keyboards/mice are never listed.
+    """
+    import evdev
+    from evdev import ecodes as e
+    found = []
+    for path in sorted(evdev.list_devices()):
+        try:
+            with closing(evdev.InputDevice(path)) as dev:
+                if (dev.info.vendor, dev.info.product) != (0x28DE, 0x1205):
+                    continue
+                caps = dev.capabilities()
+                keys = caps.get(e.EV_KEY, [])
+                if e.BTN_SOUTH in keys or e.EV_ABS in caps:
+                    continue  # gamepad or motion sensors
+                if e.KEY_ESC in keys or e.KEY_ENTER in keys or e.REL_X in caps.get(e.EV_REL, []):
+                    found.append(path)
+        except (OSError, PermissionError):
+            continue
+    return found
 
 
 def input_inventory():
@@ -582,6 +611,7 @@ class Session:
             if len(pads) != self.capacity or any(p['vendor'] != VID for p in pads):
                 raise RuntimeError('As portas SDL da sessão não foram enumeradas com isolamento.')
             self.manifest.update(status='ready', ports=[{'name': p['name'], 'guid': p['guid']} for p in pads])
+            self.grab_deck_emulation()
             self.feedback = None
             try:
                 path = root / 'frontend/RetroFE/Tools/launchers/retrofe/session-feedback.py'
@@ -598,6 +628,43 @@ class Session:
         except BaseException:
             self.close('preparation_failed')
             raise
+
+    def grab_deck_emulation(self):
+        """During the game only the routed pad reaches the emulator; Desktop gets them back on close.
+
+        The kernel drops the grab if this process dies, so a crash cannot strand the Desktop."""
+        self.emulation_grabs = []
+        grabbed, refused = [], []
+        for path in deck_emulation_devices():
+            try:
+                dev = self.evdev.InputDevice(path)
+            except OSError as exc:
+                refused.append({'path': path, 'error': str(exc)})
+                continue
+            try:
+                dev.grab()
+            except OSError as exc:
+                dev.close()
+                refused.append({'path': path, 'error': str(exc)})
+                continue
+            self.emulation_grabs.append(dev)
+            grabbed.append(path)
+        self.manifest['deck_emulation_grabbed'] = grabbed
+        if refused:
+            self.manifest['deck_emulation_refused'] = refused
+            print('[CONTROLE] Teclado/mouse do modo lagarto do Deck não isolados: '
+                  + '; '.join(r['error'] for r in refused), flush=True)
+        elif grabbed:
+            print('[CONTROLE] Teclado/mouse do modo lagarto do Deck isolados durante o jogo.', flush=True)
+
+    def release_deck_emulation(self):
+        for dev in getattr(self, 'emulation_grabs', []):
+            try:
+                dev.ungrab()
+            except OSError:
+                pass
+            dev.close()
+        self.emulation_grabs = []
 
     def save(self):
         import romtool
@@ -1004,6 +1071,7 @@ class Session:
             self.feedback.close()
             self.feedback = None
         self.stop_effects()
+        self.release_deck_emulation()
         for dev in self.inputs.values(): dev.close()
         for v in self.virtual: v.close()
         if hasattr(self,'dialog_keyboard'):self.dialog_keyboard.close()

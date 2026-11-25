@@ -414,8 +414,13 @@ class RoutingTests(unittest.TestCase):
     def test_handheld_deck_is_player_one(self):
         self.assertEqual(c.slots([device('b'),device('deck','deck'),device('a')],False), ['deck','a','b'])
 
-    def test_dock_never_assigns_builtin_as_player_one(self):
-        self.assertEqual(c.slots([device('deck','deck')],True), [])
+    def test_dock_prefers_external_pads_over_the_builtin(self):
+        self.assertEqual(c.slots([device('deck','deck'),device('pad')],True), ['pad'])
+
+    def test_dock_without_external_pad_keeps_the_deck_playable(self):
+        # Host 25/11/2026: Deck on a dock, game on DP-1, only its own controls -> keyboard only.
+        self.assertEqual(c.slots([device('deck','deck')],True), ['deck'])
+        self.assertEqual(c.slots([device('deck','deck'),device('pad')],True,['deck']), ['pad'])
 
     def test_dock_external_replaces_keyboard_without_relaunch(self):
         self.assertEqual(c.slots([],True), [])
@@ -551,3 +556,49 @@ class ExitTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+
+class LizardModeTests(unittest.TestCase):
+    """Host 25/11/2026: hid_steam lizard_mode=Y; the Deck's B sent Esc and closed RetroArch."""
+
+    @staticmethod
+    def fake(vendor, product, caps):
+        dev = Mock()
+        dev.info.vendor, dev.info.product = vendor, product
+        dev.capabilities.return_value = caps
+        return dev
+
+    def devices(self):
+        from evdev import ecodes as e
+        return {
+            '/dev/input/event5': self.fake(0x28DE, 0x1205, {e.EV_KEY: [e.KEY_ESC, e.KEY_ENTER, e.KEY_UP]}),
+            '/dev/input/event6': self.fake(0x28DE, 0x1205, {e.EV_KEY: [e.BTN_LEFT], e.EV_REL: [e.REL_X, e.REL_Y]}),
+            '/dev/input/event7': self.fake(0x28DE, 0x1205, {e.EV_KEY: [e.BTN_SOUTH, e.BTN_START], e.EV_ABS: [0]}),
+            '/dev/input/event8': self.fake(0x28DE, 0x1205, {e.EV_ABS: [0, 1, 2]}),
+            '/dev/input/event9': self.fake(0x28DE, 0x11FF, {e.EV_KEY: [e.KEY_ESC, e.KEY_ENTER]}),
+            '/dev/input/event16': self.fake(0x046D, 0x4075, {e.EV_KEY: [e.KEY_ESC, e.KEY_ENTER, e.KEY_A]}),
+        }
+
+    def test_only_the_deck_hardware_keyboard_and_mouse_are_isolated(self):
+        devices = self.devices()
+        with patch('evdev.list_devices', return_value=list(devices)), \
+             patch('evdev.InputDevice', side_effect=lambda path: devices[path]):
+            self.assertEqual(c.deck_emulation_devices(), ['/dev/input/event5', '/dev/input/event6'])
+
+    def test_grab_is_released_on_close_and_a_refusal_keeps_the_session(self):
+        session = c.Session.__new__(c.Session)
+        session.manifest = {}
+        keyboard, mouse = Mock(), Mock()
+        mouse.grab.side_effect = OSError(16, 'Device or resource busy')
+        session.evdev = Mock()
+        session.evdev.InputDevice.side_effect = lambda path: {'k': keyboard, 'm': mouse}[path]
+        with patch.object(c, 'deck_emulation_devices', return_value=['k', 'm']):
+            session.grab_deck_emulation()
+        keyboard.grab.assert_called_once()
+        mouse.close.assert_called_once()
+        self.assertEqual(session.manifest['deck_emulation_grabbed'], ['k'])
+        self.assertEqual(session.manifest['deck_emulation_refused'][0]['path'], 'm')
+        session.release_deck_emulation()
+        keyboard.ungrab.assert_called_once()
+        keyboard.close.assert_called_once()
+        self.assertEqual(session.emulation_grabs, [])
