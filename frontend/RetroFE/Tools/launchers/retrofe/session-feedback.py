@@ -31,7 +31,9 @@ def player_rows(names, keyboard=True, capacity=8):
     return rows
 
 
-def exit_hint(game):
+def exit_hint(game, deck=False):
+    if game and deck:
+        return "DECK   VIEW + R1", "Segure 2 s para sair do jogo"
     if game:
         return "SELECT / BACK + START", "Segure 2 s para sair do jogo"
     return "START  /  F10", "Opções e sair do RetroFE"
@@ -285,7 +287,8 @@ class SessionFeedback:
         body_height = min(content_height, round(height * .82) - self.header_height - footer_height)
         self.toast_height = th = self.header_height + body_height + footer_height
         save_hint = getattr(self, "save_journey_hint", "") if self.game else ""
-        hh = round((88 + (28 if save_hint else 0) if self.game else 70) * s)
+        deck = self.game and any(self.devices.get(key, {}).get("kind") == "deck" for key in self.ports)
+        hh = round((88 + (24 if deck else 0) + (28 if save_hint else 0) if self.game else 70) * s)
         self.toast.geometry(f"{cw}x{th}{x + width - margin - cw:+d}{y + margin:+d}")
         self.hint.geometry(f"{cw}x{hh}{x + width - margin - cw:+d}{y + height - margin - hh:+d}")
         self.body.place(x=round(14*s), y=self.header_height, width=cw-round(28*s), height=body_height)
@@ -313,14 +316,17 @@ class SessionFeedback:
         c = self.hint_canvas
         c.delete("all")
         rounded(c, (1, 1, cw-1, hh-1), 15*s, fill=SURFACE, outline="#3b3630", width=1)
-        key, action = exit_hint(self.game)
+        key, action = exit_hint(self.game, deck)
         c.create_text(22*s, 13*s, anchor="nw", text=key, fill=TEXT,
                       font=("Noto Sans", -max(11, round(14*s)), "bold"))
         c.create_text(22*s, 37*s, anchor="nw", text=action, fill=SECONDARY, font=self.small_font)
         if self.game:
             c.create_text(22*s, 59*s, anchor="nw", text=KEYBOARD_EXIT_HINT, fill=MUTED, font=self.small_font)
+        if deck:
+            c.create_text(22*s, 82*s, anchor="nw", text="Sem resposta? Segure Menu 1 s e solte.",
+                          fill=MUTED, font=self.small_font)
         if save_hint:
-            c.create_text(22*s, 83*s, anchor="nw",
+            c.create_text(22*s, (83 + (24 if deck else 0))*s, anchor="nw",
                           text=self.fitted(save_hint, self.small_font, cw-44*s),
                           fill=GOLD, font=self.small_font, tags="save-shortcut")
         chip = (cw-round(100*s), round(10*s), cw-round(14*s), round(34*s))

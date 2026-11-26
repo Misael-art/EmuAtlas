@@ -80,6 +80,7 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(hud.toast_started, 0)
 
     def test_legend_matches_actual_held_chord(self):
+        self.assertIn('VIEW + R1', feedback.exit_hint(True, deck=True)[0])
         self.assertIn('SELECT / BACK + START', feedback.exit_hint(True)[0])
         self.assertIn('2 s', feedback.exit_hint(True)[1])
         self.assertIn('Ctrl + Shift + F10', feedback.KEYBOARD_EXIT_HINT)
@@ -305,6 +306,56 @@ with tempfile.TemporaryDirectory() as directory:
 
 
 class RoutingTests(unittest.TestCase):
+    @patch.dict(os.environ, {'SDL_LINUX_DIGITAL_HATS': '0'})
+    def test_deck_analog_hats_release_p1_and_forward_buttons(self):
+        from evdev import ecodes as e, AbsInfo
+
+        session = c.Session.__new__(c.Session)
+        session.e = e
+        session.source_maps = {'deck': {'a': 'b3', 'lefttrigger': 'a9', 'righttrigger': 'a8'}}
+        session.wait_for_release = {'deck'}
+        session.write, session.neutral = Mock(), Mock()
+        session.virtual = [Mock()]
+        device = Mock(path='deck')
+        stick = AbsInfo(0, -32767, 32767, 0, 0, 100)
+        trigger = AbsInfo(0, 0, 32767, 0, 0, 100)
+        axes = {code: stick for code in (e.ABS_X, e.ABS_Y, e.ABS_RX, e.ABS_RY,
+                e.ABS_HAT0X, e.ABS_HAT0Y, e.ABS_HAT1X, e.ABS_HAT1Y)}
+        axes.update({e.ABS_HAT2X: trigger, e.ABS_HAT2Y: trigger._replace(value=32767)})
+        device.capabilities.return_value = {e.EV_ABS: list(axes.items()),
+            e.EV_KEY: [e.BTN_0, e.BTN_TRIGGER, e.BTN_THUMB, e.BTN_BASE, e.BTN_SOUTH]}
+        device.absinfo.side_effect = axes.__getitem__
+        device.active_keys.return_value = []
+        session.forward(device, 0)
+        self.assertIn('deck', session.wait_for_release)
+        axes[e.ABS_HAT2Y] = trigger
+        session.forward(device, 0)
+        self.assertNotIn('deck', session.wait_for_release)
+        device.active_keys.return_value = [e.BTN_SOUTH]
+        axes[e.ABS_HAT2X] = trigger._replace(value=32767)
+        session.forward(device, 0)
+        session.write.assert_any_call(0, e.EV_KEY, e.BTN_SOUTH, 1)
+        session.write.assert_any_call(0, e.EV_ABS, e.ABS_RZ, 255)
+
+    def test_digital_hat_follows_analog_pair_without_consuming_hat_zero(self):
+        from evdev import ecodes as e, AbsInfo
+
+        session = c.Session.__new__(c.Session)
+        session.e = e
+        session.source_maps = {'mixed': {'leftx': 'a0', 'dpup': 'h0.1'}}
+        session.virtual = [Mock()]
+        session.write = Mock()
+        device = Mock(path='mixed')
+        axes = {e.ABS_HAT0X: AbsInfo(32000, -32000, 32000, 1, 0, 1),
+                e.ABS_HAT2Y: AbsInfo(-1, -1, 1, 0, 0, 0)}
+        device.capabilities.return_value = {e.EV_ABS: list(axes.items())}
+        device.absinfo.side_effect = axes.__getitem__
+        device.active_keys.return_value = []
+        with patch.dict(os.environ, {'SDL_LINUX_DIGITAL_HATS': '0'}):
+            session.forward(device, 0)
+        session.write.assert_any_call(0, e.EV_ABS, e.ABS_X, 32767)
+        session.write.assert_any_call(0, e.EV_ABS, e.ABS_HAT0Y, -1)
+
     def test_reassignment_waits_for_release_then_routes_new_presses_to_p3(self):
         from evdev import ecodes as e
         session = c.Session.__new__(c.Session)
@@ -343,7 +394,7 @@ class RoutingTests(unittest.TestCase):
         s.focus=Mock(current=(123,'game',False,'DP-1'))
         s.last_focus=True;s.exit_pending=s.was_exit_dialog=False;s.dialog_down=set()
         s.focus_retry_key=None;s.focus_retries=0;s.last_focus_retry=0
-        s.manifest={'owned_window_seen':True};s.inputs={};s.virtual=[Mock() for _ in range(4)]
+        s.manifest={'owned_window_seen':True};s.inputs={};s.rows={};s.virtual=[Mock() for _ in range(4)]
         s.keyboard_down={e.KEY_Z};s.keyboard_state={};s.assigned=[];s.exit_chords={}
         s.keyboard_fallback=True;s.ra_keyboard=None;s.output_state=[{} for _ in range(4)]
         s.write=Mock();s.neutral=Mock();s.stop_effects=Mock()
@@ -442,6 +493,16 @@ class RoutingTests(unittest.TestCase):
 
 
 class ExitTests(unittest.TestCase):
+    def test_builtin_exit_does_not_require_the_firmware_mode_switch(self):
+        from evdev import ecodes as e
+
+        keys = {(e.EV_KEY, e.BTN_SELECT): 1, (e.EV_KEY, e.BTN_TR): 1}
+        self.assertTrue(c.gamepad_exit_held(keys, 'deck', e))
+        self.assertFalse(c.gamepad_exit_held(keys, 'external', e))
+        self.assertFalse(c.gamepad_exit_held({(e.EV_KEY, e.BTN_TR): 1}, 'deck', e))
+        keys[(e.EV_KEY, e.BTN_START)] = 1
+        self.assertTrue(c.gamepad_exit_held(keys, 'external', e))
+
     def test_native_dialog_uses_normalized_button_once_and_releases_virtual_key(self):
         from evdev import ecodes as e
         s=c.Session.__new__(c.Session)
