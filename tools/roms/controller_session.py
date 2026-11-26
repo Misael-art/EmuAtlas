@@ -828,20 +828,30 @@ class Session:
         e=self.e
         mapping=self.source_maps[device.path]
         caps=device.capabilities(absinfo=True)
-        keys=sorted(k for k in caps.get(e.EV_KEY,[]) if k>=e.BTN_MISC)
+        # SDL's evdev backend enumerates joystick buttons first, then lower key codes.
+        keys=sorted(caps.get(e.EV_KEY, []), key=lambda code: (code < e.BTN_JOYSTICK, code))
         active=set(device.active_keys())
         buttons={n for n,key in enumerate(keys) if key in active}
         # capabilities() retains the values read when the device was opened.
         # EVIOCGABS supplies the live state for sticks, triggers and d-pad hats.
         raw_axes={key:device.absinfo(key) for key,_ in caps.get(e.EV_ABS,[])}
-        axes={}
-        for n,(code,info) in enumerate((k,v) for k,v in sorted(raw_axes.items()) if not e.ABS_HAT0X<=k<=e.ABS_HAT3Y):
-            axes[n]=2*(info.value-info.min)/(info.max-info.min)-1 if info.max>info.min else 0
         hats={}
-        for n in range(4):
-            x=raw_axes.get(e.ABS_HAT0X+n*2)
-            y=raw_axes.get(e.ABS_HAT0Y+n*2)
-            hats[n]=(1 if y and y.value<0 else 4 if y and y.value>0 else 0)|(8 if x and x.value<0 else 2 if x and x.value>0 else 0)
+        digital_codes = set()
+        force_digital = os.getenv('SDL_LINUX_DIGITAL_HATS', '').lower() in {'1', 'true', 'yes', 'on'}
+        for code in range(e.ABS_HAT0X, e.ABS_HAT3Y, 2):
+            x, y = raw_axes.get(code), raw_axes.get(code + 1)
+            pair = [info for info in (x, y) if info is not None]
+            # Match SDL2 GuessIfAxesAreDigitalHat. hid-steam exposes continuous
+            # touchpad and trigger axes in the same evdev code range as d-pads.
+            if pair and (force_digital or all(i.min == -1 and i.max == 1 for i in pair)
+                         or all(not (i.fuzz or i.flat or i.resolution) for i in pair)):
+                digital_codes.update((code, code + 1))
+                hats[len(hats)] = ((1 if y and y.value < 0 else 4 if y and y.value > 0 else 0)
+                                   | (8 if x and x.value < 0 else 2 if x and x.value > 0 else 0))
+        axes = {}
+        for code, info in sorted(raw_axes.items()):
+            if code not in digital_codes:
+                axes[len(axes)] = 2*(info.value-info.min)/(info.max-info.min)-1 if info.max>info.min else 0
         def value(key):return binding_value(mapping.get(key,''),buttons,axes,hats)
         waiting = getattr(self, 'wait_for_release', set())
         if device.path in waiting:

@@ -305,6 +305,56 @@ with tempfile.TemporaryDirectory() as directory:
 
 
 class RoutingTests(unittest.TestCase):
+    @patch.dict(os.environ, {'SDL_LINUX_DIGITAL_HATS': '0'})
+    def test_deck_analog_hats_release_p1_and_forward_buttons(self):
+        from evdev import ecodes as e, AbsInfo
+
+        session = c.Session.__new__(c.Session)
+        session.e = e
+        session.source_maps = {'deck': {'a': 'b3', 'lefttrigger': 'a9', 'righttrigger': 'a8'}}
+        session.wait_for_release = {'deck'}
+        session.write, session.neutral = Mock(), Mock()
+        session.virtual = [Mock()]
+        device = Mock(path='deck')
+        stick = AbsInfo(0, -32767, 32767, 0, 0, 100)
+        trigger = AbsInfo(0, 0, 32767, 0, 0, 100)
+        axes = {code: stick for code in (e.ABS_X, e.ABS_Y, e.ABS_RX, e.ABS_RY,
+                e.ABS_HAT0X, e.ABS_HAT0Y, e.ABS_HAT1X, e.ABS_HAT1Y)}
+        axes.update({e.ABS_HAT2X: trigger, e.ABS_HAT2Y: trigger._replace(value=32767)})
+        device.capabilities.return_value = {e.EV_ABS: list(axes.items()),
+            e.EV_KEY: [e.BTN_0, e.BTN_TRIGGER, e.BTN_THUMB, e.BTN_BASE, e.BTN_SOUTH]}
+        device.absinfo.side_effect = axes.__getitem__
+        device.active_keys.return_value = []
+        session.forward(device, 0)
+        self.assertIn('deck', session.wait_for_release)
+        axes[e.ABS_HAT2Y] = trigger
+        session.forward(device, 0)
+        self.assertNotIn('deck', session.wait_for_release)
+        device.active_keys.return_value = [e.BTN_SOUTH]
+        axes[e.ABS_HAT2X] = trigger._replace(value=32767)
+        session.forward(device, 0)
+        session.write.assert_any_call(0, e.EV_KEY, e.BTN_SOUTH, 1)
+        session.write.assert_any_call(0, e.EV_ABS, e.ABS_RZ, 255)
+
+    def test_digital_hat_follows_analog_pair_without_consuming_hat_zero(self):
+        from evdev import ecodes as e, AbsInfo
+
+        session = c.Session.__new__(c.Session)
+        session.e = e
+        session.source_maps = {'mixed': {'leftx': 'a0', 'dpup': 'h0.1'}}
+        session.virtual = [Mock()]
+        session.write = Mock()
+        device = Mock(path='mixed')
+        axes = {e.ABS_HAT0X: AbsInfo(32000, -32000, 32000, 1, 0, 1),
+                e.ABS_HAT2Y: AbsInfo(-1, -1, 1, 0, 0, 0)}
+        device.capabilities.return_value = {e.EV_ABS: list(axes.items())}
+        device.absinfo.side_effect = axes.__getitem__
+        device.active_keys.return_value = []
+        with patch.dict(os.environ, {'SDL_LINUX_DIGITAL_HATS': '0'}):
+            session.forward(device, 0)
+        session.write.assert_any_call(0, e.EV_ABS, e.ABS_X, 32767)
+        session.write.assert_any_call(0, e.EV_ABS, e.ABS_HAT0Y, -1)
+
     def test_reassignment_waits_for_release_then_routes_new_presses_to_p3(self):
         from evdev import ecodes as e
         session = c.Session.__new__(c.Session)
