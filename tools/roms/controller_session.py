@@ -195,6 +195,14 @@ class HeldChord:
         return False
 
 
+def gamepad_exit_held(state, kind, e):
+    # Holding Menu on hid-steam also toggles firmware mouse mode. The shoulder
+    # alternative lets a built-in Deck leave the next game in gamepad mode.
+    return bool(state.get((e.EV_KEY, e.BTN_SELECT)) and
+                (state.get((e.EV_KEY, e.BTN_START)) or
+                 (kind == 'deck' and state.get((e.EV_KEY, e.BTN_TR)))))
+
+
 def identity(pid):
     try:
         fields = (Path('/proc') / str(pid) / 'stat').read_text().rsplit(')', 1)[1].split()
@@ -511,7 +519,8 @@ def diagnose(root):
             'active_output':output or None,'docked':dock_mode(output) if output else None,
             'kwin_available':bool(output),
             'backend': 'KWin + evdev/uinput, sessão somente', 'error': error,
-            'exit': {'gamepad': 'Back/Select + Start', 'keyboard': 'Ctrl + Shift + F10', 'hold_seconds': 2},
+            'exit': {'gamepad': 'Back/Select + Start', 'deck': 'View + R1',
+                     'keyboard': 'Ctrl + Shift + F10', 'hold_seconds': 2},
             'policy': {'handheld': 'Deck P1; externos nas portas seguintes', 'dock': 'externos por ordem; teclado sem externo',
                        'player_capacity': player_capacity(root), 'mobile_controllers': 'QR Code de sessão, rede local',
                        'hotplug': True, 'manual_player_order': True, 'occupied_target': 'swap',
@@ -1001,7 +1010,7 @@ class Session:
             if path is None:
                 continue
             state=self.output_state[self.assigned.index(path)]
-            chords[path] = bool(state.get((e.EV_KEY,e.BTN_SELECT)) and state.get((e.EV_KEY,e.BTN_START)))
+            chords[path] = gamepad_exit_held(state, self.rows.get(path, {}).get('kind'), e)
         for key, held in chords.items():
             if self.exit_chords.setdefault(key, HeldChord()).update(held, focused, now):
                 self.exit_pending = self.focus.close_window(self.processes)

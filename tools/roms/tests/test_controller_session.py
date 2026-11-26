@@ -80,6 +80,7 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(hud.toast_started, 0)
 
     def test_legend_matches_actual_held_chord(self):
+        self.assertIn('VIEW + R1', feedback.exit_hint(True, deck=True)[0])
         self.assertIn('SELECT / BACK + START', feedback.exit_hint(True)[0])
         self.assertIn('2 s', feedback.exit_hint(True)[1])
         self.assertIn('Ctrl + Shift + F10', feedback.KEYBOARD_EXIT_HINT)
@@ -393,7 +394,7 @@ class RoutingTests(unittest.TestCase):
         s.focus=Mock(current=(123,'game',False,'DP-1'))
         s.last_focus=True;s.exit_pending=s.was_exit_dialog=False;s.dialog_down=set()
         s.focus_retry_key=None;s.focus_retries=0;s.last_focus_retry=0
-        s.manifest={'owned_window_seen':True};s.inputs={};s.virtual=[Mock() for _ in range(4)]
+        s.manifest={'owned_window_seen':True};s.inputs={};s.rows={};s.virtual=[Mock() for _ in range(4)]
         s.keyboard_down={e.KEY_Z};s.keyboard_state={};s.assigned=[];s.exit_chords={}
         s.keyboard_fallback=True;s.ra_keyboard=None;s.output_state=[{} for _ in range(4)]
         s.write=Mock();s.neutral=Mock();s.stop_effects=Mock()
@@ -492,6 +493,16 @@ class RoutingTests(unittest.TestCase):
 
 
 class ExitTests(unittest.TestCase):
+    def test_builtin_exit_does_not_require_the_firmware_mode_switch(self):
+        from evdev import ecodes as e
+
+        keys = {(e.EV_KEY, e.BTN_SELECT): 1, (e.EV_KEY, e.BTN_TR): 1}
+        self.assertTrue(c.gamepad_exit_held(keys, 'deck', e))
+        self.assertFalse(c.gamepad_exit_held(keys, 'external', e))
+        self.assertFalse(c.gamepad_exit_held({(e.EV_KEY, e.BTN_TR): 1}, 'deck', e))
+        keys[(e.EV_KEY, e.BTN_START)] = 1
+        self.assertTrue(c.gamepad_exit_held(keys, 'external', e))
+
     def test_native_dialog_uses_normalized_button_once_and_releases_virtual_key(self):
         from evdev import ecodes as e
         s=c.Session.__new__(c.Session)
